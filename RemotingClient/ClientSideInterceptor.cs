@@ -56,7 +56,11 @@ namespace RemotingClient
             _writer.Write(me.Name);
             _writer.Write(invocation.Arguments.Length);
 
-            // TODO: Write arglist
+            foreach (var argument in invocation.Arguments)
+            {
+                WriteArgumentToStream(m_formatter, _writer, argument);
+            }
+
             RemotingCallHeader hdReturnValue = default;
             
             if (!hdReturnValue.ReadFrom(_reader))
@@ -101,9 +105,14 @@ namespace RemotingClient
             }
             else
             {
-                string objectId = r.ReadString();
                 string typeName = r.ReadString();
+                string objectId = r.ReadString();
                 var type = Type.GetType(typeName);
+                if (type == null)
+                {
+                    throw new InvalidOperationException("Unknown type found in argument stream");
+                }
+
                 object instance = _proxyGenerator.CreateClassProxy(type, this);
                 _remotingClient.KnownRemoteInstances.Add(instance, objectId);
 

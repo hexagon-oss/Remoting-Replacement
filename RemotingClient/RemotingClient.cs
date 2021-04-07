@@ -31,7 +31,7 @@ namespace RemotingClient
 
         internal IDictionary<object, string> KnownRemoteInstances => _knownRemoteInstances;
 
-        public object CreateRemoteInstance(Type typeOfInstance)
+        public T CreateRemoteInstance<T>(Type typeOfInstance) where T : MarshalByRefObject
         {
             if (!typeOfInstance.IsAssignableTo(typeof(MarshalByRefObject)))
             {
@@ -55,12 +55,8 @@ namespace RemotingClient
             string objectId = _reader.ReadString();
 
             object instance = _proxy.CreateClassProxy(typeOfInstance, new ClientSideInterceptor(_client, this, _proxy));
-            if (instance.GetType().IsAssignableTo(Type.GetType(typeName)))
-            {
-                throw new InvalidOperationException("Got a different object than requested");
-            }
             _knownRemoteInstances.Add(instance, objectId);
-            return instance;
+            return (T)instance;
         }
     }
 }

@@ -9,8 +9,10 @@ namespace RemotingServer
 {
     public class MarshallableClass : MarshalByRefObject
     {
+        private ReferencedComponent _component;
         public MarshallableClass()
         {
+            _component = new ReferencedComponent();
         }
 
         public virtual int GetSomeData()
@@ -23,6 +25,21 @@ namespace RemotingServer
         {
             Process ps = Process.GetCurrentProcess();
             return ps.Id;
+        }
+
+        public virtual int AddValues(int a, int b)
+        {
+            return a + b;
+        }
+
+        public string StringProcessId()
+        {
+            return GetCurrentProcessId().ToString();
+        }
+
+        public virtual ReferencedComponent GetComponent()
+        {
+            return _component;
         }
     }
 }

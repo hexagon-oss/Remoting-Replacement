@@ -169,7 +169,7 @@ namespace RemotingServer
             {
                 string objectId = AddObjectId(data, true);
                 w.Write(false);
-                w.Write(data.GetType().FullName);
+                w.Write(data.GetType().AssemblyQualifiedName);
                 w.Write(objectId);
             }
             else
