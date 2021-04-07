@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -8,17 +9,20 @@ namespace RemotingServer
 {
     public class MarshallableClass : MarshalByRefObject
     {
-        private Random m_random;
-
         public MarshallableClass()
         {
-            m_random = new Random();
         }
 
-        public virtual int GetRandomNumber()
+        public virtual int GetSomeData()
         {
             Console.WriteLine("Getting remote number");
-            return m_random.Next();
+            return 4711;
+        }
+
+        public virtual int GetCurrentProcessId()
+        {
+            Process ps = Process.GetCurrentProcess();
+            return ps.Id;
         }
     }
 }

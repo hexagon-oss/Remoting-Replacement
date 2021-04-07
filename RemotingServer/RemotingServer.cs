@@ -67,57 +67,65 @@ namespace RemotingServer
             BinaryReader r = new BinaryReader(stream, Encoding.Unicode);
             BinaryWriter w = new BinaryWriter(stream, Encoding.Unicode);
 
-            while (m_threadRunning)
+            try
             {
-                RemotingCallHeader hd = default;
-                if (!hd.ReadFrom(r))
+                while (m_threadRunning)
                 {
-                    throw new InvalidDataException("Incorrect data stream - sync lost");
+                    RemotingCallHeader hd = default;
+                    if (!hd.ReadFrom(r))
+                    {
+                        throw new InvalidDataException("Incorrect data stream - sync lost");
+                    }
+
+                    string instance = r.ReadString();
+                    string method = r.ReadString();
+
+                    if (hd.Function == RemotingFunctionType.CreateInstanceWithDefaultCtor)
+                    {
+                        // CreateInstance call, instance is just a type in this case
+                        Type t = Type.GetType(instance, true);
+                        object newInstance = Activator.CreateInstance(t, false);
+                        AddObjectId(newInstance, true);
+                        RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
+                        hdReturnValue1.WriteTo(w);
+                        WriteArgumentToStream(m_formatter, w, newInstance);
+
+                        continue;
+                    }
+
+                    int numArgs = r.ReadInt32();
+                    object[] args = new object[numArgs];
+                    for (int i = 0; i < numArgs; i++)
+                    {
+                        var decodedArg = ReadArgumentFromStream(m_formatter, r);
+                        args[i] = decodedArg;
+                    }
+
+                    if (!m_serverHardReferences.TryGetValue(instance, out object realInstance))
+                    {
+                        throw new MethodAccessException($"No such remote instance: {instance}");
+                    }
+
+                    // TODO: Extend to include argument types
+                    MethodInfo me = realInstance.GetType().GetMethod(method, BindingFlags.Instance | BindingFlags.Public);
+
+                    if (me == null)
+                    {
+                        throw new MethodAccessException($"No such method: {method}");
+                    }
+
+                    object returnValue = me.Invoke(realInstance, args);
+                    RemotingCallHeader hdReturnValue = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
+                    hdReturnValue.WriteTo(w);
+                    if (me.ReturnType != typeof(void))
+                    {
+                        WriteArgumentToStream(m_formatter, w, returnValue);
+                    }
                 }
-                string instance = r.ReadString();
-                string method = r.ReadString();
-
-                if (hd.Function == RemotingFunctionType.CreateInstanceWithDefaultCtor)
-                {
-                    // CreateInstance call, instance is just a type in this case
-                    Type t = Type.GetType(instance, true);
-                    object newInstance = Activator.CreateInstance(t, false);
-                    AddObjectId(newInstance, true);
-                    RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
-                    hdReturnValue1.WriteTo(w);
-                    WriteArgumentToStream(m_formatter, w, newInstance);
-
-                    continue;
-                }
-
-                int numArgs = r.ReadInt32();
-                object[] args = new object[numArgs];
-                for (int i = 0; i < numArgs; i++)
-                {
-                    var decodedArg = ReadArgumentFromStream(m_formatter, r);
-                    args[i] = decodedArg;
-                }
-
-                if (!m_serverHardReferences.TryGetValue(instance, out object realInstance))
-                {
-                    throw new MethodAccessException($"No such remote instance: {instance}");
-                }
-
-                // TODO: Extend to include argument types
-                MethodInfo me = realInstance.GetType().GetMethod(method, BindingFlags.Instance | BindingFlags.Public);
-
-                if (me == null)
-                {
-                    throw new MethodAccessException($"No such method: {method}");
-                }
-
-                object returnValue = me.Invoke(realInstance, args);
-                RemotingCallHeader hdReturnValue = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
-                hdReturnValue.WriteTo(w);
-                if (me.ReturnType != typeof(void))
-                {
-                    WriteArgumentToStream(m_formatter, w, returnValue);
-                }
+            }
+            catch (IOException x)
+            {
+                // Remote connection closed
             }
         }
 
