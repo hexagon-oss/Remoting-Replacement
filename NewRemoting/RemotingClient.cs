@@ -7,9 +7,8 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using Castle.DynamicProxy;
-using RemotingServer;
 
-namespace RemotingClient
+namespace NewRemoting
 {
     public class RemotingClient
     {

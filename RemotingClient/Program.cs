@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Net.Sockets;
+using NewRemoting;
 using RemotingServer;
 
 namespace RemotingClient
@@ -15,7 +16,7 @@ namespace RemotingClient
 
         public static void DoSomeRemoting()
         {
-            RemotingClient client = new RemotingClient("localhost", 23456);
+            NewRemoting.RemotingClient client = new NewRemoting.RemotingClient("localhost", 23456);
             MarshallableClass cls = client.CreateRemoteInstance<MarshallableClass>(typeof(MarshallableClass));
             int number = cls.GetSomeData();
             Console.WriteLine($"Server said the number is {number}!");

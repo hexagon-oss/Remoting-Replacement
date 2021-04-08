@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace RemotingServer
+namespace NewRemoting
 {
     [StructLayout(LayoutKind.Sequential)]
     public struct RemotingCallHeader

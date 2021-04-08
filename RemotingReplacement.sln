@@ -3,9 +3,20 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.31112.23
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RemotingServer", "RemotingServer\RemotingServer.csproj", "{8FE08A13-D0DF-4E56-A19F-1858BC4666D5}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RemotingServer", "RemotingServer\RemotingServer.csproj", "{8FE08A13-D0DF-4E56-A19F-1858BC4666D5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RemotingClient", "RemotingClient\RemotingClient.csproj", "{90ED78F7-0FFB-4D81-82AD-5BED5614C3B8}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RemotingClient", "RemotingClient\RemotingClient.csproj", "{90ED78F7-0FFB-4D81-82AD-5BED5614C3B8}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NewRemoting", "NewRemoting\NewRemoting.csproj", "{243F7A1E-4A84-4BBF-B979-A08D85EF271A}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NewRemotingUnitTest", "NewRemotingUnitTest\NewRemotingUnitTest.csproj", "{FAA60F89-9461-4E41-B200-4610439A03F1}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SampleServerClasses", "SampleServerClasses\SampleServerClasses.csproj", "{94DBA414-3A51-47AB-A91E-92475B86AF9A}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{35DCC5DB-9AEE-4799-8EF5-9B1A3AC6A2CE}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +32,18 @@ Global
 		{90ED78F7-0FFB-4D81-82AD-5BED5614C3B8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{90ED78F7-0FFB-4D81-82AD-5BED5614C3B8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{90ED78F7-0FFB-4D81-82AD-5BED5614C3B8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{243F7A1E-4A84-4BBF-B979-A08D85EF271A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{243F7A1E-4A84-4BBF-B979-A08D85EF271A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{243F7A1E-4A84-4BBF-B979-A08D85EF271A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{243F7A1E-4A84-4BBF-B979-A08D85EF271A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FAA60F89-9461-4E41-B200-4610439A03F1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FAA60F89-9461-4E41-B200-4610439A03F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FAA60F89-9461-4E41-B200-4610439A03F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FAA60F89-9461-4E41-B200-4610439A03F1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{94DBA414-3A51-47AB-A91E-92475B86AF9A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{94DBA414-3A51-47AB-A91E-92475B86AF9A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{94DBA414-3A51-47AB-A91E-92475B86AF9A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{94DBA414-3A51-47AB-A91E-92475B86AF9A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
