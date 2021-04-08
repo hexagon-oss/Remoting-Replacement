@@ -54,7 +54,11 @@ namespace RemotingClient
             string typeName = _reader.ReadString();
             string objectId = _reader.ReadString();
 
-            object instance = _proxy.CreateClassProxy(typeOfInstance, new ClientSideInterceptor(_client, this, _proxy));
+            var interceptor = new ClientSideInterceptor(_client, this, _proxy);
+
+            ProxyGenerationOptions options = new ProxyGenerationOptions(interceptor);
+
+            object instance = _proxy.CreateClassProxy(typeOfInstance, options, interceptor);
             _knownRemoteInstances.Add(instance, objectId);
             return (T)instance;
         }

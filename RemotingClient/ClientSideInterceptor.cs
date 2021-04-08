@@ -13,7 +13,7 @@ using RemotingServer;
 
 namespace RemotingClient
 {
-    public class ClientSideInterceptor : IInterceptor
+    public class ClientSideInterceptor : IInterceptor, IProxyGenerationHook
     {
         private readonly TcpClient _serverLink;
         private readonly RemotingClient _remotingClient;
@@ -37,7 +37,7 @@ namespace RemotingClient
         public void Intercept(IInvocation invocation)
         {
             int thisSeq = _sequence++;
-            Console.WriteLine($"Here should be a call to {invocation.Method}");
+            // Console.WriteLine($"Here should be a call to {invocation.Method}");
             MethodInfo me = invocation.Method;
             RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.MethodCall, thisSeq);
 
@@ -142,6 +142,20 @@ namespace RemotingClient
             {
                 throw new SerializationException($"Object {data} is neither serializable nor MarshalByRefObject");
             }
+        }
+
+        public void MethodsInspected()
+        {
+        }
+
+        public void NonProxyableMemberNotification(Type type, MemberInfo memberInfo)
+        {
+            Console.WriteLine($"Type {type} has non-virtual method {memberInfo} - cannot be used for proxying");
+        }
+
+        public bool ShouldInterceptMethod(Type type, MethodInfo methodInfo)
+        {
+            return true;
         }
     }
 }

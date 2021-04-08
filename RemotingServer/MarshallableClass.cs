@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace RemotingServer
 {
-    public class MarshallableClass : MarshalByRefObject
+    public class MarshallableClass : MarshalByRefObject, IMarshallInterface
     {
         private ReferencedComponent _component;
         public MarshallableClass()
@@ -32,7 +32,7 @@ namespace RemotingServer
             return a + b;
         }
 
-        public string StringProcessId()
+        string IMarshallInterface.StringProcessId()
         {
             return GetCurrentProcessId().ToString();
         }
