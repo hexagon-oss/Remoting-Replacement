@@ -29,6 +29,15 @@ namespace RemotingClient
             component.Data = 2;
             Console.WriteLine($"Now the data is {component.Data}");
 
+            if (cls.TryParseInt("23", out int value))
+            {
+                Console.WriteLine($"The string 23 was converted to number {value}.");
+            }
+
+            int aValue = 4;
+            cls.UpdateArgument(ref aValue);
+            Console.WriteLine($"The return value should be 6, and it is {aValue}");
+
             IMarshallInterface interf = cls;
             Console.WriteLine($"Remote process id (again): {interf.StringProcessId()}");
 

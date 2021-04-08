@@ -32,6 +32,16 @@ namespace RemotingServer
             return a + b;
         }
 
+        public virtual bool TryParseInt(string input, out int value)
+        {
+            return Int32.TryParse(input, out value);
+        }
+
+        public virtual void UpdateArgument(ref int value)
+        {
+            value += 2;
+        }
+
         string IMarshallInterface.StringProcessId()
         {
             return GetCurrentProcessId().ToString();

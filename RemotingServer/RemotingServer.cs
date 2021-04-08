@@ -121,6 +121,17 @@ namespace RemotingServer
                     {
                         WriteArgumentToStream(m_formatter, w, returnValue);
                     }
+
+                    int index = 0;
+                    foreach (var byRefArguments in me.GetParameters())
+                    {
+                        if (byRefArguments.ParameterType.IsByRef)
+                        {
+                            WriteArgumentToStream(m_formatter, w, args[index]);
+                        }
+
+                        index++;
+                    }
                 }
             }
             catch (IOException)
