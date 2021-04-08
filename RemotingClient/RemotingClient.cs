@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using Castle.DynamicProxy;
@@ -17,7 +18,7 @@ namespace RemotingClient
         private BinaryReader _reader;
         private DefaultProxyBuilder _builder;
         private ProxyGenerator _proxy;
-        private Dictionary<object, string> _knownRemoteInstances;
+        private ConditionalWeakTable<object, string> _knownRemoteInstances;
 
         public RemotingClient(string server, int port)
         {
@@ -29,7 +30,7 @@ namespace RemotingClient
             _proxy = new ProxyGenerator(_builder);
         }
 
-        internal IDictionary<object, string> KnownRemoteInstances => _knownRemoteInstances;
+        internal ConditionalWeakTable<object, string> KnownRemoteInstances => _knownRemoteInstances;
 
         public T CreateRemoteInstance<T>(Type typeOfInstance) where T : MarshalByRefObject
         {

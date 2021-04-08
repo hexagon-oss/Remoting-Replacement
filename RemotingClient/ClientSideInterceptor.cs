@@ -68,13 +68,23 @@ namespace RemotingClient
                 throw new InvalidOperationException("Unexpected reply or stream out of sync");
             }
 
-            if (me.ReturnType == typeof(void))
+            if (me.ReturnType != typeof(void))
             {
-                return;
+                object returnValue = ReadArgumentFromStream(m_formatter, _reader);
+                invocation.ReturnValue = returnValue;
             }
 
-            object returnValue = ReadArgumentFromStream(m_formatter, _reader);
-            invocation.ReturnValue = returnValue;
+            int index = 0;
+            foreach (var byRefArguments in me.GetParameters())
+            {
+                if (byRefArguments.ParameterType.IsByRef)
+                {
+                    object byRefValue = ReadArgumentFromStream(m_formatter, _reader);
+                    invocation.Arguments[index] = byRefValue;
+                }
+
+                index++;
+            }
 
             /* MemoryStream ms = new MemoryStream();
             m_formatter.Serialize(ms, invocation.Method.MetadataToken);
