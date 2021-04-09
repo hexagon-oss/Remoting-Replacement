@@ -13,7 +13,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace RemotingServer
+namespace NewRemoting
 {
     public class RemotingServer
     {
@@ -79,7 +79,7 @@ namespace RemotingServer
                     if (hd.Function == RemotingFunctionType.CreateInstanceWithDefaultCtor)
                     {
                         // CreateInstance call, instance is just a type in this case
-                        Type t = Type.GetType(instance, true);
+                        Type t = GetTypeFromAnyAssembly(instance);
                         object newInstance = Activator.CreateInstance(t, false);
                         RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
                         hdReturnValue1.WriteTo(w);

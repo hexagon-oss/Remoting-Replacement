@@ -9,9 +9,8 @@ using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using System.Threading.Tasks;
 using Castle.DynamicProxy;
-using RemotingServer;
 
-namespace RemotingClient
+namespace NewRemoting
 {
     public class ClientSideInterceptor : IInterceptor, IProxyGenerationHook
     {
@@ -165,7 +164,7 @@ namespace RemotingClient
             }
             else if (t.IsAssignableTo(typeof(MarshalByRefObject)))
             {
-                string objectId = RemotingServer.RemotingServer.GetObjectInstanceId(data);
+                string objectId = RemotingServer.GetObjectInstanceId(data);
                 if (!_remotingClient.ClientReferences.TryGetValue(objectId, out object localRef))
                 {
                     _remotingClient.ClientReferences.Add(objectId, localRef);

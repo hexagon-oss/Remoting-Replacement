@@ -13,7 +13,7 @@ namespace RemotingServer
 
         public static void StartServer()
         {
-            var server = new RemotingServer(23456);
+            var server = new NewRemoting.RemotingServer(23456);
             server.StartListening();
             Console.ReadLine();
             server.Terminate();
