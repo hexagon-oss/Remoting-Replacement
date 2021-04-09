@@ -10,9 +10,11 @@ namespace RemotingServer
     public class MarshallableClass : MarshalByRefObject, IMarshallInterface
     {
         private ReferencedComponent _component;
+        private ICallbackInterface _cb;
         public MarshallableClass()
         {
             _component = new ReferencedComponent();
+            _cb = null;
         }
 
         public virtual int GetSomeData()
@@ -45,6 +47,20 @@ namespace RemotingServer
         string IMarshallInterface.StringProcessId()
         {
             return GetCurrentProcessId().ToString();
+        }
+
+        public virtual void RegisterCallback(ICallbackInterface cb)
+        {
+            _cb = cb;
+            DoCallback();
+        }
+
+        public virtual void DoCallback()
+        {
+            if (_cb != null)
+            {
+                _cb.FireSomeAction("Hello again!");
+            }
         }
 
         public virtual ReferencedComponent GetComponent()

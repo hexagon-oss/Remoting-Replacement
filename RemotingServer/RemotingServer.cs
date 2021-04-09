@@ -35,14 +35,10 @@ namespace RemotingServer
             m_serverHardReferences = new Dictionary<string, object>();
         }
 
-        private string AddObjectId(object obj, bool hardReference = false)
+        private string AddObjectId(object obj, out bool isNewReference)
         {
             string unique = GetObjectInstanceId(obj);
-            // m_serverReferences.AddOrUpdate(unique, obj);
-            if (hardReference)
-            {
-                m_serverHardReferences[unique] = obj;
-            }
+            isNewReference = m_serverHardReferences.TryAdd(unique, obj);
 
             return unique;
         }
@@ -85,7 +81,6 @@ namespace RemotingServer
                         // CreateInstance call, instance is just a type in this case
                         Type t = Type.GetType(instance, true);
                         object newInstance = Activator.CreateInstance(t, false);
-                        AddObjectId(newInstance, true);
                         RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
                         hdReturnValue1.WriteTo(w);
                         WriteArgumentToStream(m_formatter, w, newInstance);
@@ -142,8 +137,8 @@ namespace RemotingServer
 
         public object ReadArgumentFromStream(IFormatter formatter, BinaryReader r)
         {
-            bool isSerializableArgument = r.ReadBoolean();
-            if (isSerializableArgument)
+            RemotingReferenceType referenceType = (RemotingReferenceType)r.ReadInt32();
+            if (referenceType == RemotingReferenceType.SerializedItem)
             {
                 int argumentLen = r.ReadInt32();
                 byte[] argumentData = r.ReadBytes(argumentLen);
@@ -151,7 +146,7 @@ namespace RemotingServer
                 object decodedArg = formatter.Deserialize(ms);
                 return decodedArg;
             }
-            else
+            else if (referenceType == RemotingReferenceType.RemoteReference)
             {
                 string objectId = r.ReadString();
                 string typeName = r.ReadString();
@@ -162,6 +157,23 @@ namespace RemotingServer
 
                 return obj;
             }
+            else if (referenceType == RemotingReferenceType.NewProxy)
+            {
+                string objectId = r.ReadString();
+                string typeName = r.ReadString();
+                if (m_serverHardReferences.TryGetValue(objectId, out object obj))
+                {
+                    throw new SerializationException("Server instance with this ID already exists");
+                }
+
+                Type t = GetTypeFromAnyAssembly(typeName);
+
+
+
+                return obj;
+            }
+
+            throw new NotSupportedException("Unexpected argument type");
         }
 
         public void WriteArgumentToStream(IFormatter formatter, BinaryWriter w, object data)
@@ -171,15 +183,15 @@ namespace RemotingServer
             {
                 MemoryStream ms = new MemoryStream();
                 formatter.Serialize(ms, data);
-                w.Write(true);
+                w.Write((int)RemotingReferenceType.SerializedItem);
                 w.Write((int)ms.Length);
                 byte[] array = ms.ToArray();
                 w.Write(array, 0, (int)ms.Length);
             }
             else if (t.IsAssignableTo(typeof(MarshalByRefObject)))
             {
-                string objectId = AddObjectId(data, true);
-                w.Write(false);
+                string objectId = AddObjectId(data, out bool isNew);
+                w.Write((int)(isNew ? RemotingReferenceType.NewProxy : RemotingReferenceType.RemoteReference));
                 w.Write(data.GetType().AssemblyQualifiedName);
                 w.Write(objectId);
             }
@@ -187,6 +199,25 @@ namespace RemotingServer
             {
                 throw new SerializationException($"Object {data} is neither serializable nor MarshalByRefObject");
             }
+        }
+
+        public static Type GetTypeFromAnyAssembly(string assemblyQualifiedName)
+        {
+            Type t = Type.GetType(assemblyQualifiedName);
+            if (t != null)
+            {
+                return t;
+            }
+
+            int idx = assemblyQualifiedName.IndexOf(',', StringComparison.OrdinalIgnoreCase);
+            if (idx > 0)
+            {
+                string assemblyName = assemblyQualifiedName.Substring(idx + 1);
+                Assembly ass = Assembly.Load(assemblyName);
+                return ass.GetType(assemblyQualifiedName, true);
+            }
+
+            throw new TypeLoadException($"Type {assemblyQualifiedName} not found. No assembly specified");
         }
 
         public void ReceiverThread()

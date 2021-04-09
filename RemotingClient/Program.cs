@@ -41,6 +41,17 @@ namespace RemotingClient
             IMarshallInterface interf = cls;
             Console.WriteLine($"Remote process id (again): {interf.StringProcessId()}");
 
+            var cbi = new CallbackImpl();
+            cls.RegisterCallback(cbi);
+            cls.DoCallback();
+        }
+
+        private class CallbackImpl : MarshalByRefObject, ICallbackInterface
+        {
+            public void FireSomeAction(string nameOfAction)
+            {
+                Console.WriteLine($"The server means that {nameOfAction}");
+            }
         }
 
     }
