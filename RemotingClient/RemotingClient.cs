@@ -20,9 +20,15 @@ namespace RemotingClient
         private ProxyGenerator _proxy;
         private ConditionalWeakTable<object, string> _knownRemoteInstances;
 
+        /// <summary>
+        /// This contains references the client forwards to the server, that is, where the client hosts the actual object and the server gets the proxy.
+        /// </summary>
+        private Dictionary<string, object> _hardReverseReferences;
+
         public RemotingClient(string server, int port)
         {
             _knownRemoteInstances = new();
+            _hardReverseReferences = new ();
             _client = new TcpClient("localhost", 23456);
             _writer = new BinaryWriter(_client.GetStream(), Encoding.Unicode);
             _reader = new BinaryReader(_client.GetStream(), Encoding.Unicode);
@@ -31,6 +37,8 @@ namespace RemotingClient
         }
 
         internal ConditionalWeakTable<object, string> KnownRemoteInstances => _knownRemoteInstances;
+
+        internal IDictionary<string, object> ClientReferences => _hardReverseReferences;
 
         public T CreateRemoteInstance<T>(Type typeOfInstance) where T : MarshalByRefObject
         {
@@ -45,9 +53,9 @@ namespace RemotingClient
             _writer.Write(".ctor");
             RemotingCallHeader hdReply = default;
             bool hdParseSuccess = hdReply.ReadFrom(_reader);
-            bool isValueType = _reader.ReadBoolean();
+            RemotingReferenceType remoteType = (RemotingReferenceType)_reader.ReadInt32();
 
-            if (hdParseSuccess == false || isValueType)
+            if (hdParseSuccess == false || remoteType != RemotingReferenceType.NewProxy)
             {
                 throw new InvalidDataException("Unexpected reply");
             }

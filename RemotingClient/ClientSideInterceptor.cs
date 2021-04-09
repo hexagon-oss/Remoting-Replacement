@@ -104,8 +104,8 @@ namespace RemotingClient
 
         public object ReadArgumentFromStream(IFormatter formatter, BinaryReader r)
         {
-            bool isSerializableArgument = r.ReadBoolean();
-            if (isSerializableArgument)
+            RemotingReferenceType referenceType = (RemotingReferenceType)r.ReadInt32();
+            if (referenceType == RemotingReferenceType.SerializedItem)
             {
                 int argumentLen = r.ReadInt32();
                 byte[] argumentData = r.ReadBytes(argumentLen);
@@ -113,8 +113,10 @@ namespace RemotingClient
                 object decodedArg = formatter.Deserialize(ms);
                 return decodedArg;
             }
-            else
+            else if (referenceType == RemotingReferenceType.NewProxy)
             {
+                // The server sends a reference to an object that he owns
+                // This code currently returns a new proxy, even if the server repeatedly returns the same instance
                 string typeName = r.ReadString();
                 string objectId = r.ReadString();
                 var type = Type.GetType(typeName);
@@ -124,10 +126,30 @@ namespace RemotingClient
                 }
 
                 object instance = _proxyGenerator.CreateClassProxy(type, this);
-                _remotingClient.KnownRemoteInstances.Add(instance, objectId);
+                _remotingClient.KnownRemoteInstances.AddOrUpdate(instance, objectId);
 
                 return instance;
             }
+            else if (referenceType == RemotingReferenceType.RemoteReference)
+            {
+                // The server returns a reference to an object that the client owns
+                string typeName = r.ReadString();
+                string objectId = r.ReadString();
+                var type = Type.GetType(typeName);
+                if (type == null)
+                {
+                    throw new InvalidOperationException("Unknown type found in argument stream");
+                }
+
+                if (!_remotingClient.ClientReferences.TryGetValue(objectId, out var instance))
+                {
+                    throw new InvalidOperationException("Client-Hosted object does not exist");
+                }
+
+                return instance;
+            }
+
+            throw new NotSupportedException("Unknown argument type");
         }
 
         public void WriteArgumentToStream(IFormatter formatter, BinaryWriter w, object data)
@@ -137,16 +159,24 @@ namespace RemotingClient
             if (t.IsSerializable)
             {
                 formatter.Serialize(ms, data);
-                w.Write(true);
+                w.Write((int)RemotingReferenceType.SerializedItem);
                 w.Write((int)ms.Length);
                 w.Write(ms.ToArray(), 0, (int)ms.Length);
             }
             else if (t.IsAssignableTo(typeof(MarshalByRefObject)))
             {
                 string objectId = RemotingServer.RemotingServer.GetObjectInstanceId(data);
-                w.Write(false);
+                if (!_remotingClient.ClientReferences.TryGetValue(objectId, out object localRef))
+                {
+                    _remotingClient.ClientReferences.Add(objectId, localRef);
+                    w.Write((int)RemotingReferenceType.NewProxy);
+                }
+                else
+                {
+                    w.Write((int)RemotingReferenceType.RemoteReference);
+                }
                 w.Write(objectId);
-                w.Write(data.GetType().FullName);
+                w.Write(data.GetType().AssemblyQualifiedName);
             }
             else
             {
