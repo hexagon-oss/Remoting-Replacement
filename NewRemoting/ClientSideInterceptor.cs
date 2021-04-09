@@ -10,6 +10,8 @@ using System.Text;
 using System.Threading.Tasks;
 using Castle.DynamicProxy;
 
+// BinaryFormatter shouldn't be used
+#pragma warning disable SYSLIB0011
 namespace NewRemoting
 {
     public class ClientSideInterceptor : IInterceptor, IProxyGenerationHook
@@ -17,18 +19,18 @@ namespace NewRemoting
         private readonly TcpClient _serverLink;
         private readonly RemotingClient _remotingClient;
         private readonly ProxyGenerator _proxyGenerator;
-        private BinaryFormatter m_formatter;
+        private IFormatter m_formatter;
         private BinaryWriter _writer;
         private BinaryReader _reader;
         private int _sequence;
 
-        public ClientSideInterceptor(TcpClient serverLink, RemotingClient remotingClient, ProxyGenerator proxyGenerator)
+        public ClientSideInterceptor(TcpClient serverLink, RemotingClient remotingClient, ProxyGenerator proxyGenerator, IFormatter formatter)
         {
             _sequence = 1;
             _serverLink = serverLink;
             _remotingClient = remotingClient;
             _proxyGenerator = proxyGenerator;
-            m_formatter = new BinaryFormatter();
+            m_formatter = formatter;
             _writer = new BinaryWriter(_serverLink.GetStream(), Encoding.Unicode);
             _reader = new BinaryReader(_serverLink.GetStream(), Encoding.Unicode);
         }
@@ -57,7 +59,7 @@ namespace NewRemoting
 
             foreach (var argument in invocation.Arguments)
             {
-                WriteArgumentToStream(m_formatter, _writer, argument);
+                WriteArgumentToStream(_writer, argument);
             }
 
             RemotingCallHeader hdReturnValue = default;
@@ -109,7 +111,9 @@ namespace NewRemoting
                 int argumentLen = r.ReadInt32();
                 byte[] argumentData = r.ReadBytes(argumentLen);
                 MemoryStream ms = new MemoryStream(argumentData, false);
+#pragma warning disable 618
                 object decodedArg = formatter.Deserialize(ms);
+#pragma warning restore 618
                 return decodedArg;
             }
             else if (referenceType == RemotingReferenceType.NewProxy)
@@ -151,13 +155,15 @@ namespace NewRemoting
             throw new NotSupportedException("Unknown argument type");
         }
 
-        public void WriteArgumentToStream(IFormatter formatter, BinaryWriter w, object data)
+        private void WriteArgumentToStream(BinaryWriter w, object data)
         {
             MemoryStream ms = new MemoryStream();
             Type t = data.GetType();
             if (t.IsSerializable)
             {
-                formatter.Serialize(ms, data);
+#pragma warning disable 618
+                m_formatter.Serialize(ms, data);
+#pragma warning restore 618
                 w.Write((int)RemotingReferenceType.SerializedItem);
                 w.Write((int)ms.Length);
                 w.Write(ms.ToArray(), 0, (int)ms.Length);

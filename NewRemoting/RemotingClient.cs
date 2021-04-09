@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using System.Threading.Tasks;
 using Castle.DynamicProxy;
@@ -18,6 +20,7 @@ namespace NewRemoting
         private DefaultProxyBuilder _builder;
         private ProxyGenerator _proxy;
         private ConditionalWeakTable<object, string> _knownRemoteInstances;
+        private IFormatter _formatter;
 
         /// <summary>
         /// This contains references the client forwards to the server, that is, where the client hosts the actual object and the server gets the proxy.
@@ -28,6 +31,7 @@ namespace NewRemoting
         {
             _knownRemoteInstances = new();
             _hardReverseReferences = new ();
+            _formatter = new BinaryFormatter();
             _client = new TcpClient("localhost", 23456);
             _writer = new BinaryWriter(_client.GetStream(), Encoding.Unicode);
             _reader = new BinaryReader(_client.GetStream(), Encoding.Unicode);
@@ -62,7 +66,7 @@ namespace NewRemoting
             string typeName = _reader.ReadString();
             string objectId = _reader.ReadString();
 
-            var interceptor = new ClientSideInterceptor(_client, this, _proxy);
+            var interceptor = new ClientSideInterceptor(_client, this, _proxy, _formatter);
 
             ProxyGenerationOptions options = new ProxyGenerationOptions(interceptor);
 
