@@ -13,6 +13,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+#pragma warning disable SYSLIB0011
 namespace NewRemoting
 {
     public class RemotingServer
