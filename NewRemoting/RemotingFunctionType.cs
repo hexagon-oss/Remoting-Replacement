@@ -13,5 +13,6 @@ namespace NewRemoting
         CreateInstance = 2,
         MethodCall = 3,
         MethodReply = 4,
+        OpenReverseChannel = 4
     }
 }

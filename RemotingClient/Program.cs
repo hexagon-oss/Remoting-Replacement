@@ -16,7 +16,7 @@ namespace RemotingClient
 
         public static void DoSomeRemoting()
         {
-            NewRemoting.RemotingClient client = new NewRemoting.RemotingClient("localhost", 23456);
+            using NewRemoting.RemotingClient client = new NewRemoting.RemotingClient("localhost", 23456);
             MarshallableClass cls = client.CreateRemoteInstance<MarshallableClass>(typeof(MarshallableClass));
             int number = cls.GetSomeData();
             Console.WriteLine($"Server said the number is {number}!");
@@ -45,14 +45,6 @@ namespace RemotingClient
             var cbi = new CallbackImpl();
             cls.RegisterCallback(cbi);
             cls.DoCallback();
-        }
-
-        private class CallbackImpl : MarshalByRefObject, ICallbackInterface
-        {
-            public void FireSomeAction(string nameOfAction)
-            {
-                Console.WriteLine($"The server means that {nameOfAction}");
-            }
         }
 
     }

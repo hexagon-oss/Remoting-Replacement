@@ -23,25 +23,13 @@
     <DebugType>pdbonly</DebugType>
   </PropertyGroup>
 
-   <!-- Roslyn analyzers configuration-->
-  <PropertyGroup>
-    <!-- For all other projects, the level defaults to "full", project specific levels can be defined in project -->
-    <CodeAnalysisRulesetLevel Condition="$(MSBuildProjectName.EndsWith('UnitTest'))">Small</CodeAnalysisRulesetLevel>
-    <CodeAnalysisRulesetLevel Condition="$(MSBuildProjectName.EndsWith('IntegrationTest'))">Small</CodeAnalysisRulesetLevel>
-  </PropertyGroup>
-  <ItemGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">
-    <PackageReference Include="LeicaGeosystemsAG.Airborne.DotNet.Analyzers.Rulesets" Version="4.0.0-alpha0000003">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-  </ItemGroup>
-
   <!-- Add PDBs and source link support -->
+  <!-- Not yet
   <ItemGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">
     <PackageReference Include="SourceLink.Copy.PdbFiles" Version="2.8.3" PrivateAssets="All" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0" PrivateAssets="All"/>
   </ItemGroup>
-
+-->
   <ItemGroup Condition="($(MSBuildProjectName.EndsWith('UnitTest')) OR $(MSBuildProjectName.EndsWith('IntegrationTest'))) AND '$(MSBuildProjectExtension)' == '.csproj'">
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.8.3" />
   </ItemGroup>

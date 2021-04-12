@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
@@ -12,7 +14,7 @@ using Castle.DynamicProxy;
 
 namespace NewRemoting
 {
-    public class RemotingClient
+    public sealed class RemotingClient : IDisposable, IInternalClient
     {
         private TcpClient _client;
         private BinaryWriter _writer;
@@ -21,6 +23,7 @@ namespace NewRemoting
         private ProxyGenerator _proxy;
         private ConditionalWeakTable<object, string> _knownRemoteInstances;
         private IFormatter _formatter;
+        private RemotingServer _server;
 
         /// <summary>
         /// This contains references the client forwards to the server, that is, where the client hosts the actual object and the server gets the proxy.
@@ -32,16 +35,41 @@ namespace NewRemoting
             _knownRemoteInstances = new();
             _hardReverseReferences = new ();
             _formatter = new BinaryFormatter();
-            _client = new TcpClient("localhost", 23456);
+            _client = new TcpClient(server, port);
             _writer = new BinaryWriter(_client.GetStream(), Encoding.Unicode);
             _reader = new BinaryReader(_client.GetStream(), Encoding.Unicode);
             _builder = new DefaultProxyBuilder();
             _proxy = new ProxyGenerator(_builder);
+
+            // This is used as return channel
+            _server = new RemotingServer(port + 1, this);
         }
 
         internal ConditionalWeakTable<object, string> KnownRemoteInstances => _knownRemoteInstances;
 
         internal IDictionary<string, object> ClientReferences => _hardReverseReferences;
+
+        internal RemotingServer Server => _server;
+
+        public IPAddress[] LocalIpAddresses()
+        {
+            var host = Dns.GetHostEntry(Dns.GetHostName());
+            return host.AddressList;
+        }
+
+        public void Start()
+        {
+            if (!_server.IsRunning)
+            {
+                _server.StartListening();
+                RemotingCallHeader openReturnChannel = new RemotingCallHeader(RemotingFunctionType.OpenReverseChannel, 0);
+                openReturnChannel.WriteTo(_writer);
+                var addresses = LocalIpAddresses();
+                var addressToUse = addresses.First(x => x.AddressFamily == AddressFamily.InterNetwork);
+                _writer.Write(addressToUse.ToString());
+                _writer.Write(_server.NetworkPort);
+            }
+        }
 
         public T CreateRemoteInstance<T>(Type typeOfInstance) where T : MarshalByRefObject
         {
@@ -50,9 +78,16 @@ namespace NewRemoting
                 throw new NotSupportedException("Can only create instances of type MarshalByRefObject remotely");
             }
 
+            if (typeOfInstance == null)
+            {
+                throw new ArgumentNullException(nameof(typeOfInstance));
+            }
+
+            Start();
+
             RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.CreateInstanceWithDefaultCtor, 0);
             hd.WriteTo(_writer);
-            _writer.Write(typeOfInstance.FullName);
+            _writer.Write(typeOfInstance.AssemblyQualifiedName);
             _writer.Write(".ctor");
             RemotingCallHeader hdReply = default;
             bool hdParseSuccess = hdReply.ReadFrom(_reader);
@@ -73,6 +108,43 @@ namespace NewRemoting
             object instance = _proxy.CreateClassProxy(typeOfInstance, options, interceptor);
             _knownRemoteInstances.Add(instance, objectId);
             return (T)instance;
+        }
+
+        public void Dispose()
+        {
+            _server.Terminate();
+            _server.Dispose();
+            _client.Dispose();
+            _hardReverseReferences.Clear();
+            _knownRemoteInstances.Clear();
+        }
+
+        public void AddKnownRemoteInstance(object obj, string objectId)
+        {
+            _knownRemoteInstances.AddOrUpdate(obj, objectId);
+        }
+
+        public bool TryGetRemoteInstance(object obj, out string objectId)
+        {
+            return _knownRemoteInstances.TryGetValue(obj, out objectId);
+        }
+
+        public object GetLocalInstanceFromReference(string objectId)
+        {
+            return _hardReverseReferences[objectId];
+        }
+
+        public string GetIdForLocalObject(object obj, out bool isNew)
+        {
+            var key = RealServerReferenceContainer.GetObjectInstanceId(obj);
+            if (_hardReverseReferences.TryAdd(key, obj))
+            {
+                isNew = true;
+                return key;
+            }
+
+            isNew = false;
+            return key;
         }
     }
 }

@@ -12,41 +12,69 @@ using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Castle.DynamicProxy;
 
 #pragma warning disable SYSLIB0011
 namespace NewRemoting
 {
-    public class RemotingServer
+    public sealed class RemotingServer : IDisposable, IInternalClient
     {
         private int m_networkPort;
         private TcpListener m_listener;
         private bool m_threadRunning;
-        // private ConditionalWeakTable<string, object> m_serverReferences;
-        private Dictionary<string, object> m_serverHardReferences;
         private IFormatter m_formatter;
-        private List<Thread> m_threads;
+        private List<(Thread Thread, NetworkStream Stream)> m_threads;
         private Thread m_mainThread;
+        private readonly ProxyGenerator _proxyGenerator;
+        private TcpClient _returnChannel;
+        private IInternalClient _realContainer;
 
         public RemotingServer(int networkPort)
         {
+            _realContainer = new RealServerReferenceContainer();
             m_networkPort = networkPort;
-            m_threads = new List<Thread>();
+            m_threads = new ();
             m_formatter = new BinaryFormatter();
-            // m_serverReferences = new ConditionalWeakTable<string, object>();
-            m_serverHardReferences = new Dictionary<string, object>();
+            _proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
+            _returnChannel = null;
+            AppDomain.CurrentDomain.AssemblyResolve += AssemblyResolver;
         }
 
-        private string AddObjectId(object obj, out bool isNewReference)
+        /// <summary>
+        /// This ctor is used if this server runs on the client side (for the return channel). The actual data store is the local client instance.
+        /// </summary>
+        internal RemotingServer(int networkPort, IInternalClient replacedClient)
         {
-            string unique = GetObjectInstanceId(obj);
-            isNewReference = m_serverHardReferences.TryAdd(unique, obj);
-
-            return unique;
+            _realContainer = replacedClient;
+            m_networkPort = networkPort;
+            m_threads = new();
+            m_formatter = new BinaryFormatter();
+            _proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
+            _returnChannel = null;
         }
 
-        public static string GetObjectInstanceId(object obj)
+        public bool IsRunning => m_mainThread != null && m_mainThread.IsAlive;
+
+        public int NetworkPort => m_networkPort;
+
+        private Assembly AssemblyResolver(object sender, ResolveEventArgs args)
         {
-            return FormattableString.Invariant($"{obj.GetType().FullName}-{RuntimeHelpers.GetHashCode(obj)}");
+            if (args.RequestingAssembly == null || args.RequestingAssembly.FullName != Assembly.GetExecutingAssembly().FullName)
+            {
+                // Only try to resolve assemblies that are loaded by us.
+                return null;
+            }
+
+            string dllOnly = args.Name;
+            int idx = dllOnly.IndexOf(',', StringComparison.OrdinalIgnoreCase);
+            if (idx >= 0)
+            {
+                dllOnly = dllOnly.Substring(0, idx);
+                dllOnly += ".dll";
+            }
+            string path = Path.GetDirectoryName(args.RequestingAssembly.Location);
+            var assembly = Assembly.LoadFile(Path.Combine(path, dllOnly));
+            return assembly;
         }
 
         public void StartListening()
@@ -74,6 +102,19 @@ namespace NewRemoting
                         throw new InvalidDataException("Incorrect data stream - sync lost");
                     }
 
+                    if (hd.Function == RemotingFunctionType.OpenReverseChannel)
+                    {
+                        string clientIp = r.ReadString();
+                        int clientPort = r.ReadInt32();
+                        if (_returnChannel != null && _returnChannel.Connected)
+                        {
+                            continue;
+                        }
+
+                        _returnChannel = new TcpClient(clientIp, clientPort);
+                        continue;
+                    }
+
                     string instance = r.ReadString();
                     string method = r.ReadString();
 
@@ -97,10 +138,7 @@ namespace NewRemoting
                         args[i] = decodedArg;
                     }
 
-                    if (!m_serverHardReferences.TryGetValue(instance, out object realInstance))
-                    {
-                        throw new MethodAccessException($"No such remote instance: {instance}");
-                    }
+                    object realInstance = _realContainer.GetLocalInstanceFromReference(instance);
 
                     // TODO: Extend to include argument types
                     MethodInfo me = realInstance.GetType().GetMethod(method, BindingFlags.Instance | BindingFlags.Public);
@@ -130,9 +168,10 @@ namespace NewRemoting
                     }
                 }
             }
-            catch (IOException)
+            catch (IOException x)
             {
                 // Remote connection closed
+                Console.WriteLine($"Server handler died due to {x}");
             }
         }
 
@@ -151,9 +190,11 @@ namespace NewRemoting
             {
                 string objectId = r.ReadString();
                 string typeName = r.ReadString();
-                if (!m_serverHardReferences.TryGetValue(objectId, out object obj) || obj.GetType().FullName != typeName)
+                object obj = _realContainer.GetLocalInstanceFromReference(objectId);
+
+                if (obj.GetType().FullName != typeName)
                 {
-                    throw new SerializationException("There's no instance with this ID");
+                    throw new InvalidOperationException("Expected type of argument was different from actual");
                 }
 
                 return obj;
@@ -162,14 +203,20 @@ namespace NewRemoting
             {
                 string objectId = r.ReadString();
                 string typeName = r.ReadString();
-                if (m_serverHardReferences.TryGetValue(objectId, out object obj))
-                {
-                    throw new SerializationException("Server instance with this ID already exists");
-                }
 
                 Type t = GetTypeFromAnyAssembly(typeName);
 
+                object obj;
+                if (t.IsInterface)
+                {
+                    obj = _proxyGenerator.CreateInterfaceProxyWithoutTarget(t, new ClientSideInterceptor(_returnChannel, this, _proxyGenerator, formatter));
+                }
+                else
+                {
+                    obj = _proxyGenerator.CreateClassProxy(t, new ClientSideInterceptor(_returnChannel, this, _proxyGenerator, formatter));
+                }
 
+                _realContainer.AddKnownRemoteInstance(obj, objectId);
 
                 return obj;
             }
@@ -191,7 +238,7 @@ namespace NewRemoting
             }
             else if (t.IsAssignableTo(typeof(MarshalByRefObject)))
             {
-                string objectId = AddObjectId(data, out bool isNew);
+                string objectId = _realContainer.GetIdForLocalObject(data, out bool isNew);
                 w.Write((int)(isNew ? RemotingReferenceType.NewProxy : RemotingReferenceType.RemoteReference));
                 w.Write(data.GetType().AssemblyQualifiedName);
                 w.Write(objectId);
@@ -213,8 +260,10 @@ namespace NewRemoting
             int idx = assemblyQualifiedName.IndexOf(',', StringComparison.OrdinalIgnoreCase);
             if (idx > 0)
             {
-                string assemblyName = assemblyQualifiedName.Substring(idx + 1);
-                Assembly ass = Assembly.Load(assemblyName);
+                string assemblyName = assemblyQualifiedName.Substring(idx + 2);
+                AssemblyName name = new AssemblyName(assemblyName);
+
+                Assembly ass = Assembly.Load(name);
                 return ass.GetType(assemblyQualifiedName, true);
             }
 
@@ -225,19 +274,61 @@ namespace NewRemoting
         {
             while (m_threadRunning)
             {
-                var tcpClient = m_listener.AcceptTcpClient();
-                var stream = tcpClient.GetStream();
-                Thread ts = new Thread(ServerStreamHandler);
-                m_threads.Add(ts);
-                ts.Start(stream);
+                try
+                {
+                    var tcpClient = m_listener.AcceptTcpClient();
+                    var stream = tcpClient.GetStream();
+                    Thread ts = new Thread(ServerStreamHandler);
+                    m_threads.Add((ts, stream));
+                    ts.Start(stream);
+                }
+                catch (SocketException x)
+                {
+                    Console.WriteLine($"Server terminating? Got {x}");
+                }
             }
         }
 
         public void Terminate()
         {
+            _returnChannel?.Dispose();
+            _returnChannel = null;
+
             m_threadRunning = false;
-            m_listener.Stop();
-            m_mainThread.Join();
+            foreach (var thread in m_threads)
+            {
+                thread.Stream.Close();
+                thread.Thread.Join();
+            }
+
+            m_threads.Clear();
+            m_listener?.Stop();
+            m_mainThread?.Join();
+        }
+
+        public void Dispose()
+        {
+            Terminate();
+        }
+
+        public void AddKnownRemoteInstance(object obj, string objectId)
+        {
+            _realContainer.AddKnownRemoteInstance(obj, objectId);
+        }
+
+        public bool TryGetRemoteInstance(object obj, out string objectId)
+        {
+            return _realContainer.TryGetRemoteInstance(obj, out objectId);
+        }
+
+        public object GetLocalInstanceFromReference(string objectId)
+        {
+            return _realContainer.GetLocalInstanceFromReference(objectId);
+        }
+
+        public string GetIdForLocalObject(object obj, out bool isNew)
+        {
+            return _realContainer.GetIdForLocalObject(obj, out isNew);
         }
     }
 }
