@@ -42,7 +42,7 @@ namespace NewRemoting
             _proxy = new ProxyGenerator(_builder);
 
             // This is used as return channel
-            _server = new RemotingServer(port + 1);
+            _server = new RemotingServer(port + 1, this);
         }
 
         internal ConditionalWeakTable<object, string> KnownRemoteInstances => _knownRemoteInstances;
@@ -136,7 +136,7 @@ namespace NewRemoting
 
         public string GetIdForLocalObject(object obj, out bool isNew)
         {
-            var key = RemotingServer.GetObjectInstanceId(obj);
+            var key = RealServerReferenceContainer.GetObjectInstanceId(obj);
             if (_hardReverseReferences.TryAdd(key, obj))
             {
                 isNew = true;

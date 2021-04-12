@@ -22,24 +22,35 @@ namespace NewRemoting
         private int m_networkPort;
         private TcpListener m_listener;
         private bool m_threadRunning;
-        private ConditionalWeakTable<object, string> m_clientReferences;
-        private Dictionary<string, object> m_serverHardReferences;
         private IFormatter m_formatter;
         private List<(Thread Thread, NetworkStream Stream)> m_threads;
         private Thread m_mainThread;
         private readonly ProxyGenerator _proxyGenerator;
         private TcpClient _returnChannel;
+        private IInternalClient _realContainer;
 
         public RemotingServer(int networkPort)
         {
+            _realContainer = new RealServerReferenceContainer();
             m_networkPort = networkPort;
             m_threads = new ();
             m_formatter = new BinaryFormatter();
             _proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
-            m_clientReferences = new();
-            m_serverHardReferences = new Dictionary<string, object>();
             _returnChannel = null;
             AppDomain.CurrentDomain.AssemblyResolve += AssemblyResolver;
+        }
+
+        /// <summary>
+        /// This ctor is used if this server runs on the client side (for the return channel). The actual data store is the local client instance.
+        /// </summary>
+        internal RemotingServer(int networkPort, IInternalClient replacedClient)
+        {
+            _realContainer = replacedClient;
+            m_networkPort = networkPort;
+            m_threads = new();
+            m_formatter = new BinaryFormatter();
+            _proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
+            _returnChannel = null;
         }
 
         public bool IsRunning => m_mainThread != null && m_mainThread.IsAlive;
@@ -64,29 +75,6 @@ namespace NewRemoting
             string path = Path.GetDirectoryName(args.RequestingAssembly.Location);
             var assembly = Assembly.LoadFile(Path.Combine(path, dllOnly));
             return assembly;
-        }
-
-        internal string AddObjectId(object obj, out bool isNewReference)
-        {
-            string unique = GetObjectInstanceId(obj);
-            isNewReference = m_serverHardReferences.TryAdd(unique, obj);
-
-            return unique;
-        }
-
-        internal object GetInstanceFromReference(string instance)
-        {
-            if (!m_serverHardReferences.TryGetValue(instance, out object realInstance))
-            {
-                throw new MethodAccessException($"No such remote instance: {instance}");
-            }
-
-            return realInstance;
-        }
-
-        public static string GetObjectInstanceId(object obj)
-        {
-            return FormattableString.Invariant($"{obj.GetType().FullName}-{RuntimeHelpers.GetHashCode(obj)}");
         }
 
         public void StartListening()
@@ -150,10 +138,7 @@ namespace NewRemoting
                         args[i] = decodedArg;
                     }
 
-                    if (!m_serverHardReferences.TryGetValue(instance, out object realInstance))
-                    {
-                        throw new MethodAccessException($"No such remote instance: {instance}");
-                    }
+                    object realInstance = _realContainer.GetLocalInstanceFromReference(instance);
 
                     // TODO: Extend to include argument types
                     MethodInfo me = realInstance.GetType().GetMethod(method, BindingFlags.Instance | BindingFlags.Public);
@@ -205,9 +190,11 @@ namespace NewRemoting
             {
                 string objectId = r.ReadString();
                 string typeName = r.ReadString();
-                if (!m_serverHardReferences.TryGetValue(objectId, out object obj) || obj.GetType().FullName != typeName)
+                object obj = _realContainer.GetLocalInstanceFromReference(objectId);
+
+                if (obj.GetType().FullName != typeName)
                 {
-                    throw new SerializationException("There's no instance with this ID");
+                    throw new InvalidOperationException("Expected type of argument was different from actual");
                 }
 
                 return obj;
@@ -216,14 +203,20 @@ namespace NewRemoting
             {
                 string objectId = r.ReadString();
                 string typeName = r.ReadString();
-                if (m_serverHardReferences.TryGetValue(objectId, out object obj))
-                {
-                    throw new SerializationException("Server instance with this ID already exists");
-                }
 
                 Type t = GetTypeFromAnyAssembly(typeName);
 
-                obj = _proxyGenerator.CreateClassProxy(t, new ClientSideInterceptor(_returnChannel, this, _proxyGenerator, formatter));
+                object obj;
+                if (t.IsInterface)
+                {
+                    obj = _proxyGenerator.CreateInterfaceProxyWithoutTarget(t, new ClientSideInterceptor(_returnChannel, this, _proxyGenerator, formatter));
+                }
+                else
+                {
+                    obj = _proxyGenerator.CreateClassProxy(t, new ClientSideInterceptor(_returnChannel, this, _proxyGenerator, formatter));
+                }
+
+                _realContainer.AddKnownRemoteInstance(obj, objectId);
 
                 return obj;
             }
@@ -245,7 +238,7 @@ namespace NewRemoting
             }
             else if (t.IsAssignableTo(typeof(MarshalByRefObject)))
             {
-                string objectId = AddObjectId(data, out bool isNew);
+                string objectId = _realContainer.GetIdForLocalObject(data, out bool isNew);
                 w.Write((int)(isNew ? RemotingReferenceType.NewProxy : RemotingReferenceType.RemoteReference));
                 w.Write(data.GetType().AssemblyQualifiedName);
                 w.Write(objectId);
@@ -320,27 +313,22 @@ namespace NewRemoting
 
         public void AddKnownRemoteInstance(object obj, string objectId)
         {
-            m_clientReferences.AddOrUpdate(obj, objectId);
+            _realContainer.AddKnownRemoteInstance(obj, objectId);
         }
 
         public bool TryGetRemoteInstance(object obj, out string objectId)
         {
-            return m_clientReferences.TryGetValue(obj, out objectId);
+            return _realContainer.TryGetRemoteInstance(obj, out objectId);
         }
 
         public object GetLocalInstanceFromReference(string objectId)
         {
-            if (!m_serverHardReferences.TryGetValue(objectId, out var obj))
-            {
-                throw new NotSupportedException($"There's no local instance for reference {objectId}");
-            }
-
-            return obj;
+            return _realContainer.GetLocalInstanceFromReference(objectId);
         }
 
         public string GetIdForLocalObject(object obj, out bool isNew)
         {
-            return AddObjectId(obj, out isNew);
+            return _realContainer.GetIdForLocalObject(obj, out isNew);
         }
     }
 }

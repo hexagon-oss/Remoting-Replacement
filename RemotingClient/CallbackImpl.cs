@@ -9,7 +9,7 @@ namespace RemotingClient
 {
     public class CallbackImpl : MarshalByRefObject, ICallbackInterface
     {
-        public void FireSomeAction(string nameOfAction)
+        public virtual void FireSomeAction(string nameOfAction)
         {
             Console.WriteLine($"The server means that {nameOfAction}");
         }
