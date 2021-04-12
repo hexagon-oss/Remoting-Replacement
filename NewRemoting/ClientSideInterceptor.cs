@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
@@ -14,18 +15,19 @@ using Castle.DynamicProxy;
 #pragma warning disable SYSLIB0011
 namespace NewRemoting
 {
-    public class ClientSideInterceptor : IInterceptor, IProxyGenerationHook
+    internal class ClientSideInterceptor : IInterceptor, IProxyGenerationHook
     {
         private readonly TcpClient _serverLink;
-        private readonly RemotingClient _remotingClient;
+        private readonly IInternalClient _remotingClient;
         private readonly ProxyGenerator _proxyGenerator;
         private IFormatter m_formatter;
         private BinaryWriter _writer;
         private BinaryReader _reader;
         private int _sequence;
 
-        public ClientSideInterceptor(TcpClient serverLink, RemotingClient remotingClient, ProxyGenerator proxyGenerator, IFormatter formatter)
+        public ClientSideInterceptor(TcpClient serverLink, IInternalClient remotingClient, ProxyGenerator proxyGenerator, IFormatter formatter)
         {
+            DebuggerToStringBehavior = DebuggerToStringBehavior.ReturnProxyName;
             _sequence = 1;
             _serverLink = serverLink;
             _remotingClient = remotingClient;
@@ -35,8 +37,21 @@ namespace NewRemoting
             _reader = new BinaryReader(_serverLink.GetStream(), Encoding.Unicode);
         }
 
+        public DebuggerToStringBehavior DebuggerToStringBehavior
+        {
+            get;
+            set;
+        }
+
         public void Intercept(IInvocation invocation)
         {
+            string methodName = invocation.Method.ToString();
+            if (methodName == "ToString()" && DebuggerToStringBehavior != DebuggerToStringBehavior.EvaluateRemotely)
+            {
+                invocation.ReturnValue = "Remote proxy";
+                return;
+            }
+            Console.WriteLine($"Intercepting {invocation.Method}");
             int thisSeq = _sequence++;
             // Console.WriteLine($"Here should be a call to {invocation.Method}");
             MethodInfo me = invocation.Method;
@@ -47,7 +62,7 @@ namespace NewRemoting
                 throw new InvalidOperationException("Remote-calling a static method? No.");
             }
 
-            if (!_remotingClient.KnownRemoteInstances.TryGetValue(invocation.Proxy, out var remoteInstanceId))
+            if (!_remotingClient.TryGetRemoteInstance(invocation.Proxy, out var remoteInstanceId))
             {
                 throw new InvalidOperationException("Not a valid remoting proxy");
             }
@@ -129,7 +144,7 @@ namespace NewRemoting
                 }
 
                 object instance = _proxyGenerator.CreateClassProxy(type, this);
-                _remotingClient.KnownRemoteInstances.AddOrUpdate(instance, objectId);
+                _remotingClient.AddKnownRemoteInstance(instance, objectId);
 
                 return instance;
             }
@@ -144,11 +159,7 @@ namespace NewRemoting
                     throw new InvalidOperationException("Unknown type found in argument stream");
                 }
 
-                if (!_remotingClient.ClientReferences.TryGetValue(objectId, out var instance))
-                {
-                    throw new InvalidOperationException("Client-Hosted object does not exist");
-                }
-
+                var instance = _remotingClient.GetLocalInstanceFromReference(objectId);
                 return instance;
             }
 
@@ -170,10 +181,9 @@ namespace NewRemoting
             }
             else if (t.IsAssignableTo(typeof(MarshalByRefObject)))
             {
-                string objectId = RemotingServer.GetObjectInstanceId(data);
-                if (!_remotingClient.ClientReferences.TryGetValue(objectId, out object localRef))
+                string objectId = _remotingClient.GetIdForLocalObject(data, out bool isNew);
+                if (isNew)
                 {
-                    _remotingClient.ClientReferences.Add(objectId, localRef);
                     w.Write((int)RemotingReferenceType.NewProxy);
                 }
                 else

@@ -16,9 +16,9 @@ namespace RemotingClient
 
         public static void DoSomeRemoting()
         {
-            NewRemoting.RemotingClient client = new NewRemoting.RemotingClient("localhost", 23456);
+            using NewRemoting.RemotingClient client = new NewRemoting.RemotingClient("localhost", 23456);
             MarshallableClass cls = client.CreateRemoteInstance<MarshallableClass>(typeof(MarshallableClass));
-            int number = cls.GetSomeData();
+            /* int number = cls.GetSomeData();
             Console.WriteLine($"Server said the number is {number}!");
             int remotePs = cls.GetCurrentProcessId();
             Console.WriteLine($"Local Process: {Process.GetCurrentProcess().Id}, Remote Process: {remotePs}");
@@ -41,18 +41,11 @@ namespace RemotingClient
 
             IMarshallInterface interf = cls;
             Console.WriteLine($"Remote process id (again): {interf.StringProcessId()}");
+            */
 
             var cbi = new CallbackImpl();
             cls.RegisterCallback(cbi);
             cls.DoCallback();
-        }
-
-        private class CallbackImpl : MarshalByRefObject, ICallbackInterface
-        {
-            public void FireSomeAction(string nameOfAction)
-            {
-                Console.WriteLine($"The server means that {nameOfAction}");
-            }
         }
 
     }
