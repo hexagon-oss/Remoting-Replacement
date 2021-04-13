@@ -116,6 +116,13 @@ namespace NewRemoting
                     }
 
                     string instance = r.ReadString();
+                    string typeOfCallerName = r.ReadString();
+                    Type typeOfCaller = null;
+                    if (!string.IsNullOrEmpty(typeOfCallerName))
+                    {
+                        typeOfCaller = GetTypeFromAnyAssembly(typeOfCallerName);
+                    }
+
                     int methodNo = r.ReadInt32(); // token of method to call
                     int methodGenericArgs = r.ReadInt32(); // number of generic arguments of method (not generic arguments of declaring class!)
 
@@ -154,7 +161,13 @@ namespace NewRemoting
 
                     object realInstance = _realContainer.GetLocalInstanceFromReference(instance);
 
-                    MethodInfo me = realInstance.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public).First(x => x.MetadataToken == methodNo);
+                    if (typeOfCaller == null)
+                    {
+                        typeOfCaller = realInstance.GetType();
+                    }
+
+                    var methods = typeOfCaller.GetMethods(BindingFlags.Instance | BindingFlags.Public);
+                    MethodInfo me = methods.First(x => x.MetadataToken == methodNo);
 
                     if (me == null)
                     {
@@ -231,7 +244,7 @@ namespace NewRemoting
                 }
                 else
                 {
-                    obj = _proxyGenerator.CreateClassProxy(t, new ClientSideInterceptor(_returnChannel, this, _proxyGenerator, formatter));
+                    obj = _proxyGenerator.CreateClassProxy(t, t.GetInterfaces(), new ClientSideInterceptor(_returnChannel, this, _proxyGenerator, formatter));
                 }
 
                 _realContainer.AddKnownRemoteInstance(obj, objectId);
