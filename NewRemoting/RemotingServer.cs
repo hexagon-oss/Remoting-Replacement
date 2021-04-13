@@ -116,11 +116,17 @@ namespace NewRemoting
                     }
 
                     string instance = r.ReadString();
-                    string method = r.ReadString();
+                    int methodNo = r.ReadInt32(); // token of method to call
+                    int methodGenericArgs = r.ReadInt32(); // number of generic arguments of method (not generic arguments of declaring class!)
 
                     if (hd.Function == RemotingFunctionType.CreateInstanceWithDefaultCtor)
                     {
                         // CreateInstance call, instance is just a type in this case
+                        if (methodGenericArgs != 0)
+                        {
+                            throw new NotSupportedException("Constructors cannot have generic arguments");
+                        }
+
                         Type t = GetTypeFromAnyAssembly(instance);
                         object newInstance = Activator.CreateInstance(t, false);
                         RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
@@ -128,6 +134,14 @@ namespace NewRemoting
                         WriteArgumentToStream(m_formatter, w, newInstance);
 
                         continue;
+                    }
+
+                    List<Type> typeOfGenericArguments = new List<Type>();
+                    for (int i = 0; i < methodGenericArgs; i++)
+                    {
+                        var typeName = r.ReadString();
+                        var t = GetTypeFromAnyAssembly(typeName);
+                        typeOfGenericArguments.Add(t);
                     }
 
                     int numArgs = r.ReadInt32();
@@ -140,12 +154,16 @@ namespace NewRemoting
 
                     object realInstance = _realContainer.GetLocalInstanceFromReference(instance);
 
-                    // TODO: Extend to include argument types
-                    MethodInfo me = realInstance.GetType().GetMethod(method, BindingFlags.Instance | BindingFlags.Public);
+                    MethodInfo me = realInstance.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public).First(x => x.MetadataToken == methodNo);
 
                     if (me == null)
                     {
-                        throw new MethodAccessException($"No such method: {method}");
+                        throw new MethodAccessException($"No such method: {methodNo}");
+                    }
+
+                    if (methodGenericArgs > 0)
+                    {
+                        me = me.MakeGenericMethod(typeOfGenericArguments.ToArray());
                     }
 
                     object returnValue = me.Invoke(realInstance, args);

@@ -69,7 +69,25 @@ namespace NewRemoting
 
             hd.WriteTo(_writer);
             _writer.Write(remoteInstanceId);
-            _writer.Write(me.Name);
+            _writer.Write(me.MetadataToken);
+            if (me.ContainsGenericParameters)
+            {
+                // This should never happen (or the compiler has done something wrong)
+                throw new NotSupportedException("Cannot call methods with open generic arguments");
+            }
+
+            var genericArgs = me.GetGenericArguments();
+            _writer.Write((int)genericArgs.Length);
+            foreach (var genericType in genericArgs)
+            {
+                string arg = genericType.AssemblyQualifiedName;
+                if (arg == null)
+                {
+                    throw new NotSupportedException("Unresolved generic type or some other undefined case");
+                }
+                _writer.Write(arg);
+            }
+
             _writer.Write(invocation.Arguments.Length);
 
             foreach (var argument in invocation.Arguments)
@@ -150,7 +168,7 @@ namespace NewRemoting
             }
             else if (referenceType == RemotingReferenceType.RemoteReference)
             {
-                // The server returns a reference to an object that the client owns
+                // The server returns a reference to an object that the client owns or already knows
                 string typeName = r.ReadString();
                 string objectId = r.ReadString();
                 var type = Type.GetType(typeName);
@@ -158,8 +176,14 @@ namespace NewRemoting
                 {
                     throw new InvalidOperationException("Unknown type found in argument stream");
                 }
-
+                
                 var instance = _remotingClient.GetLocalInstanceFromReference(objectId);
+                if (instance == null)
+                {
+                    // Is it valid to create a new proxy if this happens?
+                    throw new InvalidOperationException("Remote instance not found");
+                }
+
                 return instance;
             }
 
