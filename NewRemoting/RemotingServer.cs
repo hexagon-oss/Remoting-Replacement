@@ -99,7 +99,7 @@ namespace NewRemoting
                     RemotingCallHeader hd = default;
                     if (!hd.ReadFrom(r))
                     {
-                        throw new InvalidDataException("Incorrect data stream - sync lost");
+                        throw new RemotingException("Incorrect data stream - sync lost", RemotingExceptionKind.ProtocolError);
                     }
 
                     if (hd.Function == RemotingFunctionType.OpenReverseChannel)
@@ -131,7 +131,7 @@ namespace NewRemoting
                         // CreateInstance call, instance is just a type in this case
                         if (methodGenericArgs != 0)
                         {
-                            throw new NotSupportedException("Constructors cannot have generic arguments");
+                            throw new RemotingException("Constructors cannot have generic arguments", RemotingExceptionKind.UnsupportedOperation);
                         }
 
                         Type t = GetTypeFromAnyAssembly(instance);
@@ -171,7 +171,7 @@ namespace NewRemoting
 
                     if (me == null)
                     {
-                        throw new MethodAccessException($"No such method: {methodNo}");
+                        throw new RemotingException($"No such method: {methodNo}", RemotingExceptionKind.ProxyManagementError);
                     }
 
                     if (methodGenericArgs > 0)
@@ -225,7 +225,7 @@ namespace NewRemoting
 
                 if (obj.GetType().FullName != typeName)
                 {
-                    throw new InvalidOperationException("Expected type of argument was different from actual");
+                    throw new RemotingException("Expected type of argument was different from actual", RemotingExceptionKind.ProxyManagementError);
                 }
 
                 return obj;
@@ -252,7 +252,7 @@ namespace NewRemoting
                 return obj;
             }
 
-            throw new NotSupportedException("Unexpected argument type");
+            throw new RemotingException("Unsupported argument type declaration (neither reference nor instance)", RemotingExceptionKind.ProxyManagementError);
         }
 
         public void WriteArgumentToStream(IFormatter formatter, BinaryWriter w, object data)

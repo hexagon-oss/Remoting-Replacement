@@ -75,14 +75,14 @@ namespace NewRemoting
 
         public T CreateRemoteInstance<T>(Type typeOfInstance) where T : MarshalByRefObject
         {
-            if (!typeOfInstance.IsAssignableTo(typeof(MarshalByRefObject)))
-            {
-                throw new NotSupportedException("Can only create instances of type MarshalByRefObject remotely");
-            }
-
             if (typeOfInstance == null)
             {
                 throw new ArgumentNullException(nameof(typeOfInstance));
+            }
+
+            if (!typeOfInstance.IsAssignableTo(typeof(MarshalByRefObject)))
+            {
+                throw new RemotingException("Can only create instances of type MarshalByRefObject remotely", RemotingExceptionKind.UnsupportedOperation);
             }
 
             Start();
@@ -99,7 +99,7 @@ namespace NewRemoting
 
             if (hdParseSuccess == false || remoteType != RemotingReferenceType.NewProxy)
             {
-                throw new InvalidDataException("Unexpected reply");
+                throw new RemotingException("Unexpected reply", RemotingExceptionKind.ProtocolError);
             }
 
             string typeName = _reader.ReadString();
