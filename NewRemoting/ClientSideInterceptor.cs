@@ -59,12 +59,12 @@ namespace NewRemoting
 
             if (me.IsStatic)
             {
-                throw new InvalidOperationException("Remote-calling a static method? No.");
+                throw new RemotingException("Remote-calling a static method? No.", RemotingExceptionKind.UnsupportedOperation);
             }
 
             if (!_remotingClient.TryGetRemoteInstance(invocation.Proxy, out var remoteInstanceId))
             {
-                throw new InvalidOperationException("Not a valid remoting proxy");
+                throw new RemotingException("Not a valid remoting proxy", RemotingExceptionKind.ProxyManagementError);
             }
 
             hd.WriteTo(_writer);
@@ -82,7 +82,7 @@ namespace NewRemoting
             if (me.ContainsGenericParameters)
             {
                 // This should never happen (or the compiler has done something wrong)
-                throw new NotSupportedException("Cannot call methods with open generic arguments");
+                throw new RemotingException("Cannot call methods with open generic arguments", RemotingExceptionKind.UnsupportedOperation);
             }
 
             var genericArgs = me.GetGenericArguments();
@@ -92,7 +92,7 @@ namespace NewRemoting
                 string arg = genericType.AssemblyQualifiedName;
                 if (arg == null)
                 {
-                    throw new NotSupportedException("Unresolved generic type or some other undefined case");
+                    throw new RemotingException("Unresolved generic type or some other undefined case", RemotingExceptionKind.UnsupportedOperation);
                 }
                 _writer.Write(arg);
             }
@@ -108,7 +108,7 @@ namespace NewRemoting
             
             if (!hdReturnValue.ReadFrom(_reader))
             {
-                throw new InvalidOperationException("Unexpected reply or stream out of sync");
+                throw new RemotingException("Unexpected reply or stream out of sync", RemotingExceptionKind.ProtocolError);
             }
 
             if (me.ReturnType != typeof(void))
@@ -128,21 +128,6 @@ namespace NewRemoting
 
                 index++;
             }
-
-            /* MemoryStream ms = new MemoryStream();
-            m_formatter.Serialize(ms, invocation.Method.MetadataToken);
-
-            ms.Position = 0;
-            IInvocation deserialized = (IInvocation)m_formatter.Deserialize(ms);
-            
-            deserialized.Proceed();
-
-            MemoryStream reply = new MemoryStream();
-            m_formatter.Serialize(reply, deserialized);
-            reply.Position = 0;
-
-            IInvocation finalResult = (IInvocation) m_formatter.Deserialize(reply);
-            invocation.ReturnValue = finalResult.ReturnValue;*/
         }
 
         public object ReadArgumentFromStream(IFormatter formatter, BinaryReader r)
@@ -167,7 +152,7 @@ namespace NewRemoting
                 var type = Type.GetType(typeName);
                 if (type == null)
                 {
-                    throw new InvalidOperationException("Unknown type found in argument stream");
+                    throw new RemotingException("Unknown type found in argument stream", RemotingExceptionKind.ProxyManagementError);
                 }
 
                 // Create a class proxy with all interfaces proxied as well.
@@ -185,20 +170,20 @@ namespace NewRemoting
                 var type = Type.GetType(typeName);
                 if (type == null)
                 {
-                    throw new InvalidOperationException("Unknown type found in argument stream");
+                    throw new RemotingException("Unknown type found in argument stream", RemotingExceptionKind.ProxyManagementError);
                 }
                 
                 var instance = _remotingClient.GetLocalInstanceFromReference(objectId);
                 if (instance == null)
                 {
                     // Is it valid to create a new proxy if this happens?
-                    throw new InvalidOperationException("Remote instance not found");
+                    throw new RemotingException("Remote instance not found", RemotingExceptionKind.ProxyManagementError);
                 }
 
                 return instance;
             }
 
-            throw new NotSupportedException("Unknown argument type");
+            throw new RemotingException("Unknown argument type", RemotingExceptionKind.UnsupportedOperation);
         }
 
         private void WriteArgumentToStream(BinaryWriter w, object data)
