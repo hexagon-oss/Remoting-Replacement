@@ -15,6 +15,8 @@ namespace RemotingServer
 
         Stream GetRemoteStream(string fileName);
 
+        void StartTiming();
+
         string ProcessName();
     }
 }

@@ -46,91 +46,99 @@ namespace NewRemoting
         public void Intercept(IInvocation invocation)
         {
             string methodName = invocation.Method.ToString();
+
+            // Todo: Check this stuff
             if (methodName == "ToString()" && DebuggerToStringBehavior != DebuggerToStringBehavior.EvaluateRemotely)
             {
                 invocation.ReturnValue = "Remote proxy";
                 return;
             }
             Console.WriteLine($"Intercepting {invocation.Method}");
-            int thisSeq = _sequence++;
-            // Console.WriteLine($"Here should be a call to {invocation.Method}");
-            MethodInfo me = invocation.Method;
-            RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.MethodCall, thisSeq);
 
-            if (me.IsStatic)
+            lock (_remotingClient.CommunicationLinkLock)
             {
-                throw new RemotingException("Remote-calling a static method? No.", RemotingExceptionKind.UnsupportedOperation);
-            }
+                int thisSeq = _sequence++;
+                // Console.WriteLine($"Here should be a call to {invocation.Method}");
+                MethodInfo me = invocation.Method;
+                RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.MethodCall, thisSeq);
 
-            if (!_remotingClient.TryGetRemoteInstance(invocation.Proxy, out var remoteInstanceId))
-            {
-                throw new RemotingException("Not a valid remoting proxy", RemotingExceptionKind.ProxyManagementError);
-            }
-
-            hd.WriteTo(_writer);
-            _writer.Write(remoteInstanceId);
-            // Also transmit the type of the calling object (if the method is called on an interface, this is different from the actual object)
-            if (me.DeclaringType != null)
-            {
-                _writer.Write(me.DeclaringType.AssemblyQualifiedName);
-            }
-            else
-            {
-                _writer.Write(string.Empty);
-            }
-            _writer.Write(me.MetadataToken);
-            if (me.ContainsGenericParameters)
-            {
-                // This should never happen (or the compiler has done something wrong)
-                throw new RemotingException("Cannot call methods with open generic arguments", RemotingExceptionKind.UnsupportedOperation);
-            }
-
-            var genericArgs = me.GetGenericArguments();
-            _writer.Write((int)genericArgs.Length);
-            foreach (var genericType in genericArgs)
-            {
-                string arg = genericType.AssemblyQualifiedName;
-                if (arg == null)
+                if (me.IsStatic)
                 {
-                    throw new RemotingException("Unresolved generic type or some other undefined case", RemotingExceptionKind.UnsupportedOperation);
-                }
-                _writer.Write(arg);
-            }
-
-            _writer.Write(invocation.Arguments.Length);
-
-            foreach (var argument in invocation.Arguments)
-            {
-                WriteArgumentToStream(_writer, argument);
-            }
-
-            RemotingCallHeader hdReturnValue = default;
-            
-            if (!hdReturnValue.ReadFrom(_reader))
-            {
-                throw new RemotingException("Unexpected reply or stream out of sync", RemotingExceptionKind.ProtocolError);
-            }
-
-            if (me.ReturnType != typeof(void))
-            {
-                object returnValue = ReadArgumentFromStream(m_formatter, _reader);
-                invocation.ReturnValue = returnValue;
-            }
-
-            int index = 0;
-            foreach (var byRefArguments in me.GetParameters())
-            {
-                if (byRefArguments.ParameterType.IsByRef)
-                {
-                    object byRefValue = ReadArgumentFromStream(m_formatter, _reader);
-                    invocation.Arguments[index] = byRefValue;
+                    throw new RemotingException("Remote-calling a static method? No.", RemotingExceptionKind.UnsupportedOperation);
                 }
 
-                index++;
+                if (!_remotingClient.TryGetRemoteInstance(invocation.Proxy, out var remoteInstanceId))
+                {
+                    throw new RemotingException("Not a valid remoting proxy", RemotingExceptionKind.ProxyManagementError);
+                }
+
+                hd.WriteTo(_writer);
+                _writer.Write(remoteInstanceId);
+                // Also transmit the type of the calling object (if the method is called on an interface, this is different from the actual object)
+                if (me.DeclaringType != null)
+                {
+                    _writer.Write(me.DeclaringType.AssemblyQualifiedName);
+                }
+                else
+                {
+                    _writer.Write(string.Empty);
+                }
+
+                _writer.Write(me.MetadataToken);
+                if (me.ContainsGenericParameters)
+                {
+                    // This should never happen (or the compiler has done something wrong)
+                    throw new RemotingException("Cannot call methods with open generic arguments", RemotingExceptionKind.UnsupportedOperation);
+                }
+
+                var genericArgs = me.GetGenericArguments();
+                _writer.Write((int) genericArgs.Length);
+                foreach (var genericType in genericArgs)
+                {
+                    string arg = genericType.AssemblyQualifiedName;
+                    if (arg == null)
+                    {
+                        throw new RemotingException("Unresolved generic type or some other undefined case", RemotingExceptionKind.UnsupportedOperation);
+                    }
+
+                    _writer.Write(arg);
+                }
+
+                _writer.Write(invocation.Arguments.Length);
+
+                foreach (var argument in invocation.Arguments)
+                {
+                    WriteArgumentToStream(_writer, argument);
+                }
+
+                RemotingCallHeader hdReturnValue = default;
+
+                if (!hdReturnValue.ReadFrom(_reader))
+                {
+                    throw new RemotingException("Unexpected reply or stream out of sync", RemotingExceptionKind.ProtocolError);
+                }
+
+                if (me.ReturnType != typeof(void))
+                {
+                    object returnValue = ReadArgumentFromStream(m_formatter, _reader);
+                    invocation.ReturnValue = returnValue;
+                }
+
+                int index = 0;
+                foreach (var byRefArguments in me.GetParameters())
+                {
+                    if (byRefArguments.ParameterType.IsByRef)
+                    {
+                        object byRefValue = ReadArgumentFromStream(m_formatter, _reader);
+                        invocation.Arguments[index] = byRefValue;
+                    }
+
+                    index++;
+                }
             }
         }
 
-        public object ReadArgumentFromStream(IFormatter formatter, BinaryReader r)
+        private object ReadArgumentFromStream(IFormatter formatter, BinaryReader r)
         {
             RemotingReferenceType referenceType = (RemotingReferenceType)r.ReadInt32();
             if (referenceType == RemotingReferenceType.SerializedItem)

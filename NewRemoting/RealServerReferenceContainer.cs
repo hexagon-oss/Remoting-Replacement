@@ -11,12 +11,16 @@ namespace NewRemoting
     {
         private ConditionalWeakTable<object, string> m_clientReferences;
         private Dictionary<string, object> m_serverHardReferences;
+        private object _internalLock;
 
         public RealServerReferenceContainer()
         {
+            _internalLock = new object();
             m_clientReferences = new();
             m_serverHardReferences = new Dictionary<string, object>();
         }
+
+        public object CommunicationLinkLock => _internalLock;
 
         public static string GetObjectInstanceId(object obj)
         {

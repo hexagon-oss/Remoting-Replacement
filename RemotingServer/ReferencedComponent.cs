@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace RemotingServer
@@ -11,12 +12,16 @@ namespace RemotingServer
     public class ReferencedComponent : MarshalByRefObject, IMyComponentInterface, IDisposable
     {
         private int _data;
+        private Thread _timingThread;
+        private bool _isThreadRunning;
 
         public event Action<DateTime> TimeChanged;
         
         public ReferencedComponent()
         {
             _data = GetHashCode();
+            _timingThread = null;
+            _isThreadRunning = false;
         }
 
         public virtual int Data
@@ -44,7 +49,6 @@ namespace RemotingServer
 
         public DateTime QueryTime()
         {
-            TimeChanged?.Invoke(DateTime.Now);
             return DateTime.Now;
         }
 
@@ -53,8 +57,33 @@ namespace RemotingServer
             return new FileStream(fileName, FileMode.Open);
         }
 
+        public void StartTiming()
+        {
+            if (_timingThread == null)
+            {
+                _isThreadRunning = true;
+                _timingThread = new Thread(DoReport);
+                _timingThread.Start();
+            }
+        }
+
+        private void DoReport()
+        {
+            while (_isThreadRunning)
+            {
+                TimeChanged?.Invoke(DateTime.Now);
+                Thread.Sleep(1000);
+            }
+        }
+
         public void Dispose()
         {
+            _isThreadRunning = false;
+            if (_timingThread != null)
+            {
+                _timingThread.Join();
+                _timingThread = null;
+            }
             Console.WriteLine("Server component destroyed");
         }
     }
