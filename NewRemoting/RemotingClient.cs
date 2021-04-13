@@ -25,6 +25,7 @@ namespace NewRemoting
         private Dictionary<string, WeakReference> _knownProxyInstances;
         private IFormatter _formatter;
         private RemotingServer _server;
+        private object _accessLock;
 
         /// <summary>
         /// This contains references the client forwards to the server, that is, where the client hosts the actual object and the server gets the proxy.
@@ -33,6 +34,7 @@ namespace NewRemoting
 
         public RemotingClient(string server, int port)
         {
+            _accessLock = new object();
             _knownRemoteInstances = new();
             _hardReverseReferences = new ();
             _knownProxyInstances = new ();
@@ -47,11 +49,13 @@ namespace NewRemoting
             _server = new RemotingServer(port + 1, this);
         }
 
-        internal ConditionalWeakTable<object, string> KnownRemoteInstances => _knownRemoteInstances;
-
-        internal IDictionary<string, object> ClientReferences => _hardReverseReferences;
-
-        internal RemotingServer Server => _server;
+        object IInternalClient.CommunicationLinkLock
+        {
+            get
+            {
+                return _accessLock;
+            }
+        }
 
         public IPAddress[] LocalIpAddresses()
         {
@@ -61,15 +65,18 @@ namespace NewRemoting
 
         public void Start()
         {
-            if (!_server.IsRunning)
+            lock (_accessLock)
             {
-                _server.StartListening();
-                RemotingCallHeader openReturnChannel = new RemotingCallHeader(RemotingFunctionType.OpenReverseChannel, 0);
-                openReturnChannel.WriteTo(_writer);
-                var addresses = LocalIpAddresses();
-                var addressToUse = addresses.First(x => x.AddressFamily == AddressFamily.InterNetwork);
-                _writer.Write(addressToUse.ToString());
-                _writer.Write(_server.NetworkPort);
+                if (!_server.IsRunning)
+                {
+                    _server.StartListening();
+                    RemotingCallHeader openReturnChannel = new RemotingCallHeader(RemotingFunctionType.OpenReverseChannel, 0);
+                    openReturnChannel.WriteTo(_writer);
+                    var addresses = LocalIpAddresses();
+                    var addressToUse = addresses.First(x => x.AddressFamily == AddressFamily.InterNetwork);
+                    _writer.Write(addressToUse.ToString());
+                    _writer.Write(_server.NetworkPort);
+                }
             }
         }
 
@@ -87,54 +94,61 @@ namespace NewRemoting
 
             Start();
 
-            RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.CreateInstanceWithDefaultCtor, 0);
-            hd.WriteTo(_writer);
-            _writer.Write(typeOfInstance.AssemblyQualifiedName);
-            _writer.Write(string.Empty);
-            _writer.Write((int)0); // Currently, we do not need the correct ctor identifier, since there can only be one default ctor
-            _writer.Write((int)0); // and no generic args, anyway
-            RemotingCallHeader hdReply = default;
-            bool hdParseSuccess = hdReply.ReadFrom(_reader);
-            RemotingReferenceType remoteType = (RemotingReferenceType)_reader.ReadInt32();
-
-            if (hdParseSuccess == false || remoteType != RemotingReferenceType.NewProxy)
+            lock (_accessLock)
             {
-                throw new RemotingException("Unexpected reply", RemotingExceptionKind.ProtocolError);
+
+                RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.CreateInstanceWithDefaultCtor, 0);
+                hd.WriteTo(_writer);
+                _writer.Write(typeOfInstance.AssemblyQualifiedName);
+                _writer.Write(string.Empty);
+                _writer.Write((int) 0); // Currently, we do not need the correct ctor identifier, since there can only be one default ctor
+                _writer.Write((int) 0); // and no generic args, anyway
+                RemotingCallHeader hdReply = default;
+                bool hdParseSuccess = hdReply.ReadFrom(_reader);
+                RemotingReferenceType remoteType = (RemotingReferenceType) _reader.ReadInt32();
+
+                if (hdParseSuccess == false || remoteType != RemotingReferenceType.NewProxy)
+                {
+                    throw new RemotingException("Unexpected reply", RemotingExceptionKind.ProtocolError);
+                }
+
+                string typeName = _reader.ReadString();
+                string objectId = _reader.ReadString();
+
+                var interceptor = new ClientSideInterceptor(_client, this, _proxy, _formatter);
+
+                ProxyGenerationOptions options = new ProxyGenerationOptions(interceptor);
+
+                object instance = _proxy.CreateClassProxy(typeOfInstance, options, interceptor);
+                _knownRemoteInstances.Add(instance, objectId);
+                return (T) instance;
             }
-
-            string typeName = _reader.ReadString();
-            string objectId = _reader.ReadString();
-
-            var interceptor = new ClientSideInterceptor(_client, this, _proxy, _formatter);
-
-            ProxyGenerationOptions options = new ProxyGenerationOptions(interceptor);
-
-            object instance = _proxy.CreateClassProxy(typeOfInstance, options, interceptor);
-            _knownRemoteInstances.Add(instance, objectId);
-            return (T)instance;
         }
 
         public void Dispose()
         {
-            _server.Terminate();
-            _server.Dispose();
-            _client.Dispose();
-            _hardReverseReferences.Clear();
-            _knownRemoteInstances.Clear();
+            lock (_accessLock)
+            {
+                _server.Terminate();
+                _server.Dispose();
+                _client.Dispose();
+                _hardReverseReferences.Clear();
+                _knownRemoteInstances.Clear();
+            }
         }
 
-        public void AddKnownRemoteInstance(object obj, string objectId)
+        void IInternalClient.AddKnownRemoteInstance(object obj, string objectId)
         {
             _knownRemoteInstances.AddOrUpdate(obj, objectId);
             _knownProxyInstances[objectId] = new WeakReference(obj);
         }
 
-        public bool TryGetRemoteInstance(object obj, out string objectId)
+        bool IInternalClient.TryGetRemoteInstance(object obj, out string objectId)
         {
             return _knownRemoteInstances.TryGetValue(obj, out objectId);
         }
 
-        public object GetLocalInstanceFromReference(string objectId)
+        object IInternalClient.GetLocalInstanceFromReference(string objectId)
         {
             if (_hardReverseReferences.TryGetValue(objectId, out object instance))
             {
@@ -149,7 +163,7 @@ namespace NewRemoting
             return null;
         }
 
-        public string GetIdForLocalObject(object obj, out bool isNew)
+        string IInternalClient.GetIdForLocalObject(object obj, out bool isNew)
         {
             var key = RealServerReferenceContainer.GetObjectInstanceId(obj);
             if (_hardReverseReferences.TryAdd(key, obj))

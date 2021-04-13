@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 namespace NewRemoting
 {
     [StructLayout(LayoutKind.Sequential)]
-    public struct RemotingCallHeader
+    internal struct RemotingCallHeader
     {
         public const int HeaderSignature = 0x77889911;
         private int _headerSignature;

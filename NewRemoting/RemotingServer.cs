@@ -57,6 +57,11 @@ namespace NewRemoting
 
         public int NetworkPort => m_networkPort;
 
+        object IInternalClient.CommunicationLinkLock
+        {
+            get => _realContainer.CommunicationLinkLock;
+        }
+
         private Assembly AssemblyResolver(object sender, ResolveEventArgs args)
         {
             if (args.RequestingAssembly == null || args.RequestingAssembly.FullName != Assembly.GetExecutingAssembly().FullName)
@@ -86,7 +91,7 @@ namespace NewRemoting
             m_mainThread.Start();
         }
 
-        public void ServerStreamHandler(object obj)
+        private void ServerStreamHandler(object obj)
         {
             Stream stream = (Stream)obj;
             BinaryReader r = new BinaryReader(stream, Encoding.Unicode);
@@ -206,7 +211,7 @@ namespace NewRemoting
             }
         }
 
-        public object ReadArgumentFromStream(IFormatter formatter, BinaryReader r)
+        private object ReadArgumentFromStream(IFormatter formatter, BinaryReader r)
         {
             RemotingReferenceType referenceType = (RemotingReferenceType)r.ReadInt32();
             if (referenceType == RemotingReferenceType.SerializedItem)
@@ -255,7 +260,7 @@ namespace NewRemoting
             throw new RemotingException("Unsupported argument type declaration (neither reference nor instance)", RemotingExceptionKind.ProxyManagementError);
         }
 
-        public void WriteArgumentToStream(IFormatter formatter, BinaryWriter w, object data)
+        private void WriteArgumentToStream(IFormatter formatter, BinaryWriter w, object data)
         {
             Type t = data.GetType();
             if (t.IsSerializable)
@@ -280,7 +285,7 @@ namespace NewRemoting
             }
         }
 
-        public static Type GetTypeFromAnyAssembly(string assemblyQualifiedName)
+        internal static Type GetTypeFromAnyAssembly(string assemblyQualifiedName)
         {
             Type t = Type.GetType(assemblyQualifiedName);
             if (t != null)
@@ -301,7 +306,7 @@ namespace NewRemoting
             throw new TypeLoadException($"Type {assemblyQualifiedName} not found. No assembly specified");
         }
 
-        public void ReceiverThread()
+        private void ReceiverThread()
         {
             while (m_threadRunning)
             {
@@ -342,22 +347,22 @@ namespace NewRemoting
             Terminate();
         }
 
-        public void AddKnownRemoteInstance(object obj, string objectId)
+        void IInternalClient.AddKnownRemoteInstance(object obj, string objectId)
         {
             _realContainer.AddKnownRemoteInstance(obj, objectId);
         }
 
-        public bool TryGetRemoteInstance(object obj, out string objectId)
+        bool IInternalClient.TryGetRemoteInstance(object obj, out string objectId)
         {
             return _realContainer.TryGetRemoteInstance(obj, out objectId);
         }
 
-        public object GetLocalInstanceFromReference(string objectId)
+        object IInternalClient.GetLocalInstanceFromReference(string objectId)
         {
             return _realContainer.GetLocalInstanceFromReference(objectId);
         }
 
-        public string GetIdForLocalObject(object obj, out bool isNew)
+        string IInternalClient.GetIdForLocalObject(object obj, out bool isNew)
         {
             return _realContainer.GetIdForLocalObject(obj, out isNew);
         }

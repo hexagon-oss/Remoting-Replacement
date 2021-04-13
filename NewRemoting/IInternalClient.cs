@@ -8,6 +8,15 @@ namespace NewRemoting
 {
     internal interface IInternalClient
     {
+        /// <summary>
+        /// The lock for the underling communication instance.
+        /// This is dangerous to expose, but the interface is internal, so this should be fine.
+        /// </summary>
+        object CommunicationLinkLock
+        {
+            get;
+        }
+
         void AddKnownRemoteInstance(object obj, string objectId);
 
         bool TryGetRemoteInstance(object obj, out string objectId);
