@@ -67,5 +67,10 @@ namespace RemotingServer
         {
             return _component;
         }
+
+        public virtual T GetInterface<T>() where T : class
+        {
+            return _component as T;
+        }
     }
 }

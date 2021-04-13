@@ -45,6 +45,13 @@ namespace RemotingClient
             var cbi = new CallbackImpl();
             cls.RegisterCallback(cbi);
             cls.DoCallback();
+
+            IMyComponentInterface myComponentInterface = cls.GetInterface<IMyComponentInterface>();
+
+            Console.WriteLine("Remote process name is " + myComponentInterface.ProcessName());
+
+            IDisposable disposable = (IDisposable) myComponentInterface;
+            disposable.Dispose();
         }
 
     }

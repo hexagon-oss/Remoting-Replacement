@@ -22,6 +22,7 @@ namespace NewRemoting
         private DefaultProxyBuilder _builder;
         private ProxyGenerator _proxy;
         private ConditionalWeakTable<object, string> _knownRemoteInstances;
+        private Dictionary<string, WeakReference> _knownProxyInstances;
         private IFormatter _formatter;
         private RemotingServer _server;
 
@@ -34,6 +35,7 @@ namespace NewRemoting
         {
             _knownRemoteInstances = new();
             _hardReverseReferences = new ();
+            _knownProxyInstances = new ();
             _formatter = new BinaryFormatter();
             _client = new TcpClient(server, port);
             _writer = new BinaryWriter(_client.GetStream(), Encoding.Unicode);
@@ -88,7 +90,8 @@ namespace NewRemoting
             RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.CreateInstanceWithDefaultCtor, 0);
             hd.WriteTo(_writer);
             _writer.Write(typeOfInstance.AssemblyQualifiedName);
-            _writer.Write(".ctor");
+            _writer.Write((int)0); // Currently, we do not need the correct ctor identifier, since there can only be one default ctor
+            _writer.Write((int)0); // and no generic args, anyway
             RemotingCallHeader hdReply = default;
             bool hdParseSuccess = hdReply.ReadFrom(_reader);
             RemotingReferenceType remoteType = (RemotingReferenceType)_reader.ReadInt32();
@@ -122,6 +125,7 @@ namespace NewRemoting
         public void AddKnownRemoteInstance(object obj, string objectId)
         {
             _knownRemoteInstances.AddOrUpdate(obj, objectId);
+            _knownProxyInstances[objectId] = new WeakReference(obj);
         }
 
         public bool TryGetRemoteInstance(object obj, out string objectId)
@@ -131,7 +135,17 @@ namespace NewRemoting
 
         public object GetLocalInstanceFromReference(string objectId)
         {
-            return _hardReverseReferences[objectId];
+            if (_hardReverseReferences.TryGetValue(objectId, out object instance))
+            {
+                return instance;
+            }
+
+            if (_knownProxyInstances.TryGetValue(objectId, out WeakReference reference))
+            {
+                return reference.Target;
+            }
+
+            return null;
         }
 
         public string GetIdForLocalObject(object obj, out bool isNew)
