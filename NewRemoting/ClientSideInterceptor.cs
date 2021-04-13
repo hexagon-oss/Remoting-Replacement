@@ -69,6 +69,15 @@ namespace NewRemoting
 
             hd.WriteTo(_writer);
             _writer.Write(remoteInstanceId);
+            // Also transmit the type of the calling object (if the method is called on an interface, this is different from the actual object)
+            if (me.DeclaringType != null)
+            {
+                _writer.Write(me.DeclaringType.AssemblyQualifiedName);
+            }
+            else
+            {
+                _writer.Write(string.Empty);
+            }
             _writer.Write(me.MetadataToken);
             if (me.ContainsGenericParameters)
             {
@@ -161,7 +170,9 @@ namespace NewRemoting
                     throw new InvalidOperationException("Unknown type found in argument stream");
                 }
 
-                object instance = _proxyGenerator.CreateClassProxy(type, this);
+                // Create a class proxy with all interfaces proxied as well.
+                var interfaces = type.GetInterfaces();
+                object instance = _proxyGenerator.CreateClassProxy(type, interfaces, this);
                 _remotingClient.AddKnownRemoteInstance(instance, objectId);
 
                 return instance;

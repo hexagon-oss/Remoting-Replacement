@@ -55,6 +55,7 @@ namespace RemotingServer
 
         public void Dispose()
         {
+            Console.WriteLine("Server component destroyed");
         }
     }
 }

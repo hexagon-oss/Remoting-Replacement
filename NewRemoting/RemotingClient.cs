@@ -90,6 +90,7 @@ namespace NewRemoting
             RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.CreateInstanceWithDefaultCtor, 0);
             hd.WriteTo(_writer);
             _writer.Write(typeOfInstance.AssemblyQualifiedName);
+            _writer.Write(string.Empty);
             _writer.Write((int)0); // Currently, we do not need the correct ctor identifier, since there can only be one default ctor
             _writer.Write((int)0); // and no generic args, anyway
             RemotingCallHeader hdReply = default;
