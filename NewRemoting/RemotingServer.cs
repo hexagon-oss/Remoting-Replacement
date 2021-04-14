@@ -156,14 +156,6 @@ namespace NewRemoting
                         typeOfGenericArguments.Add(t);
                     }
 
-                    int numArgs = r.ReadInt32();
-                    object[] args = new object[numArgs];
-                    for (int i = 0; i < numArgs; i++)
-                    {
-                        var decodedArg = ReadArgumentFromStream(m_formatter, r);
-                        args[i] = decodedArg;
-                    }
-
                     object realInstance = _realContainer.GetLocalInstanceFromReference(instance);
 
                     if (typeOfCaller == null)
@@ -182,6 +174,14 @@ namespace NewRemoting
                     if (methodGenericArgs > 0)
                     {
                         me = me.MakeGenericMethod(typeOfGenericArguments.ToArray());
+                    }
+
+                    int numArgs = r.ReadInt32();
+                    object[] args = new object[numArgs];
+                    for (int i = 0; i < numArgs; i++)
+                    {
+                        var decodedArg = ReadArgumentFromStream(m_formatter, r, me, i);
+                        args[i] = decodedArg;
                     }
 
                     object returnValue = me.Invoke(realInstance, args);
@@ -211,7 +211,7 @@ namespace NewRemoting
             }
         }
 
-        private object ReadArgumentFromStream(IFormatter formatter, BinaryReader r)
+        private object ReadArgumentFromStream(IFormatter formatter, BinaryReader r, MethodInfo methodInfoOfCalledMethod, int paramNumber)
         {
             RemotingReferenceType referenceType = (RemotingReferenceType)r.ReadInt32();
             if (referenceType == RemotingReferenceType.SerializedItem)
@@ -255,6 +255,19 @@ namespace NewRemoting
                 _realContainer.AddKnownRemoteInstance(obj, objectId);
 
                 return obj;
+            }
+            else if (referenceType == RemotingReferenceType.MethodPointer)
+            {
+                string instanceId = r.ReadString(); // maybe not needed?
+                string targetId = r.ReadString();
+                string typeOfTargetName = r.ReadString();
+                int tokenOfTargetMethod = r.ReadInt32();
+                Type typeOfTarget = GetTypeFromAnyAssembly(typeOfTargetName);
+
+                var methods = typeOfTarget.GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public);
+                MethodInfo methodInfoOfTarget = methods.First(x => x.MetadataToken == tokenOfTargetMethod);
+                Type delegateType = methodInfoOfCalledMethod.GetParameters()[paramNumber].ParameterType;
+                return Delegate.CreateDelegate(delegateType, null, methodInfoOfTarget);
             }
 
             throw new RemotingException("Unsupported argument type declaration (neither reference nor instance)", RemotingExceptionKind.ProxyManagementError);

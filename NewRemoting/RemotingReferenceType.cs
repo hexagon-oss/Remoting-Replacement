@@ -12,5 +12,6 @@ namespace NewRemoting
         SerializedItem = 1,
         RemoteReference = 2,
         NewProxy = 3,
+        MethodPointer = 4,
     }
 }

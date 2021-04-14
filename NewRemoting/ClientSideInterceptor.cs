@@ -198,7 +198,32 @@ namespace NewRemoting
         {
             MemoryStream ms = new MemoryStream();
             Type t = data.GetType();
-            if (t.IsSerializable)
+            if (data is Delegate del)
+            {
+                if (!del.Method.IsPublic)
+                {
+                    throw new RemotingException("Delegate target methods must be public", RemotingExceptionKind.UnsupportedOperation);
+                }
+
+                // The argument is a function pointer (typically the argument to a add_ or remove_ event)
+                w.Write((int)RemotingReferenceType.MethodPointer);
+                if (del.Target != null)
+                {
+                    string instanceId = _remotingClient.GetIdForLocalObject(del.Target, out bool isNew);
+                    w.Write(instanceId);
+                }
+                else
+                {
+                    // The delegate target is a static method
+                    w.Write(string.Empty);
+                }
+
+                string targetId = _remotingClient.GetIdForLocalObject(del, out _);
+                w.Write(targetId);
+                w.Write(del.Method.DeclaringType.AssemblyQualifiedName);
+                w.Write(del.Method.MetadataToken);
+            }
+            else if (t.IsSerializable)
             {
 #pragma warning disable 618
                 m_formatter.Serialize(ms, data);

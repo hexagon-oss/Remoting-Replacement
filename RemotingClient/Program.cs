@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Net.Sockets;
+using System.Threading;
 using NewRemoting;
 using RemotingServer;
 
@@ -50,9 +51,35 @@ namespace RemotingClient
 
             Console.WriteLine("Remote process name is " + myComponentInterface.ProcessName());
 
+            // myComponentInterface.TimeChanged += MyComponentInterfaceOnTimeChanged;
+
+            var sinkInstance = new MyClassWithAnEventSink("Client");
+            myComponentInterface.TimeChanged += sinkInstance.OnTimeChanged;
+
+            myComponentInterface.StartTiming();
+
+            Thread.Sleep(5000);
             IDisposable disposable = (IDisposable) myComponentInterface;
             disposable.Dispose();
         }
 
+        public static void MyComponentInterfaceOnTimeChanged(DateTime obj)
+        {
+            Console.WriteLine($"It is now {obj.ToLongDateString()}");
+        }
+
+        internal sealed class MyClassWithAnEventSink
+        {
+            private string _testName;
+            public MyClassWithAnEventSink(string name)
+            {
+                _testName = name;
+            }
+
+            public void OnTimeChanged(DateTime obj)
+            {
+                Console.WriteLine($"It really is {obj.ToLongTimeString()} on {_testName}");
+            }
+        }
     }
 }
