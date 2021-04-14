@@ -53,7 +53,7 @@ namespace RemotingClient
 
             // myComponentInterface.TimeChanged += MyComponentInterfaceOnTimeChanged;
 
-            var sinkInstance = new MyClassWithAnEventSink("Client");
+            var sinkInstance = new MyClassWithAnEventSink();
             myComponentInterface.TimeChanged += sinkInstance.OnTimeChanged;
 
             myComponentInterface.StartTiming();
@@ -70,15 +70,9 @@ namespace RemotingClient
 
         internal sealed class MyClassWithAnEventSink
         {
-            private string _testName;
-            public MyClassWithAnEventSink(string name)
+            public void OnTimeChanged(DateTime obj, string where)
             {
-                _testName = name;
-            }
-
-            public void OnTimeChanged(DateTime obj)
-            {
-                Console.WriteLine($"It really is {obj.ToLongTimeString()} on {_testName}");
+                Console.WriteLine($"It really is {obj.ToLongTimeString()} on {where}");
             }
         }
     }

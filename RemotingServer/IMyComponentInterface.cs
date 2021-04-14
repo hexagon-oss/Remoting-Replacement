@@ -9,7 +9,7 @@ namespace RemotingServer
 {
     public interface IMyComponentInterface
     {
-        event Action<DateTime> TimeChanged;
+        event Action<DateTime, string> TimeChanged;
 
         DateTime QueryTime();
 

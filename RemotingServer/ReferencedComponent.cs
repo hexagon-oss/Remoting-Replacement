@@ -15,7 +15,7 @@ namespace RemotingServer
         private Thread _timingThread;
         private bool _isThreadRunning;
 
-        public event Action<DateTime> TimeChanged;
+        public event Action<DateTime, string> TimeChanged;
         
         public ReferencedComponent()
         {
@@ -71,7 +71,7 @@ namespace RemotingServer
         {
             while (_isThreadRunning)
             {
-                TimeChanged?.Invoke(DateTime.Now);
+                TimeChanged?.Invoke(DateTime.Now, ProcessName());
                 Thread.Sleep(1000);
             }
         }

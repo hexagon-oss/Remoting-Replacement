@@ -21,16 +21,17 @@ namespace NewRemotingUnitTest
         public void TestDelegateInjection()
         {
             _testee.Register();
-            _interfaceMock.Raise(x => x.OnSomethingHappens += null);
+            _interfaceMock.Raise(x => x.OnSomethingHappens += null, true);
+            Assert.That(_testee.EventWasFired);
         }
 
-        internal interface ITestInterface
+        public interface ITestInterface
         {
             event Action<bool> OnSomethingHappens;
             void FireEvent();
         }
 
-        internal class TestServer : ITestInterface
+        public class TestServer : ITestInterface
         {
             public TestServer()
             {
@@ -44,7 +45,7 @@ namespace NewRemotingUnitTest
             }
         }
 
-        internal class TestClient
+        public class TestClient
         {
             private readonly ITestInterface _interfaceToMock;
 
@@ -58,7 +59,7 @@ namespace NewRemotingUnitTest
 
             private void SomethingHasHappened(bool obj)
             {
-                EventWasFired = true;
+                EventWasFired = obj;
             }
 
             public void Register()
