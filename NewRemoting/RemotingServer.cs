@@ -29,6 +29,11 @@ namespace NewRemoting
         private TcpClient _returnChannel;
         private IInternalClient _realContainer;
 
+        /// <summary>
+        /// This is the interceptor for calls from the server to the client using a server-side proxy (i.e. an interface registered for a callback)
+        /// </summary>
+        private ClientSideInterceptor _serverInterceptorForCallbacks;
+
         public RemotingServer(int networkPort)
         {
             _realContainer = new RealServerReferenceContainer();
@@ -117,6 +122,7 @@ namespace NewRemoting
                         }
 
                         _returnChannel = new TcpClient(clientIp, clientPort);
+                        _serverInterceptorForCallbacks = new ClientSideInterceptor(_returnChannel, this, _proxyGenerator, m_formatter);
                         continue;
                     }
 
@@ -156,14 +162,6 @@ namespace NewRemoting
                         typeOfGenericArguments.Add(t);
                     }
 
-                    int numArgs = r.ReadInt32();
-                    object[] args = new object[numArgs];
-                    for (int i = 0; i < numArgs; i++)
-                    {
-                        var decodedArg = ReadArgumentFromStream(m_formatter, r);
-                        args[i] = decodedArg;
-                    }
-
                     object realInstance = _realContainer.GetLocalInstanceFromReference(instance);
 
                     if (typeOfCaller == null)
@@ -182,6 +180,14 @@ namespace NewRemoting
                     if (methodGenericArgs > 0)
                     {
                         me = me.MakeGenericMethod(typeOfGenericArguments.ToArray());
+                    }
+
+                    int numArgs = r.ReadInt32();
+                    object[] args = new object[numArgs];
+                    for (int i = 0; i < numArgs; i++)
+                    {
+                        var decodedArg = ReadArgumentFromStream(m_formatter, r, me, i);
+                        args[i] = decodedArg;
                     }
 
                     object returnValue = me.Invoke(realInstance, args);
@@ -211,7 +217,7 @@ namespace NewRemoting
             }
         }
 
-        private object ReadArgumentFromStream(IFormatter formatter, BinaryReader r)
+        private object ReadArgumentFromStream(IFormatter formatter, BinaryReader r, MethodInfo methodInfoOfCalledMethod, int paramNumber)
         {
             RemotingReferenceType referenceType = (RemotingReferenceType)r.ReadInt32();
             if (referenceType == RemotingReferenceType.SerializedItem)
@@ -242,19 +248,49 @@ namespace NewRemoting
 
                 Type t = GetTypeFromAnyAssembly(typeName);
 
+                if (_serverInterceptorForCallbacks == null)
+                {
+                    throw new RemotingException("No return channel", RemotingExceptionKind.ProtocolError);
+                }
+
                 object obj;
                 if (t.IsInterface)
                 {
-                    obj = _proxyGenerator.CreateInterfaceProxyWithoutTarget(t, new ClientSideInterceptor(_returnChannel, this, _proxyGenerator, formatter));
+                    obj = _proxyGenerator.CreateInterfaceProxyWithoutTarget(t, _serverInterceptorForCallbacks);
                 }
                 else
                 {
-                    obj = _proxyGenerator.CreateClassProxy(t, t.GetInterfaces(), new ClientSideInterceptor(_returnChannel, this, _proxyGenerator, formatter));
+                    obj = _proxyGenerator.CreateClassProxy(t, t.GetInterfaces(), _serverInterceptorForCallbacks);
                 }
 
                 _realContainer.AddKnownRemoteInstance(obj, objectId);
 
                 return obj;
+            }
+            else if (referenceType == RemotingReferenceType.MethodPointer)
+            {
+                string instanceId = r.ReadString(); // maybe not needed?
+                string targetId = r.ReadString();
+                string typeOfTargetName = r.ReadString();
+                int tokenOfTargetMethod = r.ReadInt32();
+                Type typeOfTarget = GetTypeFromAnyAssembly(typeOfTargetName);
+
+                var methods = typeOfTarget.GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public);
+                MethodInfo methodInfoOfTarget = methods.First(x => x.MetadataToken == tokenOfTargetMethod);
+
+                Type delegateType = methodInfoOfCalledMethod.GetParameters()[paramNumber].ParameterType;
+
+                var argumentsOfTarget = methodInfoOfTarget.GetParameters();
+                var internalSink = new DelegateInternalSink(_serverInterceptorForCallbacks, instanceId, methodInfoOfTarget);
+                _realContainer.AddKnownRemoteInstance(internalSink, instanceId);
+
+                var possibleSinks = internalSink.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public).Where(x => x.Name == "ActionSink");
+                MethodInfo localSinkTarget = possibleSinks.Single(x => x.GetGenericArguments().Length == argumentsOfTarget.Length);
+                localSinkTarget = localSinkTarget.MakeGenericMethod(argumentsOfTarget.Select(x => x.ParameterType).ToArray());
+                return Delegate.CreateDelegate(delegateType, internalSink, localSinkTarget);
+
+
+                ////return Delegate.CreateDelegate(delegateType, null, methodInfoOfTarget);
             }
 
             throw new RemotingException("Unsupported argument type declaration (neither reference nor instance)", RemotingExceptionKind.ProxyManagementError);
