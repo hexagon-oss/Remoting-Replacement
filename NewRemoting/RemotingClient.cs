@@ -80,6 +80,15 @@ namespace NewRemoting
             }
         }
 
+        public void ShutdownServer()
+        {
+            lock (_accessLock)
+            {
+                RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.ShutdownServer, 0);
+                hd.WriteTo(_writer);
+            }
+        }
+
         public T CreateRemoteInstance<T>(Type typeOfInstance) where T : MarshalByRefObject
         {
             if (typeOfInstance == null)

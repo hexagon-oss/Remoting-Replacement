@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using RemotingServer;
+using SampleServerClasses;
 
 namespace RemotingClient
 {
