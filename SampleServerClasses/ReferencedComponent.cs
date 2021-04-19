@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace RemotingServer
+namespace SampleServerClasses
 {
     public class ReferencedComponent : MarshalByRefObject, IMyComponentInterface, IDisposable
     {

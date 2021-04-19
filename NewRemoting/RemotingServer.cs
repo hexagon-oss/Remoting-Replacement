@@ -28,6 +28,7 @@ namespace NewRemoting
         private readonly ProxyGenerator _proxyGenerator;
         private TcpClient _returnChannel;
         private IInternalClient _realContainer;
+        private CancellationTokenSource _terminatingSource;
 
         /// <summary>
         /// This is the interceptor for calls from the server to the client using a server-side proxy (i.e. an interface registered for a callback)
@@ -42,6 +43,7 @@ namespace NewRemoting
             m_formatter = new BinaryFormatter();
             _proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
             _returnChannel = null;
+            _terminatingSource = new CancellationTokenSource();
             AppDomain.CurrentDomain.AssemblyResolve += AssemblyResolver;
         }
 
@@ -69,9 +71,8 @@ namespace NewRemoting
 
         private Assembly AssemblyResolver(object sender, ResolveEventArgs args)
         {
-            if (args.RequestingAssembly == null || args.RequestingAssembly.FullName != Assembly.GetExecutingAssembly().FullName)
+            if (args.RequestingAssembly == null)
             {
-                // Only try to resolve assemblies that are loaded by us.
                 return null;
             }
 
@@ -82,8 +83,15 @@ namespace NewRemoting
                 dllOnly = dllOnly.Substring(0, idx);
                 dllOnly += ".dll";
             }
-            string path = Path.GetDirectoryName(args.RequestingAssembly.Location);
-            var assembly = Assembly.LoadFile(Path.Combine(path, dllOnly));
+
+            string path = Path.Combine(Path.GetDirectoryName(args.RequestingAssembly.Location), dllOnly);
+
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+
+            var assembly = Assembly.LoadFile(path);
             return assembly;
         }
 
@@ -112,17 +120,8 @@ namespace NewRemoting
                         throw new RemotingException("Incorrect data stream - sync lost", RemotingExceptionKind.ProtocolError);
                     }
 
-                    if (hd.Function == RemotingFunctionType.OpenReverseChannel)
+                    if (ExecuteCommand(hd, r))
                     {
-                        string clientIp = r.ReadString();
-                        int clientPort = r.ReadInt32();
-                        if (_returnChannel != null && _returnChannel.Connected)
-                        {
-                            continue;
-                        }
-
-                        _returnChannel = new TcpClient(clientIp, clientPort);
-                        _serverInterceptorForCallbacks = new ClientSideInterceptor(_returnChannel, this, _proxyGenerator, m_formatter);
                         continue;
                     }
 
@@ -215,6 +214,31 @@ namespace NewRemoting
                 // Remote connection closed
                 Console.WriteLine($"Server handler died due to {x}");
             }
+        }
+
+        private bool ExecuteCommand(RemotingCallHeader hd, BinaryReader r)
+        {
+            if (hd.Function == RemotingFunctionType.OpenReverseChannel)
+            {
+                string clientIp = r.ReadString();
+                int clientPort = r.ReadInt32();
+                if (_returnChannel != null && _returnChannel.Connected)
+                {
+                    return true;
+                }
+
+                _returnChannel = new TcpClient(clientIp, clientPort);
+                _serverInterceptorForCallbacks = new ClientSideInterceptor(_returnChannel, this, _proxyGenerator, m_formatter);
+                return true;
+            }
+
+            if (hd.Function == RemotingFunctionType.ShutdownServer)
+            {
+                _terminatingSource.Cancel();
+                return true;
+            }
+
+            return false;
         }
 
         private object ReadArgumentFromStream(IFormatter formatter, BinaryReader r, MethodInfo methodInfoOfCalledMethod, int paramNumber)
@@ -336,7 +360,15 @@ namespace NewRemoting
                 AssemblyName name = new AssemblyName(assemblyName);
 
                 Assembly ass = Assembly.Load(name);
-                return ass.GetType(assemblyQualifiedName, true);
+                try
+                {
+                    return ass.GetType(assemblyQualifiedName, true);
+                }
+                catch (ArgumentException)
+                {
+                    string typeName = assemblyQualifiedName.Substring(0, idx);
+                    return ass.GetType(typeName, true);
+                }
             }
 
             throw new TypeLoadException($"Type {assemblyQualifiedName} not found. No assembly specified");
@@ -401,6 +433,11 @@ namespace NewRemoting
         string IInternalClient.GetIdForLocalObject(object obj, out bool isNew)
         {
             return _realContainer.GetIdForLocalObject(obj, out isNew);
+        }
+
+        public void WaitForTermination()
+        {
+            _terminatingSource.Token.WaitHandle.WaitOne();
         }
     }
 }

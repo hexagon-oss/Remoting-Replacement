@@ -9,10 +9,11 @@ namespace NewRemoting
     public enum RemotingFunctionType
     {
         None = 0,
-        CreateInstanceWithDefaultCtor = 1,
-        CreateInstance = 2,
-        MethodCall = 3,
-        MethodReply = 4,
-        OpenReverseChannel = 4
+        CreateInstanceWithDefaultCtor,
+        CreateInstance,
+        MethodCall,
+        MethodReply,
+        OpenReverseChannel,
+        ShutdownServer
     }
 }

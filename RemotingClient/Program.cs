@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Threading;
 using NewRemoting;
 using RemotingServer;
+using SampleServerClasses;
 
 namespace RemotingClient
 {
@@ -61,6 +62,8 @@ namespace RemotingClient
             Thread.Sleep(5000);
             IDisposable disposable = (IDisposable) myComponentInterface;
             disposable.Dispose();
+
+            client.ShutdownServer();
         }
 
         public static void MyComponentInterfaceOnTimeChanged(DateTime obj)

@@ -202,7 +202,12 @@ namespace NewRemoting
             {
                 if (!del.Method.IsPublic)
                 {
-                    throw new RemotingException("Delegate target methods must be public", RemotingExceptionKind.UnsupportedOperation);
+                    throw new RemotingException("Delegate target methods that are used in remoting must be public", RemotingExceptionKind.UnsupportedOperation);
+                }
+
+                if (del.Method.IsStatic)
+                {
+                    throw new RemotingException("Can only register instance methods as delegate targets", RemotingExceptionKind.UnsupportedOperation);
                 }
 
                 // The argument is a function pointer (typically the argument to a add_ or remove_ event)
