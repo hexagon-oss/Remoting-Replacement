@@ -14,7 +14,7 @@ using Castle.DynamicProxy;
 
 namespace NewRemoting
 {
-    public sealed class RemotingClient : IDisposable, IInternalClient
+    public sealed class Client : IDisposable, IInternalClient
     {
         private TcpClient _client;
         private BinaryWriter _writer;
@@ -24,7 +24,7 @@ namespace NewRemoting
         private ConditionalWeakTable<object, string> _knownRemoteInstances;
         private Dictionary<string, WeakReference> _knownProxyInstances;
         private IFormatter _formatter;
-        private RemotingServer _server;
+        private Server _server;
         private object _accessLock;
 
         /// <summary>
@@ -32,7 +32,7 @@ namespace NewRemoting
         /// </summary>
         private Dictionary<string, object> _hardReverseReferences;
 
-        public RemotingClient(string server, int port)
+        public Client(string server, int port)
         {
             _accessLock = new object();
             _knownRemoteInstances = new();
@@ -46,7 +46,7 @@ namespace NewRemoting
             _proxy = new ProxyGenerator(_builder);
 
             // This is used as return channel
-            _server = new RemotingServer(port + 1, this);
+            _server = new Server(port + 1, this);
         }
 
         object IInternalClient.CommunicationLinkLock
@@ -89,7 +89,12 @@ namespace NewRemoting
             }
         }
 
-        public T CreateRemoteInstance<T>(Type typeOfInstance) where T : MarshalByRefObject
+        public T CreateRemoteInstance<T>() where T : MarshalByRefObject
+        {
+            return (T) CreateRemoteInstance(typeof(T));
+        }
+
+        public object CreateRemoteInstance(Type typeOfInstance)
         {
             if (typeOfInstance == null)
             {
@@ -130,7 +135,7 @@ namespace NewRemoting
 
                 object instance = _proxy.CreateClassProxy(typeOfInstance, options, interceptor);
                 _knownRemoteInstances.Add(instance, objectId);
-                return (T) instance;
+                return instance;
             }
         }
 

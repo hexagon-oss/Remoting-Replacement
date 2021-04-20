@@ -18,8 +18,8 @@ namespace RemotingClient
 
         public static void DoSomeRemoting()
         {
-            using NewRemoting.RemotingClient client = new NewRemoting.RemotingClient("localhost", 23456);
-            MarshallableClass cls = client.CreateRemoteInstance<MarshallableClass>(typeof(MarshallableClass));
+            using NewRemoting.Client client = new NewRemoting.Client("localhost", 23456);
+            MarshallableClass cls = client.CreateRemoteInstance<MarshallableClass>();
             int number = cls.GetSomeData();
             Console.WriteLine($"Server said the number is {number}!");
             int remotePs = cls.GetCurrentProcessId();

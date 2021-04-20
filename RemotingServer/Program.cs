@@ -1,5 +1,6 @@
 ﻿using System;
 using Castle.DynamicProxy;
+using NewRemoting;
 
 namespace RemotingServer
 {
@@ -14,7 +15,7 @@ namespace RemotingServer
 
         public static void StartServer()
         {
-            var server = new NewRemoting.RemotingServer(23456);
+            var server = new Server(23456);
             server.StartListening();
             server.WaitForTermination();
             server.Terminate();
