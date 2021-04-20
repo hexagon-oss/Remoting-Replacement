@@ -21,4 +21,9 @@
     <PackageReference Include="NUnit" Version="3.13.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\NewRemoting\NewRemoting.csproj" />
+    <ProjectReference Include="..\SampleServerClasses\SampleServerClasses.csproj" />
+  </ItemGroup>
+
 </Project>

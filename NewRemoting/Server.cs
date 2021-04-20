@@ -17,7 +17,7 @@ using Castle.DynamicProxy;
 #pragma warning disable SYSLIB0011
 namespace NewRemoting
 {
-    public sealed class RemotingServer : IDisposable, IInternalClient
+    public sealed class Server : IDisposable, IInternalClient
     {
         private int m_networkPort;
         private TcpListener m_listener;
@@ -35,7 +35,7 @@ namespace NewRemoting
         /// </summary>
         private ClientSideInterceptor _serverInterceptorForCallbacks;
 
-        public RemotingServer(int networkPort)
+        public Server(int networkPort)
         {
             _realContainer = new RealServerReferenceContainer();
             m_networkPort = networkPort;
@@ -50,7 +50,7 @@ namespace NewRemoting
         /// <summary>
         /// This ctor is used if this server runs on the client side (for the return channel). The actual data store is the local client instance.
         /// </summary>
-        internal RemotingServer(int networkPort, IInternalClient replacedClient)
+        internal Server(int networkPort, IInternalClient replacedClient)
         {
             _realContainer = replacedClient;
             m_networkPort = networkPort;

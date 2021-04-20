@@ -15,6 +15,12 @@ namespace SampleServerClasses
         {
             _component = new ReferencedComponent();
             _cb = null;
+            Identifier = Environment.TickCount64;
+        }
+
+        public virtual long Identifier
+        {
+            get;
         }
 
         public virtual int GetSomeData()
