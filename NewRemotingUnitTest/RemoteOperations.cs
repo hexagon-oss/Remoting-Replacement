@@ -24,7 +24,7 @@ namespace NewRemotingUnitTest
             Assert.IsNotNull(_serverProcess);
 
             // Port is currently hardcoded
-            _client = new Client("localhost", 23456);
+            _client = new Client("localhost", Client.DefaultNetworkPort);
             _client.Start();
         }
 
@@ -51,7 +51,7 @@ namespace NewRemotingUnitTest
         {
             var instance = new MarshallableClass();
             // There have been reports that this returns false positives
-            Assert.False(ProxyUtil.IsProxy(instance));
+            Assert.False(Client.IsRemoteProxy(instance));
         }
 
         [Test]
@@ -59,7 +59,7 @@ namespace NewRemotingUnitTest
         {
             var instance = GetRemoteInstance();
             Assert.IsNotNull(instance);
-            Assert.That(ProxyUtil.IsProxy(instance));
+            Assert.That(Client.IsRemoteProxy(instance));
         }
 
         [Test]

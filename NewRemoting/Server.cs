@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -67,6 +68,11 @@ namespace NewRemoting
         object IInternalClient.CommunicationLinkLock
         {
             get => _realContainer.CommunicationLinkLock;
+        }
+
+        public static Process StartLocalServerProcess()
+        {
+            return Process.Start("RemotingServer.exe");
         }
 
         private Assembly AssemblyResolver(object sender, ResolveEventArgs args)
@@ -150,6 +156,16 @@ namespace NewRemoting
                         hdReturnValue1.WriteTo(w);
                         WriteArgumentToStream(m_formatter, w, newInstance);
 
+                        continue;
+                    }
+
+                    if (hd.Function == RemotingFunctionType.RequestServiceReference)
+                    {
+                        Type t = GetTypeFromAnyAssembly(instance);
+                        object newInstance = ServiceContainer.GetService(t);
+                        RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
+                        hdReturnValue1.WriteTo(w);
+                        WriteArgumentToStream(m_formatter, w, newInstance);
                         continue;
                     }
 

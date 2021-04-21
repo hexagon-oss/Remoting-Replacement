@@ -16,6 +16,8 @@ namespace NewRemoting
 {
     public sealed class Client : IDisposable, IInternalClient
     {
+        public const int DefaultNetworkPort = 23456;
+
         private TcpClient _client;
         private BinaryWriter _writer;
         private BinaryReader _reader;
@@ -63,6 +65,11 @@ namespace NewRemoting
             return host.AddressList;
         }
 
+        public static bool IsRemoteProxy(object proxy)
+        {
+            return ProxyUtil.IsProxy(proxy);
+        }
+
         public void Start()
         {
             lock (_accessLock)
@@ -89,13 +96,18 @@ namespace NewRemoting
             }
         }
 
-        public T CreateRemoteInstance<T>() where T : MarshalByRefObject
+        public T CreateRemoteInstance<T>(params object[] args) where T : MarshalByRefObject
         {
-            return (T) CreateRemoteInstance(typeof(T));
+            return (T) CreateRemoteInstance(typeof(T), args);
         }
 
-        public object CreateRemoteInstance(Type typeOfInstance)
+        public object CreateRemoteInstance(Type typeOfInstance, params object[] args)
         {
+            if (args != null && args.Length > 0)
+            {
+                throw new NotImplementedException("Can only create instances with default ctors right now");
+            }
+
             if (typeOfInstance == null)
             {
                 throw new ArgumentNullException(nameof(typeOfInstance));
@@ -134,6 +146,47 @@ namespace NewRemoting
                 ProxyGenerationOptions options = new ProxyGenerationOptions(interceptor);
 
                 object instance = _proxy.CreateClassProxy(typeOfInstance, options, interceptor);
+                _knownRemoteInstances.Add(instance, objectId);
+                return instance;
+            }
+        }
+
+        public T RequestRemoteInstance<T>()
+        {
+            return (T)RequestRemoteInstance(typeof(T));
+        }
+
+        public object RequestRemoteInstance(Type typeOfInstance)
+        {
+            Start();
+
+            lock (_accessLock)
+            {
+
+                RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.RequestServiceReference, 0);
+                hd.WriteTo(_writer);
+                _writer.Write(typeOfInstance.AssemblyQualifiedName);
+                _writer.Write(string.Empty);
+                _writer.Write((int)0); // Currently, we do not need the correct ctor identifier, since there can only be one default ctor
+                _writer.Write((int)0); // and no generic args, anyway
+                RemotingCallHeader hdReply = default;
+                bool hdParseSuccess = hdReply.ReadFrom(_reader);
+                RemotingReferenceType remoteType = (RemotingReferenceType)_reader.ReadInt32();
+
+                if (hdParseSuccess == false)
+                {
+                    throw new RemotingException("Unexpected reply", RemotingExceptionKind.ProtocolError);
+                }
+
+                string typeName = _reader.ReadString();
+                string objectId = _reader.ReadString();
+
+                var interceptor = new ClientSideInterceptor(_client, this, _proxy, _formatter);
+
+                ProxyGenerationOptions options = new ProxyGenerationOptions(interceptor);
+                var actualType = Type.GetType(typeName);
+
+                object instance = _proxy.CreateClassProxy(typeOfInstance, actualType.GetInterfaces(), options, interceptor);
                 _knownRemoteInstances.Add(instance, objectId);
                 return instance;
             }
