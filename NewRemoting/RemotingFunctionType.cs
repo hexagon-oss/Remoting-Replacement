@@ -14,6 +14,7 @@ namespace NewRemoting
         MethodCall,
         MethodReply,
         OpenReverseChannel,
-        ShutdownServer
+        ShutdownServer,
+        RequestServiceReference
     }
 }

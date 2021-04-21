@@ -15,7 +15,7 @@ namespace RemotingServer
 
         public static void StartServer()
         {
-            var server = new Server(23456);
+            var server = new Server(Client.DefaultNetworkPort);
             server.StartListening();
             server.WaitForTermination();
             server.Terminate();
