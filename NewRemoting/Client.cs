@@ -149,7 +149,7 @@ namespace NewRemoting
                 bool hdParseSuccess = hdReply.ReadFrom(_reader);
                 RemotingReferenceType remoteType = (RemotingReferenceType) _reader.ReadInt32();
 
-                if (hdParseSuccess == false || remoteType != RemotingReferenceType.NewProxy)
+                if (hdParseSuccess == false || remoteType != RemotingReferenceType.RemoteReference)
                 {
                     throw new RemotingException("Unexpected reply", RemotingExceptionKind.ProtocolError);
                 }
@@ -159,7 +159,7 @@ namespace NewRemoting
                 
                 ProxyGenerationOptions options = new ProxyGenerationOptions(_interceptor);
 
-                object instance = _proxy.CreateClassProxy(typeOfInstance, options, _interceptor);
+                object instance = _proxy.CreateClassProxy(typeOfInstance, typeOfInstance.GetInterfaces(), options, _interceptor);
                 _knownRemoteInstances.Add(instance, objectId);
                 return instance;
             }
@@ -242,6 +242,25 @@ namespace NewRemoting
             }
 
             return null;
+        }
+
+        bool IInternalClient.TryGetLocalInstanceFromReference(string objectId, out object instance)
+        {
+            if (_hardReverseReferences.TryGetValue(objectId, out instance))
+            {
+                return true;
+            }
+
+            if (_knownProxyInstances.TryGetValue(objectId, out WeakReference reference))
+            {
+                instance = reference.Target;
+                if (instance != null)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         string IInternalClient.GetIdForLocalObject(object obj, out bool isNew)

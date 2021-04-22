@@ -296,19 +296,10 @@ namespace NewRemoting
             {
                 string objectId = r.ReadString();
                 string typeName = r.ReadString();
-                object obj = _realContainer.GetLocalInstanceFromReference(objectId);
-
-                if (obj.GetType().FullName != typeName)
+                if (_realContainer.TryGetLocalInstanceFromReference(objectId, out object instance))
                 {
-                    throw new RemotingException("Expected type of argument was different from actual", RemotingExceptionKind.ProxyManagementError);
+                    return instance;
                 }
-
-                return obj;
-            }
-            else if (referenceType == RemotingReferenceType.NewProxy)
-            {
-                string objectId = r.ReadString();
-                string typeName = r.ReadString();
 
                 Type t = GetTypeFromAnyAssembly(typeName);
 
@@ -375,7 +366,7 @@ namespace NewRemoting
             else if (t.IsAssignableTo(typeof(MarshalByRefObject)))
             {
                 string objectId = _realContainer.GetIdForLocalObject(data, out bool isNew);
-                w.Write((int)(isNew ? RemotingReferenceType.NewProxy : RemotingReferenceType.RemoteReference));
+                w.Write((int)RemotingReferenceType.RemoteReference);
                 w.Write(data.GetType().AssemblyQualifiedName);
                 w.Write(objectId);
             }
@@ -473,6 +464,11 @@ namespace NewRemoting
         string IInternalClient.GetIdForLocalObject(object obj, out bool isNew)
         {
             return _realContainer.GetIdForLocalObject(obj, out isNew);
+        }
+
+        bool IInternalClient.TryGetLocalInstanceFromReference(string objectId, out object instance)
+        {
+            return _realContainer.TryGetLocalInstanceFromReference(objectId, out instance);
         }
 
         public void WaitForTermination()
