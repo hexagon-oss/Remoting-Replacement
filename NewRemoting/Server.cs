@@ -159,6 +159,30 @@ namespace NewRemoting
                         continue;
                     }
 
+                    if (hd.Function == RemotingFunctionType.CreateInstance)
+                    {
+                        // CreateInstance call, instance is just a type in this case
+                        if (methodGenericArgs != 0)
+                        {
+                            throw new RemotingException("Constructors cannot have generic arguments", RemotingExceptionKind.UnsupportedOperation);
+                        }
+
+                        int numArguments = r.ReadInt32();
+                        object[] ctorArgs = new object[numArguments];
+                        for (int i = 0; i < ctorArgs.Length; i++)
+                        {
+                            ctorArgs[i] = ReadArgumentFromStream(m_formatter, r, null, i);
+                        }
+
+                        Type t = GetTypeFromAnyAssembly(instance);
+                        object newInstance = Activator.CreateInstance(t, ctorArgs);
+                        RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
+                        hdReturnValue1.WriteTo(w);
+                        WriteArgumentToStream(m_formatter, w, newInstance);
+
+                        continue;
+                    }
+
                     if (hd.Function == RemotingFunctionType.RequestServiceReference)
                     {
                         Type t = GetTypeFromAnyAssembly(instance);

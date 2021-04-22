@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -15,7 +16,17 @@ namespace SampleServerClasses
         {
             _component = new ReferencedComponent();
             _cb = null;
-            Identifier = Environment.TickCount64;
+            unchecked
+            {
+                Identifier = RuntimeHelpers.GetHashCode(this) + Environment.TickCount64;
+            }
+        }
+
+        public MarshallableClass(long identifier)
+        {
+            _component = new ReferencedComponent();
+            _cb = null;
+            Identifier = identifier;
         }
 
         public virtual long Identifier

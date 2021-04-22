@@ -194,6 +194,11 @@ namespace NewRemoting
             throw new RemotingException("Unknown argument type", RemotingExceptionKind.UnsupportedOperation);
         }
 
+        internal void WriteArgumentToStream(object data)
+        {
+            WriteArgumentToStream(_writer, data);
+        }
+
         private void WriteArgumentToStream(BinaryWriter w, object data)
         {
             MemoryStream ms = new MemoryStream();
