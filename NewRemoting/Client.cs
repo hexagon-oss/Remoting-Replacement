@@ -34,6 +34,8 @@ namespace NewRemoting
         /// </summary>
         private Dictionary<string, object> _hardReverseReferences;
 
+        private readonly ClientSideInterceptor _interceptor;
+
         public Client(string server, int port)
         {
             _accessLock = new object();
@@ -46,6 +48,8 @@ namespace NewRemoting
             _reader = new BinaryReader(_client.GetStream(), Encoding.Unicode);
             _builder = new DefaultProxyBuilder();
             _proxy = new ProxyGenerator(_builder);
+
+            _interceptor = new ClientSideInterceptor(_client, this, _proxy, _formatter);
 
             // This is used as return channel
             _server = new Server(port + 1, this);
@@ -103,11 +107,6 @@ namespace NewRemoting
 
         public object CreateRemoteInstance(Type typeOfInstance, params object[] args)
         {
-            if (args != null && args.Length > 0)
-            {
-                throw new NotImplementedException("Can only create instances with default ctors right now");
-            }
-
             if (typeOfInstance == null)
             {
                 throw new ArgumentNullException(nameof(typeOfInstance));
@@ -122,13 +121,30 @@ namespace NewRemoting
 
             lock (_accessLock)
             {
+                if (args == null || args.Length == 0)
+                {
+                    RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.CreateInstanceWithDefaultCtor, 0);
+                    hd.WriteTo(_writer);
+                    _writer.Write(typeOfInstance.AssemblyQualifiedName);
+                    _writer.Write(string.Empty);
+                    _writer.Write((int) 0); // Currently, we do not need the correct ctor identifier, since there can only be one default ctor
+                    _writer.Write((int) 0); // and no generic args, anyway
+                }
+                else
+                {
+                    RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.CreateInstance, 1);
+                    hd.WriteTo(_writer);
+                    _writer.Write(typeOfInstance.AssemblyQualifiedName);
+                    _writer.Write(string.Empty);
+                    _writer.Write((int)0); // we let the server resolve the correct ctor to use, based on the argument types
+                    _writer.Write((int)0); // and no generic args, anyway
+                    _writer.Write(args.Length); // but we need to provide the number of arguments that follow
+                    foreach (var a in args)
+                    {
+                        _interceptor.WriteArgumentToStream(a);
+                    }
+                }
 
-                RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.CreateInstanceWithDefaultCtor, 0);
-                hd.WriteTo(_writer);
-                _writer.Write(typeOfInstance.AssemblyQualifiedName);
-                _writer.Write(string.Empty);
-                _writer.Write((int) 0); // Currently, we do not need the correct ctor identifier, since there can only be one default ctor
-                _writer.Write((int) 0); // and no generic args, anyway
                 RemotingCallHeader hdReply = default;
                 bool hdParseSuccess = hdReply.ReadFrom(_reader);
                 RemotingReferenceType remoteType = (RemotingReferenceType) _reader.ReadInt32();
@@ -140,12 +156,10 @@ namespace NewRemoting
 
                 string typeName = _reader.ReadString();
                 string objectId = _reader.ReadString();
+                
+                ProxyGenerationOptions options = new ProxyGenerationOptions(_interceptor);
 
-                var interceptor = new ClientSideInterceptor(_client, this, _proxy, _formatter);
-
-                ProxyGenerationOptions options = new ProxyGenerationOptions(interceptor);
-
-                object instance = _proxy.CreateClassProxy(typeOfInstance, options, interceptor);
+                object instance = _proxy.CreateClassProxy(typeOfInstance, options, _interceptor);
                 _knownRemoteInstances.Add(instance, objectId);
                 return instance;
             }

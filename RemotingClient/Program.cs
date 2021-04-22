@@ -63,6 +63,11 @@ namespace RemotingClient
             IDisposable disposable = (IDisposable) myComponentInterface;
             disposable.Dispose();
 
+            var arguments = new ConstructorArgument(new ReferencedComponent());
+            var service = client.CreateRemoteInstance<ServiceClass>(arguments);
+
+            Console.WriteLine($"The reply should be round-tripped to the client: {service.DoSomething()}");
+
             client.ShutdownServer();
         }
 

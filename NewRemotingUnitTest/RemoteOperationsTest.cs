@@ -12,7 +12,7 @@ using SampleServerClasses;
 namespace NewRemotingUnitTest
 {
     [TestFixture]
-    public class RemoteOperations
+    public class RemoteOperationsTest
     {
         private Process _serverProcess;
         private Client _client;
@@ -57,7 +57,7 @@ namespace NewRemotingUnitTest
         [Test]
         public void GetInitialRemoteInstance()
         {
-            var instance = GetRemoteInstance();
+            var instance = CreateRemoteInstance();
             Assert.IsNotNull(instance);
             Assert.That(Client.IsRemoteProxy(instance));
         }
@@ -65,7 +65,7 @@ namespace NewRemotingUnitTest
         [Test]
         public void RemoteInstanceCanBeCalled()
         {
-            var instance = GetRemoteInstance();
+            var instance = CreateRemoteInstance();
             int remotePid = instance.GetCurrentProcessId();
             Assert.AreNotEqual(remotePid, Environment.ProcessId);
         }
@@ -73,21 +73,28 @@ namespace NewRemotingUnitTest
         [Test]
         public void TwoRemoteInstancesAreNotEqual()
         {
-            var instance1 = GetRemoteInstance();
-            var instance2 = GetRemoteInstance();
+            var instance1 = CreateRemoteInstance();
+            var instance2 = CreateRemoteInstance();
             Assert.AreNotEqual(instance1.Identifier, instance2.Identifier);
         }
 
         [Test]
         public void SameInstanceIsUsedInTwoCalls()
         {
-            var instance1 = GetRemoteInstance();
+            var instance1 = CreateRemoteInstance();
             long a = instance1.Identifier;
             long b = instance1.Identifier;
             Assert.AreEqual(a, b);
         }
 
-        private MarshallableClass GetRemoteInstance()
+        [Test]
+        public void CanCreateInstanceWithNonDefaultCtor()
+        {
+            var instance = _client.CreateRemoteInstance<MarshallableClass>(23);
+            Assert.AreEqual(23, instance.Identifier);
+        }
+
+        private MarshallableClass CreateRemoteInstance()
         {
             return _client.CreateRemoteInstance<MarshallableClass>();
         }

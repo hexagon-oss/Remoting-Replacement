@@ -24,7 +24,9 @@ namespace NewRemoting
 
         public static string GetObjectInstanceId(object obj)
         {
-            return FormattableString.Invariant($"{obj.GetType().FullName}-{RuntimeHelpers.GetHashCode(obj)}");
+            string objectReference = FormattableString.Invariant($"{obj.GetType().FullName}-{RuntimeHelpers.GetHashCode(obj)}");
+            Console.WriteLine($"Created object reference with id {objectReference}");
+            return objectReference;
         }
 
         internal string AddObjectId(object obj, out bool isNewReference)
