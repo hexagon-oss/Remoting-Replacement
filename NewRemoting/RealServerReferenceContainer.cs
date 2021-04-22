@@ -57,6 +57,16 @@ namespace NewRemoting
             return obj;
         }
 
+        public bool TryGetLocalInstanceFromReference(string objectId, out object obj)
+        {
+            if (m_serverHardReferences.TryGetValue(objectId, out obj))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
         public string GetIdForLocalObject(object obj, out bool isNew)
         {
             return AddObjectId(obj, out isNew);

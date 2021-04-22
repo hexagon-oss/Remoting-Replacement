@@ -8,6 +8,10 @@ namespace SampleServerClasses
 {
     public class ServiceClass : MarshalByRefObject
     {
+        public ServiceClass()
+        {
+        }
+
         public ServiceClass(ConstructorArgument argument)
         {
             if (argument == null || argument.ReverseInterface == null)

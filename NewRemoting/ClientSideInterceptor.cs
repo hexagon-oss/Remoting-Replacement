@@ -151,7 +151,7 @@ namespace NewRemoting
 #pragma warning restore 618
                 return decodedArg;
             }
-            else if (referenceType == RemotingReferenceType.NewProxy)
+            else if (referenceType == RemotingReferenceType.RemoteReference)
             {
                 // The server sends a reference to an object that he owns
                 // This code currently returns a new proxy, even if the server repeatedly returns the same instance
@@ -163,30 +163,15 @@ namespace NewRemoting
                     throw new RemotingException("Unknown type found in argument stream", RemotingExceptionKind.ProxyManagementError);
                 }
 
+                if (_remotingClient.TryGetLocalInstanceFromReference(objectId, out object instance))
+                {
+                    return instance;
+                }
+
                 // Create a class proxy with all interfaces proxied as well.
                 var interfaces = type.GetInterfaces();
-                object instance = _proxyGenerator.CreateClassProxy(type, interfaces, this);
+                instance = _proxyGenerator.CreateClassProxy(type, interfaces, this);
                 _remotingClient.AddKnownRemoteInstance(instance, objectId);
-
-                return instance;
-            }
-            else if (referenceType == RemotingReferenceType.RemoteReference)
-            {
-                // The server returns a reference to an object that the client owns or already knows
-                string typeName = r.ReadString();
-                string objectId = r.ReadString();
-                var type = Type.GetType(typeName);
-                if (type == null)
-                {
-                    throw new RemotingException("Unknown type found in argument stream", RemotingExceptionKind.ProxyManagementError);
-                }
-                
-                var instance = _remotingClient.GetLocalInstanceFromReference(objectId);
-                if (instance == null)
-                {
-                    // Is it valid to create a new proxy if this happens?
-                    throw new RemotingException("Remote instance not found", RemotingExceptionKind.ProxyManagementError);
-                }
 
                 return instance;
             }
@@ -245,15 +230,8 @@ namespace NewRemoting
             else if (t.IsAssignableTo(typeof(MarshalByRefObject)))
             {
                 string objectId = _remotingClient.GetIdForLocalObject(data, out bool isNew);
-                if (isNew)
-                {
-                    w.Write((int)RemotingReferenceType.NewProxy);
-                }
-                else
-                {
-                    w.Write((int)RemotingReferenceType.RemoteReference);
-                }
-                w.Write(objectId);
+                 w.Write((int)RemotingReferenceType.RemoteReference);
+                 w.Write(objectId);
                 w.Write(data.GetType().AssemblyQualifiedName);
             }
             else
