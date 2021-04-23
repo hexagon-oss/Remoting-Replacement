@@ -19,6 +19,7 @@ namespace NewRemoting
 {
     internal sealed class ClientSideInterceptor : IInterceptor, IProxyGenerationHook, IDisposable
     {
+        private readonly string _side;
         private readonly TcpClient _serverLink;
         private readonly IInternalClient _remotingClient;
         private readonly ProxyGenerator _proxyGenerator;
@@ -32,7 +33,8 @@ namespace NewRemoting
         public ClientSideInterceptor(String side, TcpClient serverLink, IInternalClient remotingClient, ProxyGenerator proxyGenerator, IFormatter formatter)
         {
             DebuggerToStringBehavior = DebuggerToStringBehavior.ReturnProxyName;
-            _sequence = 1;
+            _sequence = side == "Client" ? 1 : 10000;
+            _side = side;
             _serverLink = serverLink;
             _remotingClient = remotingClient;
             _proxyGenerator = proxyGenerator;
@@ -66,13 +68,15 @@ namespace NewRemoting
                 invocation.ReturnValue = "Remote proxy";
                 return;
             }
-            Console.WriteLine($"Intercepting {invocation.Method}");
-
+            
             int thisSeq;
 
             lock (_remotingClient.CommunicationLinkLock)
             {
                 thisSeq = NextSequenceNumber();
+
+                Debug.WriteLine($"{_side}: Intercepting {invocation.Method}, sequence {thisSeq}");
+
                 // Console.WriteLine($"Here should be a call to {invocation.Method}");
                 MethodInfo me = invocation.Method;
                 RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.MethodCall, thisSeq);
@@ -142,6 +146,7 @@ namespace NewRemoting
             // The event is signaled by the receiver thread when the message was processed
             ev.WaitOne();
             ev.Dispose();
+            Debug.WriteLine($"{_side}: {invocation.Method} done.");
         }
 
         private void ReceiverThread()
@@ -158,6 +163,8 @@ namespace NewRemoting
                         throw new RemotingException("Unexpected reply or stream out of sync", RemotingExceptionKind.ProtocolError);
                     }
 
+                    Debug.WriteLine($"{_side}: Decoding message {hdReturnValue.Sequence} of type {hdReturnValue.Function}");
+
                     if (hdReturnValue.Function != RemotingFunctionType.MethodReply)
                     {
                         throw new RemotingException("I think only replies should end here", RemotingExceptionKind.ProtocolError);
@@ -165,9 +172,14 @@ namespace NewRemoting
 
                     if (_pendingInvocations.TryGetValue(hdReturnValue.Sequence, out var item))
                     {
+                        Debug.WriteLine($"{_side}: Receiving reply for {item.Item1.Method}");
                         ProcessCallResponse(item.Item1, reader);
                         _pendingInvocations.TryRemove(hdReturnValue.Sequence, out _);
                         item.eventToTrigger.Set();
+                    }
+                    else
+                    {
+                        throw new RemotingException($"There's no pending call for sequence id {hdReturnValue.Sequence}", RemotingExceptionKind.ProtocolError);
                     }
                 }
             }
@@ -220,6 +232,10 @@ namespace NewRemoting
         private object ReadArgumentFromStream(IFormatter formatter, BinaryReader r, IInvocation invocation, bool canAttemptToInstantiate)
         {
             RemotingReferenceType referenceType = (RemotingReferenceType)r.ReadInt32();
+            if (referenceType == RemotingReferenceType.NullPointer)
+            {
+                return null;
+            }
             if (referenceType == RemotingReferenceType.SerializedItem)
             {
                 int argumentLen = r.ReadInt32();
@@ -288,6 +304,11 @@ namespace NewRemoting
         private void WriteArgumentToStream(BinaryWriter w, object data)
         {
             MemoryStream ms = new MemoryStream();
+            if (ReferenceEquals(data, null))
+            {
+                w.Write((int)RemotingReferenceType.NullPointer);
+                return;
+            }
             Type t = data.GetType();
             if (data is Type type)
             {
