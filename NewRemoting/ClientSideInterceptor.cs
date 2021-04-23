@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -8,6 +9,7 @@ using System.Reflection;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Castle.DynamicProxy;
 
@@ -15,17 +17,19 @@ using Castle.DynamicProxy;
 #pragma warning disable SYSLIB0011
 namespace NewRemoting
 {
-    internal class ClientSideInterceptor : IInterceptor, IProxyGenerationHook
+    internal sealed class ClientSideInterceptor : IInterceptor, IProxyGenerationHook, IDisposable
     {
         private readonly TcpClient _serverLink;
         private readonly IInternalClient _remotingClient;
         private readonly ProxyGenerator _proxyGenerator;
         private IFormatter m_formatter;
         private BinaryWriter _writer;
-        private BinaryReader _reader;
         private int _sequence;
+        private ConcurrentDictionary<int, (IInvocation, AutoResetEvent eventToTrigger)> _pendingInvocations;
+        private Thread _receiverThread;
+        private bool _receiving;
 
-        public ClientSideInterceptor(TcpClient serverLink, IInternalClient remotingClient, ProxyGenerator proxyGenerator, IFormatter formatter)
+        public ClientSideInterceptor(String side, TcpClient serverLink, IInternalClient remotingClient, ProxyGenerator proxyGenerator, IFormatter formatter)
         {
             DebuggerToStringBehavior = DebuggerToStringBehavior.ReturnProxyName;
             _sequence = 1;
@@ -33,14 +37,23 @@ namespace NewRemoting
             _remotingClient = remotingClient;
             _proxyGenerator = proxyGenerator;
             m_formatter = formatter;
+            _pendingInvocations = new();
             _writer = new BinaryWriter(_serverLink.GetStream(), Encoding.Unicode);
-            _reader = new BinaryReader(_serverLink.GetStream(), Encoding.Unicode);
+            _receiverThread = new Thread(ReceiverThread);
+            _receiverThread.Name = "ClientSideInterceptor - Receiver - " + side;
+            _receiving = true;
+            _receiverThread.Start();
         }
 
         public DebuggerToStringBehavior DebuggerToStringBehavior
         {
             get;
             set;
+        }
+
+        internal int NextSequenceNumber()
+        {
+            return Interlocked.Increment(ref _sequence);
         }
 
         public void Intercept(IInvocation invocation)
@@ -55,9 +68,11 @@ namespace NewRemoting
             }
             Console.WriteLine($"Intercepting {invocation.Method}");
 
+            int thisSeq;
+
             lock (_remotingClient.CommunicationLinkLock)
             {
-                int thisSeq = _sequence++;
+                thisSeq = NextSequenceNumber();
                 // Console.WriteLine($"Here should be a call to {invocation.Method}");
                 MethodInfo me = invocation.Method;
                 RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.MethodCall, thisSeq);
@@ -110,35 +125,99 @@ namespace NewRemoting
                 {
                     WriteArgumentToStream(_writer, argument);
                 }
+            }
 
-                RemotingCallHeader hdReturnValue = default;
+            WaitForReply(invocation, thisSeq);
+        }
 
-                if (!hdReturnValue.ReadFrom(_reader))
+        internal void WaitForReply(IInvocation invocation, int thisSeq)
+        {
+            AutoResetEvent ev = new AutoResetEvent(false);
+            if (!_pendingInvocations.TryAdd(thisSeq, (invocation, ev)))
+            {
+                // This really shouldn't happen
+                throw new InvalidOperationException("A call with the same id is already being processed");
+            }
+
+            // The event is signaled by the receiver thread when the message was processed
+            ev.WaitOne();
+            ev.Dispose();
+        }
+
+        private void ReceiverThread()
+        {
+            var reader = new BinaryReader(_serverLink.GetStream(), Encoding.Unicode);
+            try
+            {
+                while (_receiving)
                 {
-                    throw new RemotingException("Unexpected reply or stream out of sync", RemotingExceptionKind.ProtocolError);
-                }
-
-                if (me.ReturnType != typeof(void))
-                {
-                    object returnValue = ReadArgumentFromStream(m_formatter, _reader, invocation);
-                    invocation.ReturnValue = returnValue;
-                }
-
-                int index = 0;
-                foreach (var byRefArguments in me.GetParameters())
-                {
-                    if (byRefArguments.ParameterType.IsByRef)
+                    RemotingCallHeader hdReturnValue = default;
+                    // This read is blocking
+                    if (!hdReturnValue.ReadFrom(reader))
                     {
-                        object byRefValue = ReadArgumentFromStream(m_formatter, _reader, invocation);
-                        invocation.Arguments[index] = byRefValue;
+                        throw new RemotingException("Unexpected reply or stream out of sync", RemotingExceptionKind.ProtocolError);
                     }
 
-                    index++;
+                    if (hdReturnValue.Function != RemotingFunctionType.MethodReply)
+                    {
+                        throw new RemotingException("I think only replies should end here", RemotingExceptionKind.ProtocolError);
+                    }
+
+                    if (_pendingInvocations.TryGetValue(hdReturnValue.Sequence, out var item))
+                    {
+                        ProcessCallResponse(item.Item1, reader);
+                        _pendingInvocations.TryRemove(hdReturnValue.Sequence, out _);
+                        item.eventToTrigger.Set();
+                    }
                 }
+            }
+            catch (IOException x)
+            {
+                Console.WriteLine("Terminating client receiver thread - Communication Exception: " + x.Message);
+                _receiving = false;
             }
         }
 
-        private object ReadArgumentFromStream(IFormatter formatter, BinaryReader r, IInvocation invocation)
+        private void ProcessCallResponse(IInvocation invocation, BinaryReader reader)
+        {
+            MethodBase methodBase;
+            // This is true if this is a reply to a CreateInstance call (invocation.Method cannot be a ConstructorInfo instance)
+            if (invocation is ManualInvocation mi && invocation.Method == null)
+            {
+                methodBase = mi.Constructor;
+                if (mi.Constructor == null)
+                {
+                    throw new RemotingException("Unexpected invocation type", RemotingExceptionKind.ProtocolError);
+                }
+                object returnValue = ReadArgumentFromStream(m_formatter, reader, invocation, true);
+                invocation.ReturnValue = returnValue;
+                // out or ref arguments on ctors are rare, but not generally forbidden, so we continue here
+            }
+            else
+            {
+                MethodInfo me = invocation.Method;
+                methodBase = me;
+                if (me.ReturnType != typeof(void))
+                {
+                    object returnValue = ReadArgumentFromStream(m_formatter, reader, invocation, true);
+                    invocation.ReturnValue = returnValue;
+                }
+            }
+            
+            int index = 0;
+            foreach (var byRefArguments in methodBase.GetParameters())
+            {
+                if (byRefArguments.ParameterType.IsByRef)
+                {
+                    object byRefValue = ReadArgumentFromStream(m_formatter, reader, invocation, false);
+                    invocation.Arguments[index] = byRefValue;
+                }
+
+                index++;
+            }
+        }
+
+        private object ReadArgumentFromStream(IFormatter formatter, BinaryReader r, IInvocation invocation, bool canAttemptToInstantiate)
         {
             RemotingReferenceType referenceType = (RemotingReferenceType)r.ReadInt32();
             if (referenceType == RemotingReferenceType.SerializedItem)
@@ -170,15 +249,22 @@ namespace NewRemoting
 
                 // Create a class proxy with all interfaces proxied as well.
                 var interfaces = type.GetInterfaces();
-                var invocationMethodReturnType = invocation.Method.ReturnType;
-                if (invocationMethodReturnType.IsInterface)
+                var invocationMethodReturnType = invocation.Method?.ReturnType; // This is null in case of a constructor
+                if (invocationMethodReturnType != null && invocationMethodReturnType.IsInterface)
                 {
                     // If the call returns an interface, only create an interface proxy, because we might not be able to instantiate the actual class (because it's not public, it's sealed, has no public ctors, etc)
                     instance = _proxyGenerator.CreateInterfaceProxyWithoutTarget(invocationMethodReturnType, interfaces, this);
                 }
                 else
                 {
-                    instance = _proxyGenerator.CreateClassProxy(type, interfaces, this);
+                    if (canAttemptToInstantiate)
+                    {
+                        instance = _proxyGenerator.CreateClassProxy(type, interfaces, ProxyGenerationOptions.Default, invocation.Arguments, this);
+                    }
+                    else
+                    {
+                        instance = _proxyGenerator.CreateClassProxy(type, interfaces, this);
+                    }
                 }
 
                 _remotingClient.AddKnownRemoteInstance(instance, objectId);
@@ -272,6 +358,13 @@ namespace NewRemoting
         public bool ShouldInterceptMethod(Type type, MethodInfo methodInfo)
         {
             return true;
+        }
+
+        public void Dispose()
+        {
+            _receiving = false;
+            _receiverThread?.Join();
+            _receiverThread = null;
         }
     }
 }

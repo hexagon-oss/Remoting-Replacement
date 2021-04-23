@@ -5,12 +5,14 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using System.Threading.Tasks;
 using Castle.DynamicProxy;
+using Castle.DynamicProxy.Generators.Emitters.SimpleAST;
 
 namespace NewRemoting
 {
@@ -49,7 +51,7 @@ namespace NewRemoting
             _builder = new DefaultProxyBuilder();
             _proxy = new ProxyGenerator(_builder);
 
-            _interceptor = new ClientSideInterceptor(_client, this, _proxy, _formatter);
+            _interceptor = new ClientSideInterceptor("Client", _client, this, _proxy, _formatter);
 
             // This is used as return channel
             _server = new Server(port + 1, this, _interceptor);
@@ -119,11 +121,18 @@ namespace NewRemoting
 
             Start();
 
+            int sequence = _interceptor.NextSequenceNumber();
+
+            Type[] argumentTypes = args.Select(x => x.GetType()).ToArray();
+
+            // The type of the constructor that will be called
+            ConstructorInfo ctorType = typeOfInstance.GetConstructor(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, argumentTypes, null);
+
             lock (_accessLock)
             {
                 if (args == null || args.Length == 0)
                 {
-                    RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.CreateInstanceWithDefaultCtor, 0);
+                    RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.CreateInstanceWithDefaultCtor, sequence);
                     hd.WriteTo(_writer);
                     _writer.Write(typeOfInstance.AssemblyQualifiedName);
                     _writer.Write(string.Empty);
@@ -132,37 +141,44 @@ namespace NewRemoting
                 }
                 else
                 {
-                    RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.CreateInstance, 1);
+                    RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.CreateInstance, sequence);
                     hd.WriteTo(_writer);
                     _writer.Write(typeOfInstance.AssemblyQualifiedName);
                     _writer.Write(string.Empty);
-                    _writer.Write((int)0); // we let the server resolve the correct ctor to use, based on the argument types
-                    _writer.Write((int)0); // and no generic args, anyway
+                    _writer.Write((int) 0); // we let the server resolve the correct ctor to use, based on the argument types
+                    _writer.Write((int) 0); // and no generic args, anyway
                     _writer.Write(args.Length); // but we need to provide the number of arguments that follow
                     foreach (var a in args)
                     {
                         _interceptor.WriteArgumentToStream(a);
                     }
                 }
-
-                RemotingCallHeader hdReply = default;
-                bool hdParseSuccess = hdReply.ReadFrom(_reader);
-                RemotingReferenceType remoteType = (RemotingReferenceType) _reader.ReadInt32();
-
-                if (hdParseSuccess == false || remoteType != RemotingReferenceType.RemoteReference)
-                {
-                    throw new RemotingException("Unexpected reply", RemotingExceptionKind.ProtocolError);
-                }
-
-                string typeName = _reader.ReadString();
-                string objectId = _reader.ReadString();
-                
-                ProxyGenerationOptions options = new ProxyGenerationOptions(_interceptor);
-
-                object instance = _proxy.CreateClassProxy(typeOfInstance, typeOfInstance.GetInterfaces(), options, args, _interceptor);
-                _knownRemoteInstances.Add(instance, objectId);
-                return instance;
             }
+
+            // Just the reply is interesting for us
+            ManualInvocation dummyInvocation = new ManualInvocation(ctorType, args);
+            _interceptor.WaitForReply(dummyInvocation, sequence);
+
+            return dummyInvocation.ReturnValue;
+            /*
+            RemotingCallHeader hdReply = default;
+            bool hdParseSuccess = hdReply.ReadFrom(_reader);
+            RemotingReferenceType remoteType = (RemotingReferenceType) _reader.ReadInt32();
+
+            if (hdParseSuccess == false || remoteType != RemotingReferenceType.RemoteReference)
+            {
+                throw new RemotingException("Unexpected reply", RemotingExceptionKind.ProtocolError);
+            }
+
+            string typeName = _reader.ReadString();
+            string objectId = _reader.ReadString();
+            
+            ProxyGenerationOptions options = new ProxyGenerationOptions(_interceptor);
+
+            object instance = _proxy.CreateClassProxy(typeOfInstance, typeOfInstance.GetInterfaces(), options, args, _interceptor);
+            _knownRemoteInstances.Add(instance, objectId);
+            return instance;*/
+        
         }
 
         public T RequestRemoteInstance<T>()
@@ -195,12 +211,10 @@ namespace NewRemoting
                 string typeName = _reader.ReadString();
                 string objectId = _reader.ReadString();
 
-                var interceptor = new ClientSideInterceptor(_client, this, _proxy, _formatter);
-
-                ProxyGenerationOptions options = new ProxyGenerationOptions(interceptor);
+                ProxyGenerationOptions options = new ProxyGenerationOptions(_interceptor);
                 var actualType = Type.GetType(typeName);
 
-                object instance = _proxy.CreateClassProxy(typeOfInstance, actualType.GetInterfaces(), options, interceptor);
+                object instance = _proxy.CreateClassProxy(typeOfInstance, actualType.GetInterfaces(), options, _interceptor);
                 _knownRemoteInstances.Add(instance, objectId);
                 return instance;
             }

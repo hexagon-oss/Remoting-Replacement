@@ -230,7 +230,9 @@ namespace NewRemoting
                         args[i] = decodedArg;
                     }
 
+                    // Here, the actual target method of the proxied call is invoked.
                     object returnValue = me.Invoke(realInstance, args);
+
                     RemotingCallHeader hdReturnValue = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
                     hdReturnValue.WriteTo(w);
                     if (me.ReturnType != typeof(void))
@@ -269,7 +271,7 @@ namespace NewRemoting
                 }
 
                 _returnChannel = new TcpClient(clientIp, clientPort);
-                _serverInterceptorForCallbacks = new ClientSideInterceptor(_returnChannel, this, _proxyGenerator, m_formatter);
+                _serverInterceptorForCallbacks = new ClientSideInterceptor("Server", _returnChannel, this, _proxyGenerator, m_formatter);
                 return true;
             }
 
