@@ -101,6 +101,13 @@ namespace NewRemotingUnitTest
             Assert.AreEqual("System.String", instance.GetTypeName(typeof(System.String)));
         }
 
+        [Test]
+        public void CanMarshalNullReference()
+        {
+            var instance = CreateRemoteInstance();
+            instance.RegisterCallback(null);
+        }
+
         private MarshallableClass CreateRemoteInstance()
         {
             return _client.CreateRemoteInstance<MarshallableClass>();

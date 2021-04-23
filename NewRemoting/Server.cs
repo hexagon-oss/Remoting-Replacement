@@ -23,13 +23,14 @@ namespace NewRemoting
         private int m_networkPort;
         private TcpListener m_listener;
         private bool m_threadRunning;
-        private IFormatter m_formatter;
-        private List<(Thread Thread, NetworkStream Stream)> m_threads;
+        private readonly IFormatter m_formatter;
+        private readonly List<(Thread Thread, NetworkStream Stream)> m_threads;
         private Thread m_mainThread;
         private readonly ProxyGenerator _proxyGenerator;
         private TcpClient _returnChannel;
-        private IInternalClient _realContainer;
-        private CancellationTokenSource _terminatingSource;
+        private readonly IInternalClient _realContainer;
+        private readonly CancellationTokenSource _terminatingSource = new CancellationTokenSource();
+        private readonly object _channelWriterLock = new object();
 
         /// <summary>
         /// This is the interceptor for calls from the server to the client using a server-side proxy (i.e. an interface registered for a callback)
@@ -44,7 +45,6 @@ namespace NewRemoting
             m_formatter = new BinaryFormatter();
             _proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
             _returnChannel = null;
-            _terminatingSource = new CancellationTokenSource();
             AppDomain.CurrentDomain.AssemblyResolve += AssemblyResolver;
         }
 
@@ -117,10 +117,27 @@ namespace NewRemoting
             BinaryReader r = new BinaryReader(stream, Encoding.Unicode);
             BinaryWriter w = new BinaryWriter(stream, Encoding.Unicode);
 
+            List<Task> openTasks = new List<Task>();
+
             try
             {
                 while (m_threadRunning)
                 {
+                    // Clean up task list
+                    for (var index = 0; index < openTasks.Count; index++)
+                    {
+                        var task = openTasks[index];
+                        if (task.Exception != null)
+                        {
+                            throw new RemotingException("Unhandled task exception in remote server", RemotingExceptionKind.UnsupportedOperation);
+                        }
+                        if (task.IsCompleted)
+                        {
+                            openTasks.Remove(task);
+                            index--;
+                        }
+                    }
+
                     RemotingCallHeader hd = default;
                     if (!hd.ReadFrom(r))
                     {
@@ -230,32 +247,61 @@ namespace NewRemoting
                         args[i] = decodedArg;
                     }
 
-                    // Here, the actual target method of the proxied call is invoked.
-                    object returnValue = me.Invoke(realInstance, args);
-
-                    RemotingCallHeader hdReturnValue = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
-                    hdReturnValue.WriteTo(w);
-                    if (me.ReturnType != typeof(void))
+                    openTasks.Add(Task.Run(() =>
                     {
-                        WriteArgumentToStream(m_formatter, w, returnValue);
-                    }
-
-                    int index = 0;
-                    foreach (var byRefArguments in me.GetParameters())
-                    {
-                        if (byRefArguments.ParameterType.IsByRef)
-                        {
-                            WriteArgumentToStream(m_formatter, w, args[index]);
-                        }
-
-                        index++;
-                    }
+                        InvokeRealInstance(me, realInstance, args, hd, w);
+                    }));
                 }
             }
             catch (IOException x)
             {
                 // Remote connection closed
                 Console.WriteLine($"Server handler died due to {x}");
+            }
+        }
+
+        private void InvokeRealInstance(MethodInfo me, object realInstance, object[] args, RemotingCallHeader hd, BinaryWriter w)
+        {
+            // Here, the actual target method of the proxied call is invoked.
+            Debug.WriteLine($"MainServer: Invoking {me}, sequence {hd.Sequence}");
+            object returnValue = null;
+            try
+            {
+                returnValue = me.Invoke(realInstance, args);
+            }
+            catch (Exception x)
+            {
+                throw new NotImplementedException("This should wrap the exception to the caller", x);
+            }
+
+            // Ensure only one thread writes data to the stream at a time (to keep the data from one message together)
+            lock (_channelWriterLock)
+            {
+                RemotingCallHeader hdReturnValue = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
+                hdReturnValue.WriteTo(w);
+                if (me.ReturnType != typeof(void))
+                {
+                    if (returnValue == null)
+                    {
+                        Debug.WriteLine($"MainServer: {hd.Sequence} reply is null");
+                    }
+                    else
+                    {
+                        Debug.WriteLine($"MainServer: {hd.Sequence} reply is of type {returnValue.GetType()}");
+                    }
+                    WriteArgumentToStream(m_formatter, w, returnValue);
+                }
+
+                int index = 0;
+                foreach (var byRefArguments in me.GetParameters())
+                {
+                    if (byRefArguments.ParameterType.IsByRef)
+                    {
+                        WriteArgumentToStream(m_formatter, w, args[index]);
+                    }
+
+                    index++;
+                }
             }
         }
 
@@ -294,6 +340,10 @@ namespace NewRemoting
                 MemoryStream ms = new MemoryStream(argumentData, false);
                 object decodedArg = formatter.Deserialize(ms);
                 return decodedArg;
+            }
+            else if (referenceType == RemotingReferenceType.NullPointer)
+            {
+                return null;
             }
             else if (referenceType == RemotingReferenceType.RemoteReference)
             {
@@ -365,6 +415,11 @@ namespace NewRemoting
 
         private void WriteArgumentToStream(IFormatter formatter, BinaryWriter w, object data)
         {
+            if (ReferenceEquals(data, null))
+            {
+                w.Write((int)RemotingReferenceType.NullPointer);
+                return;
+            }
             Type t = data.GetType();
             if (t.IsSerializable)
             {
