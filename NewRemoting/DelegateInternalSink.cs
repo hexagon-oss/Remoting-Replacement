@@ -41,11 +41,9 @@ namespace NewRemoting
 
         private void DoCallback(params object[] args)
         {
-            ReverseInvocation ri = new ReverseInvocation();
-            ri.Method = _remoteMethodTarget;
+            ManualInvocation ri = new ManualInvocation(_remoteMethodTarget, args);
             ri.Proxy = this; // Works, because this instance is registered as proxy
-            ri.Arguments = args;
-
+            
             // TODO: Return result if the event is not of type void
             _interceptor.Intercept(ri);
         }
