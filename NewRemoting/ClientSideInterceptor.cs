@@ -120,7 +120,7 @@ namespace NewRemoting
 
                 if (me.ReturnType != typeof(void))
                 {
-                    object returnValue = ReadArgumentFromStream(m_formatter, _reader);
+                    object returnValue = ReadArgumentFromStream(m_formatter, _reader, invocation);
                     invocation.ReturnValue = returnValue;
                 }
 
@@ -129,7 +129,7 @@ namespace NewRemoting
                 {
                     if (byRefArguments.ParameterType.IsByRef)
                     {
-                        object byRefValue = ReadArgumentFromStream(m_formatter, _reader);
+                        object byRefValue = ReadArgumentFromStream(m_formatter, _reader, invocation);
                         invocation.Arguments[index] = byRefValue;
                     }
 
@@ -138,7 +138,7 @@ namespace NewRemoting
             }
         }
 
-        private object ReadArgumentFromStream(IFormatter formatter, BinaryReader r)
+        private object ReadArgumentFromStream(IFormatter formatter, BinaryReader r, IInvocation invocation)
         {
             RemotingReferenceType referenceType = (RemotingReferenceType)r.ReadInt32();
             if (referenceType == RemotingReferenceType.SerializedItem)
@@ -170,10 +170,25 @@ namespace NewRemoting
 
                 // Create a class proxy with all interfaces proxied as well.
                 var interfaces = type.GetInterfaces();
-                instance = _proxyGenerator.CreateClassProxy(type, interfaces, this);
-                _remotingClient.AddKnownRemoteInstance(instance, objectId);
+                var invocationMethodReturnType = invocation.Method.ReturnType;
+                if (invocationMethodReturnType.IsInterface)
+                {
+                    // If the call returns an interface, only create an interface proxy, because we might not be able to instantiate the actual class (because it's not public, it's sealed, has no public ctors, etc)
+                    instance = _proxyGenerator.CreateInterfaceProxyWithoutTarget(invocationMethodReturnType, interfaces, this);
+                }
+                else
+                {
+                    instance = _proxyGenerator.CreateClassProxy(type, interfaces, this);
+                }
 
+                _remotingClient.AddKnownRemoteInstance(instance, objectId);
                 return instance;
+            }
+            else if (referenceType == RemotingReferenceType.InstanceOfSystemType)
+            {
+                string typeName = r.ReadString();
+                Type t = Server.GetTypeFromAnyAssembly(typeName);
+                return t;
             }
 
             throw new RemotingException("Unknown argument type", RemotingExceptionKind.UnsupportedOperation);
@@ -188,7 +203,12 @@ namespace NewRemoting
         {
             MemoryStream ms = new MemoryStream();
             Type t = data.GetType();
-            if (data is Delegate del)
+            if (data is Type type)
+            {
+                w.Write((int)RemotingReferenceType.InstanceOfSystemType);
+                w.Write(type.AssemblyQualifiedName);
+            }
+            else if (data is Delegate del)
             {
                 if (!del.Method.IsPublic)
                 {
