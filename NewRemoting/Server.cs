@@ -51,7 +51,7 @@ namespace NewRemoting
         /// <summary>
         /// This ctor is used if this server runs on the client side (for the return channel). The actual data store is the local client instance.
         /// </summary>
-        internal Server(int networkPort, IInternalClient replacedClient)
+        internal Server(int networkPort, IInternalClient replacedClient, ClientSideInterceptor localInterceptor)
         {
             _realContainer = replacedClient;
             m_networkPort = networkPort;
@@ -59,6 +59,7 @@ namespace NewRemoting
             m_formatter = new BinaryFormatter();
             _proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
             _returnChannel = null;
+            _serverInterceptorForCallbacks = localInterceptor;
         }
 
         public bool IsRunning => m_mainThread != null && m_mainThread.IsAlive;
@@ -208,7 +209,7 @@ namespace NewRemoting
                         typeOfCaller = realInstance.GetType();
                     }
 
-                    var methods = typeOfCaller.GetMethods(BindingFlags.Instance | BindingFlags.Public);
+                    var methods = typeOfCaller.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
                     MethodInfo me = methods.First(x => x.MetadataToken == methodNo);
 
                     if (me == null)
@@ -324,7 +325,7 @@ namespace NewRemoting
             }
             else if (referenceType == RemotingReferenceType.MethodPointer)
             {
-                string instanceId = r.ReadString(); // maybe not needed?
+                string instanceId = r.ReadString();
                 string targetId = r.ReadString();
                 string typeOfTargetName = r.ReadString();
                 int tokenOfTargetMethod = r.ReadInt32();
@@ -336,16 +337,25 @@ namespace NewRemoting
                 Type delegateType = methodInfoOfCalledMethod.GetParameters()[paramNumber].ParameterType;
 
                 var argumentsOfTarget = methodInfoOfTarget.GetParameters();
+                // This creates an instance of the DelegateInternalSink class, which acts as a proxy for delegate callbacks. Instead of the actual delegate
+                // target, we register a method from this class as a delegate target
                 var internalSink = new DelegateInternalSink(_serverInterceptorForCallbacks, instanceId, methodInfoOfTarget);
                 _realContainer.AddKnownRemoteInstance(internalSink, instanceId);
 
                 var possibleSinks = internalSink.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public).Where(x => x.Name == "ActionSink");
                 MethodInfo localSinkTarget = possibleSinks.Single(x => x.GetGenericArguments().Length == argumentsOfTarget.Length);
-                localSinkTarget = localSinkTarget.MakeGenericMethod(argumentsOfTarget.Select(x => x.ParameterType).ToArray());
+                if (argumentsOfTarget.Length > 0)
+                {
+                    localSinkTarget = localSinkTarget.MakeGenericMethod(argumentsOfTarget.Select(x => x.ParameterType).ToArray());
+                }
+
                 return Delegate.CreateDelegate(delegateType, internalSink, localSinkTarget);
-
-
-                ////return Delegate.CreateDelegate(delegateType, null, methodInfoOfTarget);
+            }
+            else if (referenceType == RemotingReferenceType.InstanceOfSystemType)
+            {
+                string typeName = r.ReadString();
+                Type t = GetTypeFromAnyAssembly(typeName);
+                return t;
             }
 
             throw new RemotingException("Unsupported argument type declaration (neither reference nor instance)", RemotingExceptionKind.ProxyManagementError);

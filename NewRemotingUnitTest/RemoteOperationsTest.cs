@@ -94,6 +94,13 @@ namespace NewRemotingUnitTest
             Assert.AreEqual(23, instance.Identifier);
         }
 
+        [Test]
+        public void CanMarshalSystemType()
+        {
+            var instance = CreateRemoteInstance();
+            Assert.AreEqual("System.String", instance.GetTypeName(typeof(System.String)));
+        }
+
         private MarshallableClass CreateRemoteInstance()
         {
             return _client.CreateRemoteInstance<MarshallableClass>();

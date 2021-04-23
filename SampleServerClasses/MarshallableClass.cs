@@ -89,5 +89,10 @@ namespace SampleServerClasses
         {
             return _component as T;
         }
+
+        public virtual string GetTypeName(Type t)
+        {
+            return t.FullName;
+        }
     }
 }

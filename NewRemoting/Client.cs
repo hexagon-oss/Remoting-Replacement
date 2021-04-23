@@ -52,7 +52,7 @@ namespace NewRemoting
             _interceptor = new ClientSideInterceptor(_client, this, _proxy, _formatter);
 
             // This is used as return channel
-            _server = new Server(port + 1, this);
+            _server = new Server(port + 1, this, _interceptor);
         }
 
         object IInternalClient.CommunicationLinkLock
@@ -159,7 +159,7 @@ namespace NewRemoting
                 
                 ProxyGenerationOptions options = new ProxyGenerationOptions(_interceptor);
 
-                object instance = _proxy.CreateClassProxy(typeOfInstance, typeOfInstance.GetInterfaces(), options, _interceptor);
+                object instance = _proxy.CreateClassProxy(typeOfInstance, typeOfInstance.GetInterfaces(), options, args, _interceptor);
                 _knownRemoteInstances.Add(instance, objectId);
                 return instance;
             }
