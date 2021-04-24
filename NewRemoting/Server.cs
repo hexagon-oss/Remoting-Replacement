@@ -264,10 +264,17 @@ namespace NewRemoting
         {
             // Here, the actual target method of the proxied call is invoked.
             Debug.WriteLine($"MainServer: Invoking {me}, sequence {hd.Sequence}");
-            object returnValue = null;
+            object returnValue;
             try
             {
-                returnValue = me.Invoke(realInstance, args);
+                if (realInstance is Delegate del)
+                {
+                    returnValue = me.Invoke(del.Target, args);
+                }
+                else
+                {
+                    returnValue = me.Invoke(realInstance, args);
+                }
             }
             catch (Exception x)
             {
@@ -391,8 +398,8 @@ namespace NewRemoting
                 var argumentsOfTarget = methodInfoOfTarget.GetParameters();
                 // This creates an instance of the DelegateInternalSink class, which acts as a proxy for delegate callbacks. Instead of the actual delegate
                 // target, we register a method from this class as a delegate target
-                var internalSink = new DelegateInternalSink(_serverInterceptorForCallbacks, instanceId, methodInfoOfTarget);
-                _realContainer.AddKnownRemoteInstance(internalSink, instanceId);
+                var internalSink = new DelegateInternalSink(_serverInterceptorForCallbacks, targetId, methodInfoOfTarget);
+                _realContainer.AddKnownRemoteInstance(internalSink, targetId);
 
                 var possibleSinks = internalSink.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public).Where(x => x.Name == "ActionSink");
                 MethodInfo localSinkTarget = possibleSinks.Single(x => x.GetGenericArguments().Length == argumentsOfTarget.Length);
