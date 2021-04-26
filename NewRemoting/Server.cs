@@ -369,13 +369,21 @@ namespace NewRemoting
                 }
 
                 object obj;
-                if (t.IsInterface)
+                Type[] tAdditionalInterfaces = t.GetInterfaces();
+                var ctors = t.GetConstructors();
+                if (tAdditionalInterfaces.Any() && (t.IsSealed || !ctors.Any(x => x.GetParameters().Length == 0)))
                 {
-                    obj = _proxyGenerator.CreateInterfaceProxyWithoutTarget(t, _serverInterceptorForCallbacks);
+                    // If t is sealed or does not have a default ctor, we can't create a full proxy of it, try an interface proxy with one of the additional interfaces instead
+                    t = tAdditionalInterfaces[0];
+                    obj = _proxyGenerator.CreateInterfaceProxyWithoutTarget(t, tAdditionalInterfaces, _serverInterceptorForCallbacks);
+                }
+                else if (t.IsInterface)
+                {
+                    obj = _proxyGenerator.CreateInterfaceProxyWithoutTarget(t, tAdditionalInterfaces, _serverInterceptorForCallbacks);
                 }
                 else
                 {
-                    obj = _proxyGenerator.CreateClassProxy(t, t.GetInterfaces(), _serverInterceptorForCallbacks);
+                    obj = _proxyGenerator.CreateClassProxy(t, tAdditionalInterfaces, _serverInterceptorForCallbacks);
                 }
 
                 _realContainer.AddKnownRemoteInstance(obj, objectId);
@@ -428,6 +436,12 @@ namespace NewRemoting
                 return;
             }
             Type t = data.GetType();
+            if (data is Type type)
+            {
+                w.Write((int)RemotingReferenceType.InstanceOfSystemType);
+                w.Write(type.AssemblyQualifiedName);
+                return;
+            }
             if (t.IsSerializable)
             {
                 MemoryStream ms = new MemoryStream();
@@ -450,7 +464,7 @@ namespace NewRemoting
             }
         }
 
-        internal static Type GetTypeFromAnyAssembly(string assemblyQualifiedName)
+        public static Type GetTypeFromAnyAssembly(string assemblyQualifiedName)
         {
             Type t = Type.GetType(assemblyQualifiedName);
             if (t != null)
