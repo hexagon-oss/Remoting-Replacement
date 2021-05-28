@@ -11,7 +11,12 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NewRemoting", "NewRemoting\
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NewRemotingUnitTest", "NewRemotingUnitTest\NewRemotingUnitTest.csproj", "{FAA60F89-9461-4E41-B200-4610439A03F1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SampleServerClasses", "SampleServerClasses\SampleServerClasses.csproj", "{94DBA414-3A51-47AB-A91E-92475B86AF9A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SampleServerClasses", "SampleServerClasses\SampleServerClasses.csproj", "{94DBA414-3A51-47AB-A91E-92475B86AF9A}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{C6771861-BACE-4869-AF2B-13C677D6B384}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

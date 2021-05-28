@@ -8,11 +8,11 @@ using SampleServerClasses;
 
 namespace RemotingClient
 {
-    public class CallbackImpl : MarshalByRefObject, ICallbackInterface
-    {
-        public virtual void FireSomeAction(string nameOfAction)
-        {
-            Console.WriteLine($"The server means that {nameOfAction}");
-        }
-    }
+	public class CallbackImpl : MarshalByRefObject, ICallbackInterface
+	{
+		public virtual void FireSomeAction(string nameOfAction)
+		{
+			Console.WriteLine($"The server means that {nameOfAction}");
+		}
+	}
 }

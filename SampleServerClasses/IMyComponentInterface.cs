@@ -7,16 +7,16 @@ using System.Threading.Tasks;
 
 namespace SampleServerClasses
 {
-    public interface IMyComponentInterface
-    {
-        event Action<DateTime, string> TimeChanged;
+	public interface IMyComponentInterface
+	{
+		event Action<DateTime, string> TimeChanged;
 
-        DateTime QueryTime();
+		DateTime QueryTime();
 
-        Stream GetRemoteStream(string fileName);
+		Stream GetRemoteStream(string fileName);
 
-        void StartTiming();
+		void StartTiming();
 
-        string ProcessName();
-    }
+		string ProcessName();
+	}
 }
