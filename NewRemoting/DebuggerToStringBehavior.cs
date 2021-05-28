@@ -6,10 +6,10 @@ using System.Threading.Tasks;
 
 namespace NewRemoting
 {
-    public enum DebuggerToStringBehavior
-    {
-        ReturnProxyName,
-        EvaluateRemotely,
-        EvaluateLocally
-    }
+	public enum DebuggerToStringBehavior
+	{
+		ReturnProxyName,
+		EvaluateRemotely,
+		EvaluateLocally
+	}
 }

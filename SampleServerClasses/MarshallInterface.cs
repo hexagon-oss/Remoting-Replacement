@@ -6,8 +6,8 @@ using System.Threading.Tasks;
 
 namespace SampleServerClasses
 {
-    public interface IMarshallInterface
-    {
-        string StringProcessId();
-    }
+	public interface IMarshallInterface
+	{
+		string StringProcessId();
+	}
 }

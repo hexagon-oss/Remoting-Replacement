@@ -6,15 +6,15 @@ using System.Threading.Tasks;
 
 namespace NewRemoting
 {
-    public enum RemotingFunctionType
-    {
-        None = 0,
-        CreateInstanceWithDefaultCtor,
-        CreateInstance,
-        MethodCall,
-        MethodReply,
-        OpenReverseChannel,
-        ShutdownServer,
-        RequestServiceReference
-    }
+	public enum RemotingFunctionType
+	{
+		None = 0,
+		CreateInstanceWithDefaultCtor,
+		CreateInstance,
+		MethodCall,
+		MethodReply,
+		OpenReverseChannel,
+		ShutdownServer,
+		RequestServiceReference
+	}
 }

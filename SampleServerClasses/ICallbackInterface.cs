@@ -1,7 +1,7 @@
 ﻿namespace SampleServerClasses
 {
-    public interface ICallbackInterface
-    {
-        public void FireSomeAction(string nameOfAction);
-    }
+	public interface ICallbackInterface
+	{
+		public void FireSomeAction(string nameOfAction);
+	}
 }

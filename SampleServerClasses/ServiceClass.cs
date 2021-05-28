@@ -6,26 +6,26 @@ using System.Threading.Tasks;
 
 namespace SampleServerClasses
 {
-    public class ServiceClass : MarshalByRefObject
-    {
-        public ServiceClass(ConstructorArgument argument)
-        {
-            if (argument == null || argument.ReverseInterface == null)
-            {
-                throw new ArgumentNullException(nameof(argument));
-            }
+	public class ServiceClass : MarshalByRefObject
+	{
+		public ServiceClass(ConstructorArgument argument)
+		{
+			if (argument == null || argument.ReverseInterface == null)
+			{
+				throw new ArgumentNullException(nameof(argument));
+			}
 
-            ReverseInterface = argument.ReverseInterface;
-        }
+			ReverseInterface = argument.ReverseInterface;
+		}
 
-        public virtual IMyComponentInterface ReverseInterface
-        {
-            get;
-        }
+		public virtual IMyComponentInterface ReverseInterface
+		{
+			get;
+		}
 
-        public virtual string DoSomething()
-        {
-            return ReverseInterface.ProcessName();
-        }
-    }
+		public virtual string DoSomething()
+		{
+			return ReverseInterface.ProcessName();
+		}
+	}
 }

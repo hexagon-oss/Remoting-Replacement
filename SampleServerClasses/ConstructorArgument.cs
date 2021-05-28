@@ -6,18 +6,18 @@ using System.Threading.Tasks;
 
 namespace SampleServerClasses
 {
-    public class ConstructorArgument : MarshalByRefObject
-    {
-        public ConstructorArgument()
-        {
-            // Used by remoting infrastructure
-        }
+	public class ConstructorArgument : MarshalByRefObject
+	{
+		public ConstructorArgument()
+		{
+			// Used by remoting infrastructure
+		}
 
-        public ConstructorArgument(IMyComponentInterface reverseInterface)
-        {
-            ReverseInterface = reverseInterface;
-        }
+		public ConstructorArgument(IMyComponentInterface reverseInterface)
+		{
+			ReverseInterface = reverseInterface;
+		}
 
-        public virtual IMyComponentInterface ReverseInterface { get; }
-    }
+		public virtual IMyComponentInterface ReverseInterface { get; }
+	}
 }
