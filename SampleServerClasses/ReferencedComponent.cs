@@ -78,13 +78,17 @@ namespace SampleServerClasses
 
 		public void Dispose()
 		{
+			StopTiming();
+		}
+
+		public void StopTiming()
+		{
 			_isThreadRunning = false;
 			if (_timingThread != null)
 			{
 				_timingThread.Join();
 				_timingThread = null;
 			}
-			Console.WriteLine("Server component destroyed");
 		}
 	}
 }

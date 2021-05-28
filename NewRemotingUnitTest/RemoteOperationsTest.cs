@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Castle.DynamicProxy;
 using NewRemoting;
@@ -16,6 +17,7 @@ namespace NewRemotingUnitTest
 	{
 		private Process _serverProcess;
 		private Client _client;
+		private string _dataReceived;
 
 		[OneTimeSetUp]
 		public void OneTimeSetUp()
@@ -108,9 +110,97 @@ namespace NewRemotingUnitTest
 			instance.RegisterCallback(null);
 		}
 
+		[Test]
+		public void CodeIsReallyExecutedRemotely()
+		{
+			var server = CreateRemoteInstance();
+			var client = new MarshallableClass();
+			Assert.AreNotEqual(server.GetCurrentProcessId(), client.GetCurrentProcessId());
+		}
+
+		[Test]
+		public void RefArgumentWorks()
+		{
+			var server = CreateRemoteInstance();
+			int aValue = 4;
+			server.UpdateArgument(ref aValue);
+			Assert.AreEqual(6, aValue);
+		}
+
+		[Test]
+		public void CanRegisterCallbackInterface()
+		{
+			var server = CreateRemoteInstance();
+			// Tests whether the return channel works, by providing an instance of a class to the server where
+			// the actual object lives on the client.
+			var cbi = new CallbackImpl();
+			Assert.False(cbi.HasBeenCalled);
+			server.RegisterCallback(cbi);
+			server.DoCallback();
+			server.RegisterCallback(null);
+			Assert.True(cbi.HasBeenCalled);
+		}
+
+		[Test]
+		public void ThrowsExceptionIfAttemptingToRegisterPrivateMethodAsEventSink()
+		{
+			var server = CreateRemoteInstance();
+			var objectWithEvent = server.GetInterface<IMyComponentInterface>();
+			_dataReceived = null;
+			Assert.Throws<RemotingException>(() => objectWithEvent.TimeChanged += ObjectWithEventOnTimeChangedPrivate);
+		}
+
+		[Test]
+		public void CanRegisterEvent()
+		{
+			var server = CreateRemoteInstance();
+			var objectWithEvent = server.GetInterface<IMyComponentInterface>();
+			_dataReceived = null;
+			objectWithEvent.TimeChanged += ObjectWithEventOnTimeChanged;
+			objectWithEvent.StartTiming();
+			int ticks = 100;
+			while (string.IsNullOrEmpty(_dataReceived) && ticks-- > 0)
+			{
+				Thread.Sleep(100);
+			}
+
+			Assert.That(ticks > 0);
+			Assert.False(string.IsNullOrWhiteSpace(_dataReceived));
+			objectWithEvent.StopTiming();
+			objectWithEvent.TimeChanged -= ObjectWithEventOnTimeChanged;
+		}
+
+		public void ObjectWithEventOnTimeChanged(DateTime arg1, string arg2)
+		{
+			_dataReceived = arg2;
+		}
+
+		private void ObjectWithEventOnTimeChangedPrivate(DateTime arg1, string arg2)
+		{
+			throw new NotSupportedException("This should never be called");
+		}
+
 		private MarshallableClass CreateRemoteInstance()
 		{
 			return _client.CreateRemoteInstance<MarshallableClass>();
+		}
+
+		private sealed class CallbackImpl : MarshalByRefObject, ICallbackInterface
+		{
+			public CallbackImpl()
+			{
+				HasBeenCalled = false;
+			}
+
+			public bool HasBeenCalled
+			{
+				get;
+				set;
+			}
+			public void FireSomeAction(string nameOfAction)
+			{
+				HasBeenCalled = true;
+			}
 		}
 	}
 }
