@@ -13,7 +13,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NewRemotingUnitTest", "NewR
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SampleServerClasses", "SampleServerClasses\SampleServerClasses.csproj", "{94DBA414-3A51-47AB-A91E-92475B86AF9A}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{C6771861-BACE-4869-AF2B-13C677D6B384}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{35DCC5DB-9AEE-4799-8EF5-9B1A3AC6A2CE}"
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
 	EndProjectSection

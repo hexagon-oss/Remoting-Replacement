@@ -153,7 +153,7 @@ namespace NewRemoting
 					_writer.Write(args.Length); // but we need to provide the number of arguments that follow
 					foreach (var a in args)
 					{
-						_interceptor.WriteArgumentToStream(a);
+						_interceptor.WriteArgumentToStream(_writer, a);
 					}
 				}
 			}

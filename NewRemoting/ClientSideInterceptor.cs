@@ -24,7 +24,6 @@ namespace NewRemoting
 		private readonly IInternalClient _remotingClient;
 		private readonly ProxyGenerator _proxyGenerator;
 		private IFormatter m_formatter;
-		private BinaryWriter _writer;
 		private int _sequence;
 		private ConcurrentDictionary<int, (IInvocation, AutoResetEvent eventToTrigger)> _pendingInvocations;
 		private Thread _receiverThread;
@@ -40,7 +39,6 @@ namespace NewRemoting
 			_proxyGenerator = proxyGenerator;
 			m_formatter = formatter;
 			_pendingInvocations = new();
-			_writer = new BinaryWriter(_serverLink.GetStream(), Encoding.Unicode);
 			_receiverThread = new Thread(ReceiverThread);
 			_receiverThread.Name = "ClientSideInterceptor - Receiver - " + side;
 			_receiving = true;
@@ -71,6 +69,9 @@ namespace NewRemoting
 
 			int thisSeq;
 
+			MemoryStream rawDataMessage = new MemoryStream(1024);
+			BinaryWriter writer = new BinaryWriter(rawDataMessage, Encoding.Unicode);
+
 			lock (_remotingClient.CommunicationLinkLock)
 			{
 				thisSeq = NextSequenceNumber();
@@ -91,19 +92,19 @@ namespace NewRemoting
 					throw new RemotingException("Not a valid remoting proxy", RemotingExceptionKind.ProxyManagementError);
 				}
 
-				hd.WriteTo(_writer);
-				_writer.Write(remoteInstanceId);
+				hd.WriteTo(writer);
+				writer.Write(remoteInstanceId);
 				// Also transmit the type of the calling object (if the method is called on an interface, this is different from the actual object)
 				if (me.DeclaringType != null)
 				{
-					_writer.Write(me.DeclaringType.AssemblyQualifiedName);
+					writer.Write(me.DeclaringType.AssemblyQualifiedName);
 				}
 				else
 				{
-					_writer.Write(string.Empty);
+					writer.Write(string.Empty);
 				}
 
-				_writer.Write(me.MetadataToken);
+				writer.Write(me.MetadataToken);
 				if (me.ContainsGenericParameters)
 				{
 					// This should never happen (or the compiler has done something wrong)
@@ -111,7 +112,7 @@ namespace NewRemoting
 				}
 
 				var genericArgs = me.GetGenericArguments();
-				_writer.Write((int)genericArgs.Length);
+				writer.Write((int)genericArgs.Length);
 				foreach (var genericType in genericArgs)
 				{
 					string arg = genericType.AssemblyQualifiedName;
@@ -120,15 +121,19 @@ namespace NewRemoting
 						throw new RemotingException("Unresolved generic type or some other undefined case", RemotingExceptionKind.UnsupportedOperation);
 					}
 
-					_writer.Write(arg);
+					writer.Write(arg);
 				}
 
-				_writer.Write(invocation.Arguments.Length);
+				writer.Write(invocation.Arguments.Length);
 
 				foreach (var argument in invocation.Arguments)
 				{
-					WriteArgumentToStream(_writer, argument);
+					WriteArgumentToStream(writer, argument);
 				}
+
+				// now finally write the stream to the network. That way, we don't send incomplete messages if an exception happens encoding a parameter.
+				rawDataMessage.Position = 0;
+				rawDataMessage.CopyTo(_serverLink.GetStream());
 			}
 
 			WaitForReply(invocation, thisSeq);
@@ -296,12 +301,7 @@ namespace NewRemoting
 			throw new RemotingException("Unknown argument type", RemotingExceptionKind.UnsupportedOperation);
 		}
 
-		internal void WriteArgumentToStream(object data)
-		{
-			WriteArgumentToStream(_writer, data);
-		}
-
-		private void WriteArgumentToStream(BinaryWriter w, object data)
+		public void WriteArgumentToStream(BinaryWriter w, object data)
 		{
 			MemoryStream ms = new MemoryStream();
 			if (ReferenceEquals(data, null))
