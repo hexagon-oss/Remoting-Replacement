@@ -171,7 +171,7 @@ namespace NewRemoting
 						object newInstance = Activator.CreateInstance(t, false);
 						RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
 						hdReturnValue1.WriteTo(w);
-						WriteArgumentToStream(m_formatter, w, newInstance);
+						_messageHandler.WriteArgumentToStream(w, newInstance);
 
 						continue;
 					}
@@ -188,14 +188,14 @@ namespace NewRemoting
 						object[] ctorArgs = new object[numArguments];
 						for (int i = 0; i < ctorArgs.Length; i++)
 						{
-							ctorArgs[i] = ReadArgumentFromStream(m_formatter, r, null, i);
+							ctorArgs[i] = _messageHandler.ReadArgumentFromStream(r, null, true, null);
 						}
 
 						Type t = GetTypeFromAnyAssembly(instance);
 						object newInstance = Activator.CreateInstance(t, ctorArgs);
 						RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
 						hdReturnValue1.WriteTo(w);
-						WriteArgumentToStream(m_formatter, w, newInstance);
+						_messageHandler.WriteArgumentToStream(w, newInstance);
 
 						continue;
 					}
@@ -206,7 +206,7 @@ namespace NewRemoting
 						object newInstance = ServiceContainer.GetService(t);
 						RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
 						hdReturnValue1.WriteTo(w);
-						WriteArgumentToStream(m_formatter, w, newInstance);
+						_messageHandler.WriteArgumentToStream(w, newInstance);
 						continue;
 					}
 
@@ -242,7 +242,7 @@ namespace NewRemoting
 					object[] args = new object[numArgs];
 					for (int i = 0; i < numArgs; i++)
 					{
-						var decodedArg = ReadArgumentFromStream(m_formatter, r, me, i);
+						var decodedArg = _messageHandler.ReadArgumentFromStream(r, null, false, me.GetParameters()[i].ParameterType);
 						args[i] = decodedArg;
 					}
 
@@ -295,7 +295,7 @@ namespace NewRemoting
 					{
 						Debug.WriteLine($"MainServer: {hd.Sequence} reply is of type {returnValue.GetType()}");
 					}
-					WriteArgumentToStream(m_formatter, w, returnValue);
+					_messageHandler.WriteArgumentToStream(w, returnValue);
 				}
 
 				int index = 0;
@@ -303,7 +303,7 @@ namespace NewRemoting
 				{
 					if (byRefArguments.ParameterType.IsByRef)
 					{
-						WriteArgumentToStream(m_formatter, w, args[index]);
+						_messageHandler.WriteArgumentToStream(w, args[index]);
 					}
 
 					index++;
@@ -334,137 +334,6 @@ namespace NewRemoting
 			}
 
 			return false;
-		}
-
-		private object ReadArgumentFromStream(IFormatter formatter, BinaryReader r, MethodInfo methodInfoOfCalledMethod, int paramNumber)
-		{
-			RemotingReferenceType referenceType = (RemotingReferenceType)r.ReadInt32();
-			if (referenceType == RemotingReferenceType.SerializedItem)
-			{
-				int argumentLen = r.ReadInt32();
-				byte[] argumentData = r.ReadBytes(argumentLen);
-				MemoryStream ms = new MemoryStream(argumentData, false);
-#pragma warning disable 618
-				object decodedArg = formatter.Deserialize(ms);
-#pragma warning restore 618
-				return decodedArg;
-			}
-			else if (referenceType == RemotingReferenceType.NullPointer)
-			{
-				return null;
-			}
-			else if (referenceType == RemotingReferenceType.RemoteReference)
-			{
-				string objectId = r.ReadString();
-				string typeName = r.ReadString();
-				if (_instanceManager.TryGetObjectFromId(objectId, out object instance))
-				{
-					return instance;
-				}
-
-				Type t = GetTypeFromAnyAssembly(typeName);
-
-				if (_serverInterceptorForCallbacks == null)
-				{
-					throw new RemotingException("No return channel", RemotingExceptionKind.ProtocolError);
-				}
-
-				object obj;
-				Type[] tAdditionalInterfaces = t.GetInterfaces();
-				var ctors = t.GetConstructors();
-				if (tAdditionalInterfaces.Any() && (t.IsSealed || !ctors.Any(x => x.GetParameters().Length == 0)))
-				{
-					// If t is sealed or does not have a default ctor, we can't create a full proxy of it, try an interface proxy with one of the additional interfaces instead
-					t = tAdditionalInterfaces[0];
-					obj = _proxyGenerator.CreateInterfaceProxyWithoutTarget(t, tAdditionalInterfaces, _serverInterceptorForCallbacks);
-				}
-				else if (t.IsInterface)
-				{
-					obj = _proxyGenerator.CreateInterfaceProxyWithoutTarget(t, tAdditionalInterfaces, _serverInterceptorForCallbacks);
-				}
-				else
-				{
-					obj = _proxyGenerator.CreateClassProxy(t, tAdditionalInterfaces, _serverInterceptorForCallbacks);
-				}
-
-				_instanceManager.AddInstance(obj, objectId);
-
-				return obj;
-			}
-			else if (referenceType == RemotingReferenceType.MethodPointer)
-			{
-				string instanceId = r.ReadString();
-				string targetId = r.ReadString();
-				string typeOfTargetName = r.ReadString();
-				int tokenOfTargetMethod = r.ReadInt32();
-				Type typeOfTarget = GetTypeFromAnyAssembly(typeOfTargetName);
-
-				var methods = typeOfTarget.GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public);
-				MethodInfo methodInfoOfTarget = methods.First(x => x.MetadataToken == tokenOfTargetMethod);
-
-				Type delegateType = methodInfoOfCalledMethod.GetParameters()[paramNumber].ParameterType;
-
-				var argumentsOfTarget = methodInfoOfTarget.GetParameters();
-				// This creates an instance of the DelegateInternalSink class, which acts as a proxy for delegate callbacks. Instead of the actual delegate
-				// target, we register a method from this class as a delegate target
-				var internalSink = new DelegateInternalSink(_serverInterceptorForCallbacks, targetId, methodInfoOfTarget);
-				_instanceManager.AddInstance(internalSink, targetId);
-
-				var possibleSinks = internalSink.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public).Where(x => x.Name == "ActionSink");
-				MethodInfo localSinkTarget = possibleSinks.Single(x => x.GetGenericArguments().Length == argumentsOfTarget.Length);
-				if (argumentsOfTarget.Length > 0)
-				{
-					localSinkTarget = localSinkTarget.MakeGenericMethod(argumentsOfTarget.Select(x => x.ParameterType).ToArray());
-				}
-
-				return Delegate.CreateDelegate(delegateType, internalSink, localSinkTarget);
-			}
-			else if (referenceType == RemotingReferenceType.InstanceOfSystemType)
-			{
-				string typeName = r.ReadString();
-				Type t = GetTypeFromAnyAssembly(typeName);
-				return t;
-			}
-
-			throw new RemotingException("Unsupported argument type declaration (neither reference nor instance)", RemotingExceptionKind.ProxyManagementError);
-		}
-
-		private void WriteArgumentToStream(IFormatter formatter, BinaryWriter w, object data)
-		{
-			if (ReferenceEquals(data, null))
-			{
-				w.Write((int)RemotingReferenceType.NullPointer);
-				return;
-			}
-			Type t = data.GetType();
-			if (data is Type type)
-			{
-				w.Write((int)RemotingReferenceType.InstanceOfSystemType);
-				w.Write(type.AssemblyQualifiedName);
-				return;
-			}
-			if (t.IsSerializable)
-			{
-				MemoryStream ms = new MemoryStream();
-#pragma warning disable 618
-				formatter.Serialize(ms, data);
-#pragma warning restore 618
-				w.Write((int)RemotingReferenceType.SerializedItem);
-				w.Write((int)ms.Length);
-				byte[] array = ms.ToArray();
-				w.Write(array, 0, (int)ms.Length);
-			}
-			else if (t.IsAssignableTo(typeof(MarshalByRefObject)))
-			{
-				string objectId = _instanceManager.GetIdForObject(data);
-				w.Write((int)RemotingReferenceType.RemoteReference);
-				w.Write(data.GetType().AssemblyQualifiedName);
-				w.Write(objectId);
-			}
-			else
-			{
-				throw new SerializationException($"Object {data} is neither serializable nor MarshalByRefObject");
-			}
 		}
 
 		public static Type GetTypeFromAnyAssembly(string assemblyQualifiedName)

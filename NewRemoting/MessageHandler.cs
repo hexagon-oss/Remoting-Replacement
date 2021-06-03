@@ -118,7 +118,7 @@ namespace NewRemoting
 				{
 					throw new RemotingException("Unexpected invocation type", RemotingExceptionKind.ProtocolError);
 				}
-				object returnValue = ReadArgumentFromStream(reader, invocation, true);
+				object returnValue = ReadArgumentFromStream(reader, invocation, true, methodBase.DeclaringType);
 				invocation.ReturnValue = returnValue;
 				// out or ref arguments on ctors are rare, but not generally forbidden, so we continue here
 			}
@@ -128,7 +128,7 @@ namespace NewRemoting
 				methodBase = me;
 				if (me.ReturnType != typeof(void))
 				{
-					object returnValue = ReadArgumentFromStream(reader, invocation, true);
+					object returnValue = ReadArgumentFromStream(reader, invocation, true, me.ReturnType);
 					invocation.ReturnValue = returnValue;
 				}
 			}
@@ -138,7 +138,7 @@ namespace NewRemoting
 			{
 				if (byRefArguments.ParameterType.IsByRef)
 				{
-					object byRefValue = ReadArgumentFromStream(reader, invocation, false);
+					object byRefValue = ReadArgumentFromStream(reader, invocation, false, byRefArguments.ParameterType);
 					invocation.Arguments[index] = byRefValue;
 				}
 
@@ -146,76 +146,105 @@ namespace NewRemoting
 			}
 		}
 
-		public object ReadArgumentFromStream(BinaryReader r, IInvocation invocation, bool canAttemptToInstantiate)
+		public object ReadArgumentFromStream(BinaryReader r, IInvocation invocation, bool canAttemptToInstantiate, Type typeOfArgument)
 		{
 			RemotingReferenceType referenceType = (RemotingReferenceType)r.ReadInt32();
-			if (referenceType == RemotingReferenceType.NullPointer)
+			switch (referenceType)
 			{
-				return null;
-			}
-			if (referenceType == RemotingReferenceType.SerializedItem)
-			{
-				int argumentLen = r.ReadInt32();
-				byte[] argumentData = r.ReadBytes(argumentLen);
-				MemoryStream ms = new MemoryStream(argumentData, false);
+				case RemotingReferenceType.NullPointer:
+					return null;
+				case RemotingReferenceType.SerializedItem:
+				{
+					int argumentLen = r.ReadInt32();
+					byte[] argumentData = r.ReadBytes(argumentLen);
+					MemoryStream ms = new MemoryStream(argumentData, false);
 #pragma warning disable 618
-				object decodedArg = _formatter.Deserialize(ms);
+					object decodedArg = _formatter.Deserialize(ms);
 #pragma warning restore 618
-				return decodedArg;
-			}
-			else if (referenceType == RemotingReferenceType.RemoteReference)
-			{
-				// The server sends a reference to an object that he owns
-				// This code currently returns a new proxy, even if the server repeatedly returns the same instance
-				string typeName = r.ReadString();
-				string objectId = r.ReadString();
-				var type = Type.GetType(typeName);
-				if (type == null)
-				{
-					throw new RemotingException("Unknown type found in argument stream", RemotingExceptionKind.ProxyManagementError);
+					return decodedArg;
 				}
-
-				if (_instanceManager.TryGetObjectFromId(objectId, out object instance))
+				case RemotingReferenceType.RemoteReference:
 				{
-					return instance;
-				}
-
-				if (!_instanceManager.IsRemoteInstanceId(objectId))
-				{
-					throw new InvalidOperationException("Got an instance that should be local but it isn't");
-				}
-
-				// Create a class proxy with all interfaces proxied as well.
-				var interfaces = type.GetInterfaces();
-				var invocationMethodReturnType = invocation.Method?.ReturnType; // This is null in case of a constructor
-				if (invocationMethodReturnType != null && invocationMethodReturnType.IsInterface)
-				{
-					// If the call returns an interface, only create an interface proxy, because we might not be able to instantiate the actual class (because it's not public, it's sealed, has no public ctors, etc)
-					instance = _proxyGenerator.CreateInterfaceProxyWithoutTarget(invocationMethodReturnType, interfaces, Interceptor);
-				}
-				else
-				{
-					if (canAttemptToInstantiate)
+					// The server sends a reference to an object that he owns
+					string objectId = r.ReadString();
+					string typeName = r.ReadString();
+					var type = Server.GetTypeFromAnyAssembly(typeName);
+					switch (type)
 					{
-						instance = _proxyGenerator.CreateClassProxy(type, interfaces, ProxyGenerationOptions.Default, invocation.Arguments, Interceptor);
+						case null:
+							throw new RemotingException("Unknown type found in argument stream", RemotingExceptionKind.ProxyManagementError);
+					}
+
+					if (_instanceManager.TryGetObjectFromId(objectId, out object instance))
+					{
+						return instance;
+					}
+
+					if (_instanceManager.IsLocalInstanceId(objectId))
+					{
+						throw new InvalidOperationException("Got an instance that should be local but it isn't");
+					}
+
+					// Create a class proxy with all interfaces proxied as well.
+					var interfaces = type.GetInterfaces();
+					if (typeOfArgument != null && typeOfArgument.IsInterface)
+					{
+						// If the call returns an interface, only create an interface proxy, because we might not be able to instantiate the actual class (because it's not public, it's sealed, has no public ctors, etc)
+						instance = _proxyGenerator.CreateInterfaceProxyWithoutTarget(typeOfArgument, interfaces, Interceptor);
 					}
 					else
 					{
-						instance = _proxyGenerator.CreateClassProxy(type, interfaces, Interceptor);
+						switch (canAttemptToInstantiate)
+						{
+							case true:
+								instance = _proxyGenerator.CreateClassProxy(type, interfaces, ProxyGenerationOptions.Default, invocation.Arguments, Interceptor);
+								break;
+							default:
+								instance = _proxyGenerator.CreateClassProxy(type, interfaces, Interceptor);
+								break;
+						}
 					}
+
+					_instanceManager.AddInstance(instance, objectId);
+					return instance;
 				}
+				case RemotingReferenceType.InstanceOfSystemType:
+				{
+					string typeName = r.ReadString();
+					Type t = Server.GetTypeFromAnyAssembly(typeName);
+					return t;
+				}
+				case RemotingReferenceType.MethodPointer:
+				{
+					string instanceId = r.ReadString();
+					string targetId = r.ReadString();
+					string typeOfTargetName = r.ReadString();
+					int tokenOfTargetMethod = r.ReadInt32();
+					Type typeOfTarget = Server.GetTypeFromAnyAssembly(typeOfTargetName);
 
-				_instanceManager.AddInstance(instance, objectId);
-				return instance;
-			}
-			else if (referenceType == RemotingReferenceType.InstanceOfSystemType)
-			{
-				string typeName = r.ReadString();
-				Type t = Server.GetTypeFromAnyAssembly(typeName);
-				return t;
-			}
+					var methods = typeOfTarget.GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public);
+					MethodInfo methodInfoOfTarget = methods.First(x => x.MetadataToken == tokenOfTargetMethod);
 
-			throw new RemotingException("Unknown argument type", RemotingExceptionKind.UnsupportedOperation);
+					var argumentsOfTarget = methodInfoOfTarget.GetParameters();
+					// This creates an instance of the DelegateInternalSink class, which acts as a proxy for delegate callbacks. Instead of the actual delegate
+					// target, we register a method from this class as a delegate target
+					var internalSink = new DelegateInternalSink(Interceptor, targetId, methodInfoOfTarget);
+					_instanceManager.AddInstance(internalSink, targetId);
+
+					var possibleSinks = internalSink.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public).Where(x => x.Name == "ActionSink");
+					MethodInfo localSinkTarget = possibleSinks.Single(x => x.GetGenericArguments().Length == argumentsOfTarget.Length);
+					switch (argumentsOfTarget.Length)
+					{
+						case > 0:
+							localSinkTarget = localSinkTarget.MakeGenericMethod(argumentsOfTarget.Select(x => x.ParameterType).ToArray());
+							break;
+					}
+
+					return Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
+				}
+				default:
+					throw new RemotingException("Unknown argument type", RemotingExceptionKind.UnsupportedOperation);
+			}
 		}
 	}
 }
