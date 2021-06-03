@@ -47,6 +47,8 @@ namespace NewRemoting
 			_proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
 			_returnChannel = null;
 			_instanceManager = new InstanceManager();
+
+			// This instance will only be finally initialized once the return channel is opened
 			_messageHandler = new MessageHandler(_instanceManager, _proxyGenerator, m_formatter);
 			AppDomain.CurrentDomain.AssemblyResolve += AssemblyResolver;
 		}
@@ -59,6 +61,7 @@ namespace NewRemoting
 			m_networkPort = networkPort;
 			_messageHandler = messageHandler;
 			_instanceManager = messageHandler.InstanceManager;
+			messageHandler.Init(localInterceptor);
 			m_threads = new();
 			m_formatter = new BinaryFormatter();
 			_proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
@@ -266,6 +269,10 @@ namespace NewRemoting
 			object returnValue;
 			try
 			{
+				if (realInstance == null && !me.IsStatic)
+				{
+					throw new NullReferenceException("Cannot invoke on a non-static method without an instance");
+				}
 				if (realInstance is Delegate del)
 				{
 					returnValue = me.Invoke(del.Target, args);
@@ -324,6 +331,7 @@ namespace NewRemoting
 
 				_returnChannel = new TcpClient(clientIp, clientPort);
 				_serverInterceptorForCallbacks = new ClientSideInterceptor("Server", _returnChannel, _messageHandler);
+				_messageHandler.Init(_serverInterceptorForCallbacks);
 				return true;
 			}
 

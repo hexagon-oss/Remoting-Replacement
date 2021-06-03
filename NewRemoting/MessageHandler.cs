@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Dynamic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -16,6 +17,7 @@ namespace NewRemoting
 		private readonly IFormatter _formatter;
 		private readonly ProxyGenerator _proxyGenerator;
 		private readonly object _communicationLock;
+		private bool _initialized;
 
 		public MessageHandler(InstanceManager instanceManager, ProxyGenerator proxyGenerator, IFormatter formatter)
 		{
@@ -23,15 +25,22 @@ namespace NewRemoting
 			_formatter = formatter;
 			_proxyGenerator = proxyGenerator;
 			_communicationLock = new object();
+			_initialized = false;
 		}
 
 		/// <summary>
-		/// Interceptor to use for proxies. Public, because of circular ctor dependencies.
+		/// Initializes this instance. Separate because of circular dependencies. 
 		/// </summary>
+		public void Init(IInterceptor interceptor)
+		{
+			Interceptor = interceptor;
+			_initialized = true;
+		}
+
 		public IInterceptor Interceptor
 		{
 			get;
-			internal set;
+			private set;
 		}
 
 		/// <summary>
@@ -43,6 +52,10 @@ namespace NewRemoting
 
 		public void WriteArgumentToStream(BinaryWriter w, object data)
 		{
+			if (!_initialized)
+			{
+				throw new InvalidOperationException("Instance is not initialized");
+			}
 			MemoryStream ms = new MemoryStream();
 			if (ReferenceEquals(data, null))
 			{
@@ -109,6 +122,10 @@ namespace NewRemoting
 
 		public void ProcessCallResponse(IInvocation invocation, BinaryReader reader)
 		{
+			if (!_initialized)
+			{
+				throw new InvalidOperationException("Instance is not initialized");
+			}
 			MethodBase methodBase;
 			// This is true if this is a reply to a CreateInstance call (invocation.Method cannot be a ConstructorInfo instance)
 			if (invocation is ManualInvocation mi && invocation.Method == null)
@@ -148,6 +165,10 @@ namespace NewRemoting
 
 		public object ReadArgumentFromStream(BinaryReader r, IInvocation invocation, bool canAttemptToInstantiate, Type typeOfArgument)
 		{
+			if (!_initialized)
+			{
+				throw new InvalidOperationException("Instance is not initialized");
+			}
 			RemotingReferenceType referenceType = (RemotingReferenceType)r.ReadInt32();
 			switch (referenceType)
 			{

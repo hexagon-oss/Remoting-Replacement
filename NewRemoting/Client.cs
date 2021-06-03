@@ -48,7 +48,7 @@ namespace NewRemoting
 
 			_interceptor = new ClientSideInterceptor("Client", _client, _messageHandler);
 
-			_messageHandler.Interceptor = _interceptor;
+			_messageHandler.Init(_interceptor);
 
 			// This is used as return channel
 			_server = new Server(port + 1, _messageHandler, _interceptor);

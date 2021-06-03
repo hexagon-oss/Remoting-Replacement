@@ -18,7 +18,7 @@ namespace RemotingClient
 
 		public static void DoSomeRemoting()
 		{
-			using Client client = new NewRemoting.Client("localhost", Client.DefaultNetworkPort);
+			using var client = GetClient();
 			MarshallableClass cls = client.CreateRemoteInstance<MarshallableClass>();
 			int number = cls.GetSomeData();
 			Console.WriteLine($"Server said the number is {number}!");
@@ -74,6 +74,29 @@ namespace RemotingClient
 		public static void MyComponentInterfaceOnTimeChanged(DateTime obj)
 		{
 			Console.WriteLine($"It is now {obj.ToLongDateString()}");
+		}
+
+		private static Client GetClient()
+		{
+			int i = 5;
+			while (true)
+			{
+				try
+				{
+					Client client = new NewRemoting.Client("localhost", Client.DefaultNetworkPort);
+					return client;
+				}
+				catch (SocketException x)
+				{
+					Console.WriteLine($"Exception connecting to server: {x}");
+					i--;
+					Thread.Sleep(500);
+					if (i <= 0)
+					{
+						throw;
+					}
+				}
+			}
 		}
 
 		internal sealed class MyClassWithAnEventSink
