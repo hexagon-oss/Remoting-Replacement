@@ -16,15 +16,5 @@ namespace NewRemoting
 		{
 			get;
 		}
-
-		void AddKnownRemoteInstance(object obj, string objectId);
-
-		bool TryGetRemoteInstance(object obj, out string objectId);
-
-		object GetLocalInstanceFromReference(string objectId);
-
-		bool TryGetLocalInstanceFromReference(string objectId, out object obj);
-
-		string GetIdForLocalObject(object obj, out bool isNew);
 	}
 }
