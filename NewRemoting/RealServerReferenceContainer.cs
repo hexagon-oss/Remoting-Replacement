@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace NewRemoting
 {
-	internal class RealServerReferenceContainer : IInternalClient
+	internal class RealServerReferenceContainer
 	{
 		private ConditionalWeakTable<object, string> m_clientReferences;
 		private Dictionary<string, object> m_serverHardReferences;

@@ -21,20 +21,18 @@ namespace NewRemoting
 	{
 		private readonly string _side;
 		private readonly TcpClient _serverLink;
-		private readonly IInternalClient _remotingClient;
 		private readonly MessageHandler _messageHandler;
 		private int _sequence;
 		private ConcurrentDictionary<int, (IInvocation, AutoResetEvent eventToTrigger)> _pendingInvocations;
 		private Thread _receiverThread;
 		private bool _receiving;
 
-		public ClientSideInterceptor(String side, TcpClient serverLink, IInternalClient remotingClient, MessageHandler messageHandler)
+		public ClientSideInterceptor(String side, TcpClient serverLink, MessageHandler messageHandler)
 		{
 			DebuggerToStringBehavior = DebuggerToStringBehavior.ReturnProxyName;
 			_sequence = side == "Client" ? 1 : 10000;
 			_side = side;
 			_serverLink = serverLink;
-			_remotingClient = remotingClient;
 			_messageHandler = messageHandler ?? throw new ArgumentNullException(nameof(messageHandler));
 			_pendingInvocations = new();
 			_receiverThread = new Thread(ReceiverThread);
@@ -70,7 +68,7 @@ namespace NewRemoting
 			MemoryStream rawDataMessage = new MemoryStream(1024);
 			BinaryWriter writer = new BinaryWriter(rawDataMessage, Encoding.Unicode);
 
-			lock (_remotingClient.CommunicationLinkLock)
+			lock (_messageHandler.CommunicationLinkLock)
 			{
 				thisSeq = NextSequenceNumber();
 
@@ -85,7 +83,7 @@ namespace NewRemoting
 					throw new RemotingException("Remote-calling a static method? No.", RemotingExceptionKind.UnsupportedOperation);
 				}
 
-				if (!_remotingClient.TryGetRemoteInstance(invocation.Proxy, out var remoteInstanceId))
+				if (!_messageHandler.InstanceManager.TryGetObjectId(invocation.Proxy, out var remoteInstanceId))
 				{
 					throw new RemotingException("Not a valid remoting proxy", RemotingExceptionKind.ProxyManagementError);
 				}

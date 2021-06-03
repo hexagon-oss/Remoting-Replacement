@@ -38,5 +38,20 @@ namespace NewRemoting
 		{
 			throw new NotImplementedException();
 		}
+
+		public bool TryGetObjectId(object instance, out string instanceId)
+		{
+			throw new NotImplementedException();
+		}
+
+		public object GetObjectFromId(string id)
+		{
+			if (!TryGetObjectFromId(id, out object instance))
+			{
+				throw new InvalidOperationException($"Could not locate instance with ID {id} or it is not local");
+			}
+
+			return instance;
+		}
 	}
 }

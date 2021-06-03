@@ -15,12 +15,14 @@ namespace NewRemoting
 		private readonly InstanceManager _instanceManager;
 		private readonly IFormatter _formatter;
 		private readonly ProxyGenerator _proxyGenerator;
+		private readonly object _communicationLock;
 
 		public MessageHandler(InstanceManager instanceManager, ProxyGenerator proxyGenerator, IFormatter formatter)
 		{
 			_instanceManager = instanceManager;
 			_formatter = formatter;
 			_proxyGenerator = proxyGenerator;
+			_communicationLock = new object();
 		}
 
 		/// <summary>
@@ -31,6 +33,13 @@ namespace NewRemoting
 			get;
 			internal set;
 		}
+
+		/// <summary>
+		/// Exposing this is a bit dangerous, but since everything is internal, it should be fine
+		/// </summary>
+		internal object CommunicationLinkLock => _communicationLock;
+
+		public InstanceManager InstanceManager => _instanceManager;
 
 		public void WriteArgumentToStream(BinaryWriter w, object data)
 		{

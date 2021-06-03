@@ -16,7 +16,7 @@ using Castle.DynamicProxy.Generators.Emitters.SimpleAST;
 
 namespace NewRemoting
 {
-	public sealed class Client : IDisposable, IInternalClient
+	public sealed class Client : IDisposable
 	{
 		public const int DefaultNetworkPort = 23456;
 
@@ -46,17 +46,12 @@ namespace NewRemoting
 
 			_messageHandler = new MessageHandler(_instanceManager, _proxy, _formatter);
 
-			_interceptor = new ClientSideInterceptor("Client", _client, this, _messageHandler);
+			_interceptor = new ClientSideInterceptor("Client", _client, _messageHandler);
 
 			_messageHandler.Interceptor = _interceptor;
 
 			// This is used as return channel
-			_server = new Server(port + 1, this, _interceptor);
-		}
-
-		object IInternalClient.CommunicationLinkLock
-		{
-			get { return _accessLock; }
+			_server = new Server(port + 1, _messageHandler, _interceptor);
 		}
 
 		public IPAddress[] LocalIpAddresses()

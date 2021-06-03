@@ -18,7 +18,7 @@ using Castle.DynamicProxy;
 #pragma warning disable SYSLIB0011
 namespace NewRemoting
 {
-	public sealed class Server : IDisposable, IInternalClient
+	public sealed class Server : IDisposable
 	{
 		private int m_networkPort;
 		private TcpListener m_listener;
@@ -28,7 +28,6 @@ namespace NewRemoting
 		private Thread m_mainThread;
 		private readonly ProxyGenerator _proxyGenerator;
 		private TcpClient _returnChannel;
-		private readonly IInternalClient _realContainer;
 		private readonly CancellationTokenSource _terminatingSource = new CancellationTokenSource();
 		private readonly object _channelWriterLock = new object();
 
@@ -37,24 +36,29 @@ namespace NewRemoting
 		/// </summary>
 		private ClientSideInterceptor _serverInterceptorForCallbacks;
 
+		private readonly InstanceManager _instanceManager;
+		private readonly MessageHandler _messageHandler;
+
 		public Server(int networkPort)
 		{
-			_realContainer = new RealServerReferenceContainer();
 			m_networkPort = networkPort;
 			m_threads = new();
 			m_formatter = new BinaryFormatter();
 			_proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
 			_returnChannel = null;
+			_instanceManager = new InstanceManager();
+			_messageHandler = new MessageHandler(_instanceManager, _proxyGenerator, m_formatter);
 			AppDomain.CurrentDomain.AssemblyResolve += AssemblyResolver;
 		}
 
 		/// <summary>
 		/// This ctor is used if this server runs on the client side (for the return channel). The actual data store is the local client instance.
 		/// </summary>
-		internal Server(int networkPort, IInternalClient replacedClient, ClientSideInterceptor localInterceptor)
+		internal Server(int networkPort, MessageHandler messageHandler, ClientSideInterceptor localInterceptor)
 		{
-			_realContainer = replacedClient;
 			m_networkPort = networkPort;
+			_messageHandler = messageHandler;
+			_instanceManager = messageHandler.InstanceManager;
 			m_threads = new();
 			m_formatter = new BinaryFormatter();
 			_proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
@@ -65,11 +69,6 @@ namespace NewRemoting
 		public bool IsRunning => m_mainThread != null && m_mainThread.IsAlive;
 
 		public int NetworkPort => m_networkPort;
-
-		object IInternalClient.CommunicationLinkLock
-		{
-			get => _realContainer.CommunicationLinkLock;
-		}
 
 		public static Process StartLocalServerProcess()
 		{
@@ -218,8 +217,8 @@ namespace NewRemoting
 						var t = GetTypeFromAnyAssembly(typeName);
 						typeOfGenericArguments.Add(t);
 					}
-
-					object realInstance = _realContainer.GetLocalInstanceFromReference(instance);
+					
+					object realInstance = _instanceManager.GetObjectFromId(instance);
 
 					if (typeOfCaller == null)
 					{
@@ -324,7 +323,7 @@ namespace NewRemoting
 				}
 
 				_returnChannel = new TcpClient(clientIp, clientPort);
-				_serverInterceptorForCallbacks = new ClientSideInterceptor("Server", _returnChannel, this, _proxyGenerator, m_formatter);
+				_serverInterceptorForCallbacks = new ClientSideInterceptor("Server", _returnChannel, _messageHandler);
 				return true;
 			}
 
@@ -345,7 +344,9 @@ namespace NewRemoting
 				int argumentLen = r.ReadInt32();
 				byte[] argumentData = r.ReadBytes(argumentLen);
 				MemoryStream ms = new MemoryStream(argumentData, false);
+#pragma warning disable 618
 				object decodedArg = formatter.Deserialize(ms);
+#pragma warning restore 618
 				return decodedArg;
 			}
 			else if (referenceType == RemotingReferenceType.NullPointer)
@@ -356,7 +357,7 @@ namespace NewRemoting
 			{
 				string objectId = r.ReadString();
 				string typeName = r.ReadString();
-				if (_realContainer.TryGetLocalInstanceFromReference(objectId, out object instance))
+				if (_instanceManager.TryGetObjectFromId(objectId, out object instance))
 				{
 					return instance;
 				}
@@ -386,7 +387,7 @@ namespace NewRemoting
 					obj = _proxyGenerator.CreateClassProxy(t, tAdditionalInterfaces, _serverInterceptorForCallbacks);
 				}
 
-				_realContainer.AddKnownRemoteInstance(obj, objectId);
+				_instanceManager.AddInstance(obj, objectId);
 
 				return obj;
 			}
@@ -407,7 +408,7 @@ namespace NewRemoting
 				// This creates an instance of the DelegateInternalSink class, which acts as a proxy for delegate callbacks. Instead of the actual delegate
 				// target, we register a method from this class as a delegate target
 				var internalSink = new DelegateInternalSink(_serverInterceptorForCallbacks, targetId, methodInfoOfTarget);
-				_realContainer.AddKnownRemoteInstance(internalSink, targetId);
+				_instanceManager.AddInstance(internalSink, targetId);
 
 				var possibleSinks = internalSink.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public).Where(x => x.Name == "ActionSink");
 				MethodInfo localSinkTarget = possibleSinks.Single(x => x.GetGenericArguments().Length == argumentsOfTarget.Length);
@@ -445,7 +446,9 @@ namespace NewRemoting
 			if (t.IsSerializable)
 			{
 				MemoryStream ms = new MemoryStream();
+#pragma warning disable 618
 				formatter.Serialize(ms, data);
+#pragma warning restore 618
 				w.Write((int)RemotingReferenceType.SerializedItem);
 				w.Write((int)ms.Length);
 				byte[] array = ms.ToArray();
@@ -453,7 +456,7 @@ namespace NewRemoting
 			}
 			else if (t.IsAssignableTo(typeof(MarshalByRefObject)))
 			{
-				string objectId = _realContainer.GetIdForLocalObject(data, out bool isNew);
+				string objectId = _instanceManager.GetIdForObject(data);
 				w.Write((int)RemotingReferenceType.RemoteReference);
 				w.Write(data.GetType().AssemblyQualifiedName);
 				w.Write(objectId);
@@ -532,31 +535,6 @@ namespace NewRemoting
 		public void Dispose()
 		{
 			Terminate();
-		}
-
-		void IInternalClient.AddKnownRemoteInstance(object obj, string objectId)
-		{
-			_realContainer.AddKnownRemoteInstance(obj, objectId);
-		}
-
-		bool IInternalClient.TryGetRemoteInstance(object obj, out string objectId)
-		{
-			return _realContainer.TryGetRemoteInstance(obj, out objectId);
-		}
-
-		object IInternalClient.GetLocalInstanceFromReference(string objectId)
-		{
-			return _realContainer.GetLocalInstanceFromReference(objectId);
-		}
-
-		string IInternalClient.GetIdForLocalObject(object obj, out bool isNew)
-		{
-			return _realContainer.GetIdForLocalObject(obj, out isNew);
-		}
-
-		bool IInternalClient.TryGetLocalInstanceFromReference(string objectId, out object instance)
-		{
-			return _realContainer.TryGetLocalInstanceFromReference(objectId, out instance);
 		}
 
 		public void WaitForTermination()
