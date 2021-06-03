@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using Castle.DynamicProxy;
 
 namespace NewRemoting
 {
@@ -13,11 +14,11 @@ namespace NewRemoting
 	/// </summary>
 	internal class DelegateInternalSink
 	{
-		private readonly ClientSideInterceptor _interceptor;
+		private readonly IInterceptor _interceptor;
 		private readonly string _remoteObjectReference;
 		private readonly MethodInfo _remoteMethodTarget;
 
-		public DelegateInternalSink(ClientSideInterceptor interceptor, string remoteObjectReference, MethodInfo remoteMethodTarget)
+		public DelegateInternalSink(IInterceptor interceptor, string remoteObjectReference, MethodInfo remoteMethodTarget)
 		{
 			_interceptor = interceptor;
 			_remoteObjectReference = remoteObjectReference;

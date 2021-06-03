@@ -16,7 +16,7 @@ using Castle.DynamicProxy.Generators.Emitters.SimpleAST;
 
 namespace NewRemoting
 {
-	public sealed class Client : IDisposable, IInternalClient
+	public sealed class Client : IDisposable
 	{
 		public const int DefaultNetworkPort = 23456;
 
@@ -25,41 +25,33 @@ namespace NewRemoting
 		private BinaryReader _reader;
 		private DefaultProxyBuilder _builder;
 		private ProxyGenerator _proxy;
-		private ConditionalWeakTable<object, string> _knownRemoteInstances;
-		private Dictionary<string, WeakReference> _knownProxyInstances;
 		private IFormatter _formatter;
 		private Server _server;
 		private object _accessLock;
-
-		/// <summary>
-		/// This contains references the client forwards to the server, that is, where the client hosts the actual object and the server gets the proxy.
-		/// </summary>
-		private Dictionary<string, object> _hardReverseReferences;
-
+		
 		private readonly ClientSideInterceptor _interceptor;
+		private readonly MessageHandler _messageHandler;
+		private readonly InstanceManager _instanceManager;
 
 		public Client(string server, int port)
 		{
 			_accessLock = new object();
-			_knownRemoteInstances = new();
-			_hardReverseReferences = new();
-			_knownProxyInstances = new();
 			_formatter = new BinaryFormatter();
 			_client = new TcpClient(server, port);
 			_writer = new BinaryWriter(_client.GetStream(), Encoding.Unicode);
 			_reader = new BinaryReader(_client.GetStream(), Encoding.Unicode);
 			_builder = new DefaultProxyBuilder();
 			_proxy = new ProxyGenerator(_builder);
+			_instanceManager = new InstanceManager();
 
-			_interceptor = new ClientSideInterceptor("Client", _client, this, _proxy, _formatter);
+			_messageHandler = new MessageHandler(_instanceManager, _proxy, _formatter);
+
+			_interceptor = new ClientSideInterceptor("Client", _client, _messageHandler);
+
+			_messageHandler.Init(_interceptor);
 
 			// This is used as return channel
-			_server = new Server(port + 1, this, _interceptor);
-		}
-
-		object IInternalClient.CommunicationLinkLock
-		{
-			get { return _accessLock; }
+			_server = new Server(port + 1, _messageHandler, _interceptor);
 		}
 
 		public IPAddress[] LocalIpAddresses()
@@ -153,7 +145,7 @@ namespace NewRemoting
 					_writer.Write(args.Length); // but we need to provide the number of arguments that follow
 					foreach (var a in args)
 					{
-						_interceptor.WriteArgumentToStream(_writer, a);
+						_messageHandler.WriteArgumentToStream(_writer, a);
 					}
 				}
 			}
@@ -220,7 +212,7 @@ namespace NewRemoting
 
 				object instance =
 					_proxy.CreateClassProxy(typeOfInstance, actualType.GetInterfaces(), options, _interceptor);
-				_knownRemoteInstances.Add(instance, objectId);
+				_instanceManager.AddInstance(instance, objectId);
 				return instance;
 			}
 		}
@@ -232,67 +224,7 @@ namespace NewRemoting
 				_server.Terminate();
 				_server.Dispose();
 				_client.Dispose();
-				_hardReverseReferences.Clear();
-				_knownRemoteInstances.Clear();
 			}
-		}
-
-		void IInternalClient.AddKnownRemoteInstance(object obj, string objectId)
-		{
-			_knownRemoteInstances.AddOrUpdate(obj, objectId);
-			_knownProxyInstances[objectId] = new WeakReference(obj);
-		}
-
-		bool IInternalClient.TryGetRemoteInstance(object obj, out string objectId)
-		{
-			return _knownRemoteInstances.TryGetValue(obj, out objectId);
-		}
-
-		object IInternalClient.GetLocalInstanceFromReference(string objectId)
-		{
-			if (_hardReverseReferences.TryGetValue(objectId, out object instance))
-			{
-				return instance;
-			}
-
-			if (_knownProxyInstances.TryGetValue(objectId, out WeakReference reference))
-			{
-				return reference.Target;
-			}
-
-			return null;
-		}
-
-		bool IInternalClient.TryGetLocalInstanceFromReference(string objectId, out object instance)
-		{
-			if (_hardReverseReferences.TryGetValue(objectId, out instance))
-			{
-				return true;
-			}
-
-			if (_knownProxyInstances.TryGetValue(objectId, out WeakReference reference))
-			{
-				instance = reference.Target;
-				if (instance != null)
-				{
-					return true;
-				}
-			}
-
-			return false;
-		}
-
-		string IInternalClient.GetIdForLocalObject(object obj, out bool isNew)
-		{
-			var key = RealServerReferenceContainer.GetObjectInstanceId(obj);
-			if (_hardReverseReferences.TryAdd(key, obj))
-			{
-				isNew = true;
-				return key;
-			}
-
-			isNew = false;
-			return key;
 		}
 	}
 }
