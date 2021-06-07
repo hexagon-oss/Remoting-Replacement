@@ -191,7 +191,9 @@ namespace NewRemoting
 						object[] ctorArgs = new object[numArguments];
 						for (int i = 0; i < ctorArgs.Length; i++)
 						{
-							ctorArgs[i] = _messageHandler.ReadArgumentFromStream(r, null, true, null);
+							// Constructors are selected dynamically on the server side (below), therefore we can't pass the argument type here.
+							// This may disallow calling a constructor with a client-side reference. It is yet to clarify whether that's a problem or not.
+							ctorArgs[i] = _messageHandler.ReadArgumentFromStream(r, null, false, null);
 						}
 
 						Type t = GetTypeFromAnyAssembly(instance);

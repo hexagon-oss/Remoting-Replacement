@@ -213,17 +213,13 @@ namespace NewRemoting
 						// If the call returns an interface, only create an interface proxy, because we might not be able to instantiate the actual class (because it's not public, it's sealed, has no public ctors, etc)
 						instance = _proxyGenerator.CreateInterfaceProxyWithoutTarget(typeOfArgument, interfaces, Interceptor);
 					}
+					else if (canAttemptToInstantiate)
+					{
+						instance = _proxyGenerator.CreateClassProxy(type, interfaces, ProxyGenerationOptions.Default, invocation.Arguments, Interceptor);
+					}
 					else
 					{
-						switch (canAttemptToInstantiate)
-						{
-							case true:
-								instance = _proxyGenerator.CreateClassProxy(type, interfaces, ProxyGenerationOptions.Default, invocation.Arguments, Interceptor);
-								break;
-							default:
-								instance = _proxyGenerator.CreateClassProxy(type, interfaces, Interceptor);
-								break;
-						}
+						instance = _proxyGenerator.CreateClassProxy(type, interfaces, Interceptor);
 					}
 
 					_instanceManager.AddInstance(instance, objectId);
