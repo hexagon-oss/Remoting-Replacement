@@ -25,7 +25,7 @@ namespace SampleServerClasses
 
 		public virtual string DoSomething()
 		{
-			return ReverseInterface.ProcessName();
+			return "Wrapped by Server: " + ReverseInterface.ConfiguredName();
 		}
 	}
 }

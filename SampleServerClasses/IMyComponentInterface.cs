@@ -20,5 +20,7 @@ namespace SampleServerClasses
 		void StopTiming();
 
 		string ProcessName();
+
+		string ConfiguredName();
 	}
 }

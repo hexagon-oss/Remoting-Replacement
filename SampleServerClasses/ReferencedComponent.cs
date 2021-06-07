@@ -24,6 +24,12 @@ namespace SampleServerClasses
 			_isThreadRunning = false;
 		}
 
+		public string ComponentName
+		{
+			get;
+			set;
+		}
+
 		public virtual int Data
 		{
 			get
@@ -41,6 +47,12 @@ namespace SampleServerClasses
 		{
 			return Process.GetCurrentProcess().ProcessName;
 		}
+
+		public string ConfiguredName()
+		{
+			return ComponentName;
+		}
+
 
 		public virtual int SuperNumber()
 		{

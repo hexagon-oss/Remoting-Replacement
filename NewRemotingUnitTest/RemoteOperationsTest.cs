@@ -180,6 +180,19 @@ namespace NewRemotingUnitTest
 			throw new NotSupportedException("This should never be called");
 		}
 
+		[Test]
+		public void CreateRemoteInstanceWithNonDefaultCtor()
+		{
+			var arguments = new ConstructorArgument(new ReferencedComponent() { ComponentName = "ClientUnderTest"});
+			var service = _client.CreateRemoteInstance<ServiceClass>(arguments);
+
+			// This calls the server, who calls back into the client. So we get something that the client generated
+			string roundTrippedAnswer = service.DoSomething();
+
+			Assert.AreEqual("Wrapped by Server: ClientUnderTest", roundTrippedAnswer);
+
+		}
+
 		private MarshallableClass CreateRemoteInstance()
 		{
 			return _client.CreateRemoteInstance<MarshallableClass>();
