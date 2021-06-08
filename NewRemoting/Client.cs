@@ -120,6 +120,11 @@ namespace NewRemoting
 			ConstructorInfo ctorType = typeOfInstance.GetConstructor(
 				BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, argumentTypes, null);
 
+			if (ctorType == null)
+			{
+				throw new RemotingException($"No public default constructor found on type {typeOfInstance}.", RemotingExceptionKind.UnsupportedOperation);
+			}
+
 			lock (_accessLock)
 			{
 				if (args == null || args.Length == 0)

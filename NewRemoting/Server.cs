@@ -20,6 +20,8 @@ namespace NewRemoting
 {
 	public sealed class Server : IDisposable
 	{
+		public const string ServerExecutableName = "RemotingServer.exe";
+
 		private int m_networkPort;
 		private TcpListener m_listener;
 		private bool m_threadRunning;
