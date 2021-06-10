@@ -15,6 +15,7 @@ namespace NewRemoting
 		MethodReply,
 		OpenReverseChannel,
 		ShutdownServer,
-		RequestServiceReference
+		RequestServiceReference,
+		LoadClientAssemblyIntoServer
 	}
 }
