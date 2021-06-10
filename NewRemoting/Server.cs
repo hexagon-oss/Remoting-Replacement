@@ -172,6 +172,11 @@ namespace NewRemoting
 				{
 					path = potentialEntries[0];
 				}
+				else if (potentialEntries.Length > 1)
+				{
+					Debug.WriteLine($"Found multiple potential implementations for {args.Name}.");
+					throw new NotImplementedException("Fix this");
+				}
 			}
 
 			var assembly = Assembly.LoadFile(path);

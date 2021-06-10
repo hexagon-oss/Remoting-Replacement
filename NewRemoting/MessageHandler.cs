@@ -98,6 +98,14 @@ namespace NewRemoting
 				w.Write(del.Method.DeclaringType.AssemblyQualifiedName);
 				w.Write(del.Method.MetadataToken);
 			}
+			else if (Client.IsRemoteProxy(data))
+            {
+				// Proxies are never serializable
+                string objectId = _instanceManager.GetIdForObject(data);
+                w.Write((int)RemotingReferenceType.RemoteReference);
+                w.Write(objectId);
+                w.Write(data.GetType().AssemblyQualifiedName);
+			}
 			else if (t.IsSerializable)
 			{
 #pragma warning disable 618
