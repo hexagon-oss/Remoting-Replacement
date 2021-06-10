@@ -8,12 +8,14 @@ using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Castle.Components.DictionaryAdapter;
 using Castle.DynamicProxy;
 
 #pragma warning disable SYSLIB0011
@@ -111,12 +113,13 @@ namespace NewRemoting
 			_knownAssemblies.TryAdd(args.Name, null);
 			if (!found)
 			{
+				AssemblyName name = new AssemblyName(args.Name);
 				// Don't try this twice with the same assembly - causes a stack overflow
 				try
 				{
 					// Try using the default context
-					AssemblyName name = new AssemblyName(args.Name);
 					Assembly loaded = Assembly.Load(name);
+					_knownAssemblies.AddOrUpdate(args.Name, loaded, (s, assembly1) => loaded);
 					return loaded;
 				}
 				catch (Exception x)
@@ -130,6 +133,7 @@ namespace NewRemoting
 			if (name2 != null)
 			{
 				Assembly loaded = Assembly.Load(name2);
+				_knownAssemblies.AddOrUpdate(args.Name, loaded, (s, assembly1) => loaded);
 				return loaded;
 			}
 
@@ -141,14 +145,37 @@ namespace NewRemoting
 				dllOnly += ".dll";
 			}
 
-			string path = Path.Combine(Path.GetDirectoryName(args.RequestingAssembly.Location), dllOnly);
+			string currentDirectory = Path.GetDirectoryName(args.RequestingAssembly.Location);
+			string path = Path.Combine(currentDirectory, dllOnly);
 
 			if (!File.Exists(path))
 			{
 				return null;
 			}
 
+			// If we find a file with the same name in the "runtimes" subfolder, we should probably pick that one instead of the one in the main directory.
+			string osName = string.Empty;
+			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+			{
+				osName = "win";
+			}
+			else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+			{
+				osName = "unix";
+			}
+
+			string startDirectory = Path.Combine(currentDirectory, "runtimes", osName);
+			if (Directory.Exists(startDirectory))
+			{
+				var potentialEntries = Directory.EnumerateFileSystemEntries(startDirectory, dllOnly, SearchOption.AllDirectories).ToArray();
+				if (potentialEntries.Length == 1)
+				{
+					path = potentialEntries[0];
+				}
+			}
+
 			var assembly = Assembly.LoadFile(path);
+			_knownAssemblies.AddOrUpdate(args.Name, assembly, (s, assembly1) => assembly);
 			return assembly;
 		}
 
@@ -323,7 +350,14 @@ namespace NewRemoting
 
 		private object UseClientBinaryToCreateInstanceOfType(Type type)
 		{
-			Assembly[] assemblies = new Assembly[] { type.Assembly, Assembly.GetEntryAssembly() };
+			List<Assembly> assemblies = new List<Assembly>() { type.Assembly, Assembly.GetEntryAssembly() };
+			foreach (var x in _knownAssemblies.Values)
+			{
+				if (x != null)
+				{
+					assemblies.Add(x);
+				}
+			}
 			foreach (var a in assemblies)
 			{
 				foreach (var t in a.GetTypes())
@@ -411,6 +445,23 @@ namespace NewRemoting
 				_returnChannel = new TcpClient(clientIp, clientPort);
 				_serverInterceptorForCallbacks = new ClientSideInterceptor("Server", _returnChannel, _messageHandler);
 				_messageHandler.Init(_serverInterceptorForCallbacks);
+				return true;
+			}
+
+			if (hd.Function == RemotingFunctionType.LoadClientAssemblyIntoServer)
+			{
+				string assemblyName = r.ReadString();
+				AssemblyName name = new AssemblyName(assemblyName);
+				try
+				{
+					var assembly = Assembly.Load(name);
+					_knownAssemblies.TryAdd(name.FullName, assembly);
+				}
+				catch (Exception x)
+				{
+					Debug.WriteLine(x.ToString());
+				}
+
 				return true;
 			}
 
