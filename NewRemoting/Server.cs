@@ -246,16 +246,7 @@ namespace NewRemoting
 						}
 
 						Type t = GetTypeFromAnyAssembly(instance);
-
-						object newInstance;
-
-						newInstance = UseClientBinaryToCreateInstanceOfType(t);
-
-						if (newInstance == null)
-						{
-							newInstance = Activator.CreateInstance(t, false);
-						}
-
+						object newInstance = Activator.CreateInstance(t, false);
 						RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
 						hdReturnValue1.WriteTo(w);
 						_messageHandler.WriteArgumentToStream(w, newInstance);
@@ -346,33 +337,6 @@ namespace NewRemoting
 				// Remote connection closed
 				Console.WriteLine($"Server handler died due to {x}");
 			}
-		}
-
-		private object UseClientBinaryToCreateInstanceOfType(Type type)
-		{
-			List<Assembly> assemblies = new List<Assembly>() { type.Assembly, Assembly.GetEntryAssembly() };
-			foreach (var x in _knownAssemblies.Values)
-			{
-				if (x != null)
-				{
-					assemblies.Add(x);
-				}
-			}
-			foreach (var a in assemblies)
-			{
-				foreach (var t in a.GetTypes())
-				{
-					if (t.GetInterfaces().Contains(typeof(IAssemblyResolverSupport)))
-					{
-						var resolverInstance = (IAssemblyResolverSupport)Activator.CreateInstance(t);
-						var instance = resolverInstance.CreateInstance(type, out var assembly);
-						_knownAssemblies.TryAdd(assembly.FullName, assembly);
-						return instance;
-					}
-				}
-			}
-
-			return null;
 		}
 
 		private void InvokeRealInstance(MethodInfo me, object realInstance, object[] args, RemotingCallHeader hd, BinaryWriter w)

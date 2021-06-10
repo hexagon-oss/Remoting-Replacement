@@ -68,10 +68,6 @@ namespace RemotingClient
 
 			Console.WriteLine($"The reply should be round-tripped to the client: {service.DoSomething()}");
 
-			SystemManagementResolver res = new SystemManagementResolver();
-			CheckBiosVersion b2 = (CheckBiosVersion)res.CreateInstance(typeof(CheckBiosVersion), out _);
-			b2.Dispose();
-
 			var bios = client.CreateRemoteInstance<CheckBiosVersion>();
 
 			string[] versions = bios.GetBiosVersions();
