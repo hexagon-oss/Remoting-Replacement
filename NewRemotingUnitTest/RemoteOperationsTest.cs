@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Management;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -191,6 +193,40 @@ namespace NewRemotingUnitTest
 
 			Assert.AreEqual("Wrapped by Server: ClientUnderTest", roundTrippedAnswer);
 
+		}
+
+		/// <summary>
+		/// This just verifies the test below
+		/// </summary>
+		[Test]
+		public void UseSystemManagementLocally()
+		{
+			var bios = new CheckBiosVersion();
+
+			string[] versions = bios.GetBiosVersions();
+			Console.WriteLine($"Local bios versions are: {string.Join(", ", versions)}.");
+		}
+
+		[Test]
+		public void ReflectionLoadSystemManagement()
+		{
+			// var name = new AssemblyName("System.Management");
+			var name = new AssemblyName("System.Management, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a");
+			var assembly = Assembly.Load(name);
+			Type t = assembly.GetType("System.Management.ManagementObjectSearcher", true);
+			var instance = Activator.CreateInstance(t, "SELECT * FROM Win32_BIOS");
+
+			Assert.IsNotNull(instance);
+			((IDisposable)instance).Dispose();
+		}
+
+		[Test]
+		public void UseRemoteSystemManagement()
+		{
+			var bios = _client.CreateRemoteInstance<CheckBiosVersion>();
+
+			string[] versions = bios.GetBiosVersions();
+			Console.WriteLine($"Server bios versions are: {string.Join(", ", versions)}.");
 		}
 
 		private MarshallableClass CreateRemoteInstance()

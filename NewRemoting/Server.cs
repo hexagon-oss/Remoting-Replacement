@@ -8,6 +8,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.Loader;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
@@ -32,6 +33,7 @@ namespace NewRemoting
 		private TcpClient _returnChannel;
 		private readonly CancellationTokenSource _terminatingSource = new CancellationTokenSource();
 		private readonly object _channelWriterLock = new object();
+		private readonly ConcurrentDictionary<string, Assembly> _knownAssemblies = new ();
 
 		/// <summary>
 		/// This is the interceptor for calls from the server to the client using a server-side proxy (i.e. an interface registered for a callback)
@@ -82,9 +84,53 @@ namespace NewRemoting
 
 		private Assembly AssemblyResolver(object sender, ResolveEventArgs args)
 		{
+			Debug.WriteLine($"Attempting to resolve {args.Name} from {args.RequestingAssembly}");
 			if (args.RequestingAssembly == null)
 			{
 				return null;
+			}
+
+			/* AssemblyLoadContext ctx = AssemblyLoadContext.GetLoadContext(args.RequestingAssembly);
+			try
+			{
+				AssemblyName name = new AssemblyName(args.Name);
+				Assembly loaded = ctx.LoadFromAssemblyName(name);
+				return loaded;
+			}
+			catch (Exception x)
+			{
+				Debug.WriteLine(x.ToString());
+			}
+			*/
+			bool found = _knownAssemblies.TryGetValue(args.Name, out var a);
+			if (found && a != null)
+			{
+				return a;
+			}
+
+			_knownAssemblies.TryAdd(args.Name, null);
+			if (!found)
+			{
+				// Don't try this twice with the same assembly - causes a stack overflow
+				try
+				{
+					// Try using the default context
+					AssemblyName name = new AssemblyName(args.Name);
+					Assembly loaded = Assembly.Load(name);
+					return loaded;
+				}
+				catch (Exception x)
+				{
+					Debug.WriteLine(x.ToString());
+				}
+			}
+
+			var sourceReferences = args.RequestingAssembly.GetReferencedAssemblies();
+			var name2 = sourceReferences.FirstOrDefault(x => x.Name == args.Name);
+			if (name2 != null)
+			{
+				Assembly loaded = Assembly.Load(name2);
+				return loaded;
 			}
 
 			string dllOnly = args.Name;
@@ -173,7 +219,16 @@ namespace NewRemoting
 						}
 
 						Type t = GetTypeFromAnyAssembly(instance);
-						object newInstance = Activator.CreateInstance(t, false);
+
+						object newInstance;
+
+						newInstance = UseClientBinaryToCreateInstanceOfType(t);
+
+						if (newInstance == null)
+						{
+							newInstance = Activator.CreateInstance(t, false);
+						}
+
 						RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
 						hdReturnValue1.WriteTo(w);
 						_messageHandler.WriteArgumentToStream(w, newInstance);
@@ -264,6 +319,26 @@ namespace NewRemoting
 				// Remote connection closed
 				Console.WriteLine($"Server handler died due to {x}");
 			}
+		}
+
+		private object UseClientBinaryToCreateInstanceOfType(Type type)
+		{
+			Assembly[] assemblies = new Assembly[] { type.Assembly, Assembly.GetEntryAssembly() };
+			foreach (var a in assemblies)
+			{
+				foreach (var t in a.GetTypes())
+				{
+					if (t.GetInterfaces().Contains(typeof(IAssemblyResolverSupport)))
+					{
+						var resolverInstance = (IAssemblyResolverSupport)Activator.CreateInstance(t);
+						var instance = resolverInstance.CreateInstance(type, out var assembly);
+						_knownAssemblies.TryAdd(assembly.FullName, assembly);
+						return instance;
+					}
+				}
+			}
+
+			return null;
 		}
 
 		private void InvokeRealInstance(MethodInfo me, object realInstance, object[] args, RemotingCallHeader hd, BinaryWriter w)
@@ -362,14 +437,25 @@ namespace NewRemoting
 				string assemblyName = assemblyQualifiedName.Substring(idx + 2);
 				AssemblyName name = new AssemblyName(assemblyName);
 
-				Assembly ass = Assembly.Load(name);
+				string typeName = assemblyQualifiedName.Substring(0, idx);
+
 				try
 				{
-					return ass.GetType(assemblyQualifiedName, true);
+					Assembly ass = Assembly.Load(name);
+					try
+					{
+						return ass.GetType(assemblyQualifiedName, true);
+					}
+					catch (ArgumentException)
+					{
+						return ass.GetType(typeName, true);
+					}
 				}
-				catch (ArgumentException)
+				catch (FileNotFoundException x)
 				{
-					string typeName = assemblyQualifiedName.Substring(0, idx);
+					Debug.WriteLine(x.ToString());
+					// Try the legacy way
+					Assembly ass = Assembly.LoadFrom(name.Name + ".dll");
 					return ass.GetType(typeName, true);
 				}
 			}
