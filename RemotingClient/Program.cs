@@ -68,6 +68,12 @@ namespace RemotingClient
 
 			Console.WriteLine($"The reply should be round-tripped to the client: {service.DoSomething()}");
 
+			var bios = client.CreateRemoteInstance<CheckBiosVersion>();
+
+			string[] versions = bios.GetBiosVersions();
+			Console.WriteLine($"Server bios versions are: {string.Join(", ", versions)}.");
+
+			Console.WriteLine("Shutting down server, then client");
 			client.ShutdownServer();
 		}
 
