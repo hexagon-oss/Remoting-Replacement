@@ -79,9 +79,6 @@ namespace NewRemoting
 					var addressToUse = addresses.First(x => x.AddressFamily == AddressFamily.InterNetwork);
 					_writer.Write(addressToUse.ToString());
 					_writer.Write(_server.NetworkPort);
-					RemotingCallHeader registerMainAssemblyOnRemoteSide = new RemotingCallHeader(RemotingFunctionType.LoadClientAssemblyIntoServer, 1);
-					registerMainAssemblyOnRemoteSide.WriteTo(_writer);
-					_writer.Write(Assembly.GetEntryAssembly().FullName);
 				}
 			}
 		}
