@@ -53,6 +53,7 @@ namespace NewRemoting
 			_proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
 			_returnChannel = null;
 			_instanceManager = new InstanceManager();
+			KillProcessWhenChannelDisconnected = false;
 
 			// This instance will only be finally initialized once the return channel is opened
 			_messageHandler = new MessageHandler(_instanceManager, _proxyGenerator, m_formatter);
@@ -73,6 +74,16 @@ namespace NewRemoting
 			_proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
 			_returnChannel = null;
 			_serverInterceptorForCallbacks = localInterceptor;
+		}
+
+		/// <summary>
+		/// If true, the server process is killed when the client disconnects unexpectedly.
+		/// Use with caution, especially if not running as standalone server.
+		/// </summary>
+		public bool KillProcessWhenChannelDisconnected
+		{
+			get;
+			set;
 		}
 
 		public bool IsRunning => m_mainThread != null && m_mainThread.IsAlive;
@@ -341,6 +352,10 @@ namespace NewRemoting
 			{
 				// Remote connection closed
 				Console.WriteLine($"Server handler died due to {x}");
+				if (KillProcessWhenChannelDisconnected)
+				{
+					_terminatingSource.Cancel();
+				}
 			}
 		}
 

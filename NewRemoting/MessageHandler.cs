@@ -68,6 +68,22 @@ namespace NewRemoting
 				w.Write((int)RemotingReferenceType.InstanceOfSystemType);
 				w.Write(type.AssemblyQualifiedName);
 			}
+			else if (data is Type[] typeArray)
+			{
+				w.Write((int)RemotingReferenceType.ArrayOfSystemType);
+				w.Write(typeArray.Length);
+				for (int i = 0; i < typeArray.Length; i++)
+				{
+					if (typeArray[i] == null)
+					{
+						w.Write(String.Empty);
+					}
+					else
+					{
+						w.Write(typeArray[i].AssemblyQualifiedName);
+					}
+				}
+			}
 			else if (data is Delegate del)
 			{
 				if (!del.Method.IsPublic)
@@ -101,10 +117,13 @@ namespace NewRemoting
 			else if (Client.IsRemoteProxy(data))
             {
 				// Proxies are never serializable
-                string objectId = _instanceManager.GetIdForObject(data);
+				if (!_instanceManager.TryGetObjectId(data, out string objectId))
+				{
+					throw new RemotingException("A proxy has no existing reference", RemotingExceptionKind.ProxyManagementError);
+				}
                 w.Write((int)RemotingReferenceType.RemoteReference);
                 w.Write(objectId);
-                w.Write(data.GetType().AssemblyQualifiedName);
+                w.Write(string.Empty);
 			}
 			else if (t.IsSerializable)
 			{
@@ -197,14 +216,21 @@ namespace NewRemoting
 					// The server sends a reference to an object that he owns
 					string objectId = r.ReadString();
 					string typeName = r.ReadString();
-					var type = Server.GetTypeFromAnyAssembly(typeName);
+					object instance = null;
+					Type type = string.IsNullOrEmpty(typeName) ? null : Server.GetTypeFromAnyAssembly(typeName);
 					switch (type)
 					{
 						case null:
+							// The type name may be omitted if the client knows that this instance must exist
+							// (i.e. because it is sending a reference to a proxy back)
+							if (_instanceManager.TryGetObjectFromId(objectId, out instance))
+							{
+								return instance;
+							}
 							throw new RemotingException("Unknown type found in argument stream", RemotingExceptionKind.ProxyManagementError);
 					}
 
-					if (_instanceManager.TryGetObjectFromId(objectId, out object instance))
+					if (_instanceManager.TryGetObjectFromId(objectId, out instance))
 					{
 						return instance;
 					}
@@ -225,6 +251,11 @@ namespace NewRemoting
 					{
 						instance = _proxyGenerator.CreateClassProxy(type, interfaces, ProxyGenerationOptions.Default, invocation.Arguments, Interceptor);
 					}
+					else if ((type.IsSealed || !HasDefaultCtor(type)) && interfaces.Length > 0)
+					{
+						// Best would be to create a class proxy but we can't. So try an interface proxy with one of the interfaces instead
+						instance = _proxyGenerator.CreateInterfaceProxyWithoutTarget(interfaces[0], interfaces, Interceptor);
+					}
 					else
 					{
 						instance = _proxyGenerator.CreateClassProxy(type, interfaces, Interceptor);
@@ -238,6 +269,26 @@ namespace NewRemoting
 					string typeName = r.ReadString();
 					Type t = Server.GetTypeFromAnyAssembly(typeName);
 					return t;
+				}
+				case RemotingReferenceType.ArrayOfSystemType:
+				{
+					int count = r.ReadInt32();
+					Type[] ts = new Type[count];
+					for (int i = 0; i < count; i++)
+					{
+						string typeName = r.ReadString();
+						if (!string.IsNullOrEmpty(typeName))
+						{
+							Type t = Server.GetTypeFromAnyAssembly(typeName);
+							ts[i] = t;
+						}
+						else
+						{
+							ts[i] = null;
+						}
+					}
+
+					return ts;
 				}
 				case RemotingReferenceType.MethodPointer:
 				{
@@ -270,6 +321,12 @@ namespace NewRemoting
 				default:
 					throw new RemotingException("Unknown argument type", RemotingExceptionKind.UnsupportedOperation);
 			}
+		}
+
+		public static bool HasDefaultCtor(Type t)
+		{
+			var ctor = t.GetConstructor(BindingFlags.Public | BindingFlags.Instance, null, CallingConventions.Any, new Type[0], null);
+			return ctor != null;
 		}
 	}
 }
