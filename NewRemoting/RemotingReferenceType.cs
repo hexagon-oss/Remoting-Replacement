@@ -9,10 +9,11 @@ namespace NewRemoting
 	public enum RemotingReferenceType
 	{
 		Undefined = 0,
-		SerializedItem = 1,
-		RemoteReference = 2,
-		MethodPointer = 4,
+		SerializedItem,
+		RemoteReference,
+		MethodPointer,
 		InstanceOfSystemType,
+		ArrayOfSystemType,
 		NullPointer
 	}
 }
