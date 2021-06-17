@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Airborne.Generic.Remote.Loader;
 using Moq;
 using NewRemoting;
 using NUnit.Framework;

@@ -14,6 +14,7 @@ namespace NewRemoting
 		MethodPointer,
 		InstanceOfSystemType,
 		ArrayOfSystemType,
-		NullPointer
+		NullPointer,
+		ContainerType
 	}
 }

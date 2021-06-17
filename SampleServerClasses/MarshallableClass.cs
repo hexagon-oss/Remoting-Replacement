@@ -94,5 +94,13 @@ namespace SampleServerClasses
 		{
 			return t.FullName;
 		}
+
+		public virtual IList<ReferencedComponent> GetSomeComponents()
+		{
+			List<ReferencedComponent> list = new List<ReferencedComponent>();
+			list.Add(new ReferencedComponent());
+			list.Add(new ReferencedComponent());
+			return list;
+		}
 	}
 }
