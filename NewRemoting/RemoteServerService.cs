@@ -10,7 +10,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Airborne.Generic.Remote.Loader;
 
 namespace NewRemoting
 {

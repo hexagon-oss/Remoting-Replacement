@@ -229,6 +229,16 @@ namespace NewRemotingUnitTest
 			Console.WriteLine($"Server bios versions are: {string.Join(", ", versions)}.");
 		}
 
+		[Test]
+		public void GetListOfMarshalByRefInstances()
+		{
+			var c = CreateRemoteInstance();
+			var list = c.GetSomeComponents();
+			Assert.That(list is List<ReferencedComponent>);
+			Assert.AreEqual(2, list.Count);
+			Assert.That(list[0].ComponentName == list[1].ComponentName);
+		}
+
 		private MarshallableClass CreateRemoteInstance()
 		{
 			return _client.CreateRemoteInstance<MarshallableClass>();
