@@ -65,6 +65,11 @@ namespace NewRemoting
 			return ProxyUtil.IsProxy(proxy);
 		}
 
+		public static bool IsRemotingCapable(object obj)
+		{
+			return IsRemoteProxy(obj) || obj is MarshalByRefObject;
+		}
+
 		public void Start()
 		{
 			lock (_accessLock)
