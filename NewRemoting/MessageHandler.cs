@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Dynamic;
 using System.IO;
@@ -84,6 +85,20 @@ namespace NewRemoting
 					}
 				}
 			}
+			else if (TypeIsContainerWithReference(data, out Type contentType))
+			{
+				var list = data as IEnumerable;
+				w.Write((int)RemotingReferenceType.ContainerType);
+				w.Write(data.GetType().AssemblyQualifiedName);
+				w.Write(contentType.AssemblyQualifiedName);
+				foreach (object obj in list)
+				{
+					// Recursively write the arguments
+					w.Write(true);
+					WriteArgumentToStream(w, obj);
+				}
+				w.Write(false); // Terminate the array
+			}
 			else if (data is Delegate del)
 			{
 				if (!del.Method.IsPublic)
@@ -145,6 +160,60 @@ namespace NewRemoting
 			{
 				throw new SerializationException($"Object {data} is neither serializable nor MarshalByRefObject");
 			}
+		}
+
+		/// <summary>
+		/// True when this type implements <see cref="IList{T}" /> with T being <see cref="MarshalByRefObject"/>. 
+		/// </summary>
+		private bool TypeIsContainerWithReference(object data, out Type type)
+		{
+			if (data is IList enumerable)
+			{
+				var args = enumerable.GetType().GenericTypeArguments;
+				if (args.Length == 1)
+				{
+					type = args[0];
+					if (type.IsSubclassOf(typeof(MarshalByRefObject)))
+					{
+						return true;
+					}
+
+					if (type.IsSerializable)
+					{
+						return false;
+					}
+					// Otherwise, we have to test the contents.
+					return ContentIsMarshalByRef(enumerable);
+				}
+				else if (args.Length > 1)
+				{
+					// Not currently supported
+					type = null;
+					return false;
+				}
+				else
+				{
+					// Data implements IEnumerable, but not IEnumerable{T}.
+					type = typeof(object);
+					return ContentIsMarshalByRef(enumerable);
+				}
+			}
+
+			type = null;
+			return false;
+		}
+
+		private bool ContentIsMarshalByRef(IList enumerable)
+		{
+			foreach (var e in enumerable)
+			{
+				if (e != null && e.GetType().IsSubclassOf(typeof(MarshalByRefObject)))
+				{
+					return true;
+				}
+			}
+
+			return false;
 		}
 
 		public void ProcessCallResponse(IInvocation invocation, BinaryReader reader)
@@ -289,6 +358,22 @@ namespace NewRemoting
 					}
 
 					return ts;
+				}
+				case RemotingReferenceType.ContainerType:
+				{
+					string typeName = r.ReadString();
+					Type t = Server.GetTypeFromAnyAssembly(typeName);
+					Type contentType = Server.GetTypeFromAnyAssembly(r.ReadString());
+					IList list = (IList)Activator.CreateInstance(t);
+					bool cont = r.ReadBoolean();
+					while (cont)
+					{
+						var nextElem = ReadArgumentFromStream(r, invocation, canAttemptToInstantiate, contentType);
+						list.Add(nextElem);
+						cont = r.ReadBoolean();
+					}
+
+					return list;
 				}
 				case RemotingReferenceType.MethodPointer:
 				{
