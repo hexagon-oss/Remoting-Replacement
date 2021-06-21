@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Dynamic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Reflection;
 using System.Runtime.Serialization;
 using System.Text;
@@ -68,6 +69,13 @@ namespace NewRemoting
 			{
 				w.Write((int)RemotingReferenceType.InstanceOfSystemType);
 				w.Write(type.AssemblyQualifiedName);
+			}
+			// IPAddress is not serializable, even though it is actually trivially-serializable
+			else if (data is IPAddress address)
+			{
+				w.Write((int)RemotingReferenceType.IpAddress);
+				string s = address.ToString();
+				w.Write(s);
 			}
 			else if (data is Type[] typeArray)
 			{
@@ -374,6 +382,11 @@ namespace NewRemoting
 					}
 
 					return list;
+				}
+				case RemotingReferenceType.IpAddress:
+				{
+					string s = r.ReadString();
+					return IPAddress.Parse(s);
 				}
 				case RemotingReferenceType.MethodPointer:
 				{

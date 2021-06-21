@@ -15,6 +15,7 @@ namespace NewRemoting
 		InstanceOfSystemType,
 		ArrayOfSystemType,
 		NullPointer,
-		ContainerType
+		ContainerType,
+		IpAddress
 	}
 }
