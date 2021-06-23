@@ -466,7 +466,13 @@ namespace NewRemoting
 				return t;
 			}
 
-			int idx = assemblyQualifiedName.IndexOf(',', StringComparison.OrdinalIgnoreCase);
+			int start = 0;
+			if (assemblyQualifiedName.Contains("]"))
+			{
+				// If the type contains a generic argument, its type is embedded in square brackets. We want the assembly of the final type, though
+				start = assemblyQualifiedName.LastIndexOf("]", StringComparison.OrdinalIgnoreCase);
+			}
+			int idx = assemblyQualifiedName.IndexOf(',', start);
 			if (idx > 0)
 			{
 				string assemblyName = assemblyQualifiedName.Substring(idx + 2);
