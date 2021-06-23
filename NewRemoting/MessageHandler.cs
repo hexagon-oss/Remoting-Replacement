@@ -324,7 +324,7 @@ namespace NewRemoting
 						// If the call returns an interface, only create an interface proxy, because we might not be able to instantiate the actual class (because it's not public, it's sealed, has no public ctors, etc)
 						instance = _proxyGenerator.CreateInterfaceProxyWithoutTarget(typeOfArgument, interfaces, Interceptor);
 					}
-					else if (canAttemptToInstantiate)
+					else if (canAttemptToInstantiate && (!type.IsSealed) && (HasDefaultCtor(type)))
 					{
 						instance = _proxyGenerator.CreateClassProxy(type, interfaces, ProxyGenerationOptions.Default, invocation.Arguments, Interceptor);
 					}
@@ -399,19 +399,31 @@ namespace NewRemoting
 					var methods = typeOfTarget.GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public);
 					MethodInfo methodInfoOfTarget = methods.First(x => x.MetadataToken == tokenOfTargetMethod);
 
-					var argumentsOfTarget = methodInfoOfTarget.GetParameters();
+					// TODO: This copying of arrays here is not really performance-friendly
+					var argumentsOfTarget = methodInfoOfTarget.GetParameters().Select(x => x.ParameterType).ToList();
 					// This creates an instance of the DelegateInternalSink class, which acts as a proxy for delegate callbacks. Instead of the actual delegate
 					// target, we register a method from this class as a delegate target
 					var internalSink = new DelegateInternalSink(Interceptor, targetId, methodInfoOfTarget);
 					_instanceManager.AddInstance(internalSink, targetId);
 
-					var possibleSinks = internalSink.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public).Where(x => x.Name == "ActionSink");
-					MethodInfo localSinkTarget = possibleSinks.Single(x => x.GetGenericArguments().Length == argumentsOfTarget.Length);
-					switch (argumentsOfTarget.Length)
+					IEnumerable<MethodInfo> possibleSinks = null;
+
+					MethodInfo localSinkTarget;
+					if (methodInfoOfTarget.ReturnType == typeof(void))
 					{
-						case > 0:
-							localSinkTarget = localSinkTarget.MakeGenericMethod(argumentsOfTarget.Select(x => x.ParameterType).ToArray());
-							break;
+						possibleSinks = internalSink.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public).Where(x => x.Name == "ActionSink");
+						localSinkTarget = possibleSinks.Single(x => x.GetGenericArguments().Length == argumentsOfTarget.Count);
+					}
+					else
+					{
+						possibleSinks = internalSink.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public).Where(x => x.Name == "FuncSink");
+						localSinkTarget = possibleSinks.Single(x => x.GetGenericArguments().Length == argumentsOfTarget.Count + 1);
+						argumentsOfTarget.Add(methodInfoOfTarget.ReturnType);
+					}
+
+					if (argumentsOfTarget.Count > 0)
+					{
+						localSinkTarget = localSinkTarget.MakeGenericMethod(argumentsOfTarget.ToArray());
 					}
 
 					return Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
