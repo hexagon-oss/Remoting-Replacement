@@ -40,13 +40,36 @@ namespace NewRemoting
 			DoCallback(arg1, arg2);
 		}
 
+		public T FuncSink<T>()
+		{
+			return DoCallback<T>();
+		}
+
+		public TRet FuncSink<T1, TRet>(T1 arg1)
+		{
+			return DoCallback<TRet>(arg1);
+		}
+
+		public TRet FuncSink<T1, T2, TRet>(T1 arg1, T2 arg2)
+		{
+			return DoCallback<TRet>(arg1, arg2);
+		}
+
 		private void DoCallback(params object[] args)
 		{
 			ManualInvocation ri = new ManualInvocation(_remoteMethodTarget, args);
 			ri.Proxy = this; // Works, because this instance is registered as proxy
 
-			// TODO: Return result if the event is not of type void
 			_interceptor.Intercept(ri);
+		}
+
+		private T DoCallback<T>(params object[] args)
+		{
+			ManualInvocation ri = new ManualInvocation(_remoteMethodTarget, args);
+			ri.Proxy = this; // Works, because this instance is registered as proxy
+
+			_interceptor.Intercept(ri);
+			return (T)ri.ReturnValue;
 		}
 
 	}
