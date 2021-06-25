@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -165,21 +166,34 @@ namespace NewRemoting
 			var interfaces = type.GetInterfaces();
 			if (typeOfArgument != null && typeOfArgument.IsInterface)
 			{
+				Debug.WriteLine($"Create interface proxy for main type {typeOfArgument}");
 				// If the call returns an interface, only create an interface proxy, because we might not be able to instantiate the actual class (because it's not public, it's sealed, has no public ctors, etc)
 				instance = ProxyGenerator.CreateInterfaceProxyWithoutTarget(typeOfArgument, interfaces, Interceptor);
 			}
 			else if (canAttemptToInstantiate && (!type.IsSealed) && (MessageHandler.HasDefaultCtor(type) || (invocation != null && invocation.Arguments.Length > 0)))
 			{
+				Debug.WriteLine($"Create class proxy for main type {type}");
 				// We can attempt to create a class proxy if we have ctor arguments and the type is not sealed
 				instance = ProxyGenerator.CreateClassProxy(type, interfaces, ProxyGenerationOptions.Default, invocation.Arguments, Interceptor);
 			}
 			else if ((type.IsSealed || !MessageHandler.HasDefaultCtor(type)) && interfaces.Length > 0)
 			{
-				// Best would be to create a class proxy but we can't. So try an interface proxy with one of the interfaces instead
-				instance = ProxyGenerator.CreateInterfaceProxyWithoutTarget(interfaces[0], interfaces, Interceptor);
+				Debug.WriteLine($"Create interface proxy as backup for main type {type} with {interfaces[0]}");
+				if (type.IsAssignableTo(typeof(Stream)))
+				{
+					// This is a bit of a special case, not sure yet for what other classes we should use this (otherwise, this gets an interface proxy for IDisposable, which is
+					// not castable to Stream, which is most likely required)
+					instance = ProxyGenerator.CreateClassProxy(typeof(Stream), interfaces, ProxyGenerationOptions.Default, Interceptor);
+				}
+				else
+				{
+					// Best would be to create a class proxy but we can't. So try an interface proxy with one of the interfaces instead
+					instance = ProxyGenerator.CreateInterfaceProxyWithoutTarget(interfaces[0], interfaces, Interceptor);
+				}
 			}
 			else
 			{
+				Debug.WriteLine($"Create class proxy as fallback for main type {type}");
 				instance = ProxyGenerator.CreateClassProxy(type, interfaces, Interceptor);
 			}
 
