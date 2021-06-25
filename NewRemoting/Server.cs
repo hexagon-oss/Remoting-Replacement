@@ -381,7 +381,18 @@ namespace NewRemoting
 			}
 			catch (Exception x)
 			{
-				throw new NotImplementedException("This should wrap the exception to the caller", x);
+				Debug.WriteLine($"Invoking threw {x}");
+				lock (_channelWriterLock)
+				{
+					if (x.InnerException != null)
+					{
+						// the exception we want to forward is here the inner exception
+						x = x.InnerException;
+					}
+					_messageHandler.SendExceptionReply(x, w, hd.Sequence);
+				}
+
+				return;
 			}
 
 			// Ensure only one thread writes data to the stream at a time (to keep the data from one message together)

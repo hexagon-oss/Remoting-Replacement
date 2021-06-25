@@ -239,6 +239,25 @@ namespace NewRemotingUnitTest
 			Assert.That(list[0].ComponentName == list[1].ComponentName);
 		}
 
+		[Test]
+		public void HandleRemoteException()
+		{
+			var c = CreateRemoteInstance();
+			bool didThrow = true;
+			try
+			{
+				c.MaybeThrowException(0);
+				didThrow = false;
+			}
+			catch (DivideByZeroException x)
+			{
+				Assert.IsNotNull(x);
+				Console.WriteLine(x);
+			}
+
+			Assert.That(didThrow);
+		}
+
 		private MarshallableClass CreateRemoteInstance()
 		{
 			return _client.CreateRemoteInstance<MarshallableClass>();
