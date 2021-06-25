@@ -68,6 +68,11 @@ namespace NewRemoting
 			return ProxyUtil.IsProxy(proxy);
 		}
 
+		public static bool IsProxyType(Type type)
+		{
+			return ProxyUtil.IsProxyType(type);
+		}
+
 		public static bool IsRemotingCapable(object obj)
 		{
 			return IsRemoteProxy(obj) || obj is MarshalByRefObject;

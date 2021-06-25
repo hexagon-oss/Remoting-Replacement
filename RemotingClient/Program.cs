@@ -88,6 +88,14 @@ namespace RemotingClient
 
 			Console.WriteLine($"This result should be 10. It is {reply}");
 
+			reply = sc.CallbackViaComponent();
+
+			Console.WriteLine($"This result should still be 10. It is {reply}");
+
+			var sc2 = sc.ReturnSelfToCaller();
+
+			Console.WriteLine($"This result is hopefully true: {ReferenceEquals(sc, sc2)}");
+
 			Console.WriteLine("Shutting down server, then client");
 			client.ShutdownServer();
 		}

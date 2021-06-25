@@ -5,6 +5,7 @@ using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using System.Threading.Tasks;
+using Castle.DynamicProxy;
 
 namespace NewRemoting
 {
@@ -34,6 +35,11 @@ namespace NewRemoting
 				selector = this;
 				return _serializationSurrogate;
 			}
+			else if (Client.IsProxyType(type))
+			{
+				selector = this;
+				return _serializationSurrogate;
+			}
 
 			return base.GetSurrogate(type, context, out selector);
 		}
@@ -49,9 +55,28 @@ namespace NewRemoting
 
 			public void GetObjectData(object obj, SerializationInfo info, StreamingContext context)
 			{
-				string objectId = _instanceManager.GetIdForObject(obj);
-				info.AddValue("ObjectId", objectId);
-				info.AddValue("AssemblyQualifiedName", obj.GetType().AssemblyQualifiedName);
+				string objectId;
+				if (Client.IsRemoteProxy(obj))
+				{
+					// This should have an unit test, but I have not yet found out what test code causes this situation
+					if (!_instanceManager.TryGetObjectId(obj, out objectId))
+					{
+						throw new RemotingException("Couldn't find matching objectId, although should be there", RemotingExceptionKind.ProxyManagementError);
+					}
+					var originalType = ProxyUtil.GetUnproxiedType(obj);
+					// The proxy's assembly name is "DynamicProxyGenAssembly2", which does not physically exist and is certainly different on the
+					// remote side. Therefore make sure we never pass that name in the serialization stream.
+					info.AssemblyName = originalType.Assembly.FullName;
+					info.FullTypeName = originalType.FullName;
+					info.AddValue("ObjectId", objectId);
+					info.AddValue("AssemblyQualifiedName", string.Empty);
+				}
+				else
+				{
+					objectId = _instanceManager.GetIdForObject(obj);
+					info.AddValue("ObjectId", objectId);
+					info.AddValue("AssemblyQualifiedName", obj.GetType().AssemblyQualifiedName);
+				}
 			}
 
 			public object SetObjectData(object obj, SerializationInfo info, StreamingContext context, ISurrogateSelector selector)
@@ -59,8 +84,16 @@ namespace NewRemoting
 				string objectId = info.GetString("ObjectId");
 				string typeName = info.GetString("AssemblyQualifiedName");
 				// We don't know better here. We do not know what the static type of the field is that will store this reference.
-				Type targetType = Server.GetTypeFromAnyAssembly(typeName);
-				object newProxy = _instanceManager.CreateOrGetReferenceInstance(null, false, targetType, typeName, objectId);
+				object newProxy;
+				if (!string.IsNullOrEmpty(typeName))
+				{
+					Type targetType = Server.GetTypeFromAnyAssembly(typeName);
+					newProxy = _instanceManager.CreateOrGetReferenceInstance(null, false, targetType, typeName, objectId);
+				}
+				else
+				{
+					newProxy = _instanceManager.CreateOrGetReferenceInstance(null, false, null, typeName, objectId);
+				}
 				return newProxy;
 			}
 		}

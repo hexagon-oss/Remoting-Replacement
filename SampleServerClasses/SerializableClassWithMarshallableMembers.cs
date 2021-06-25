@@ -17,5 +17,15 @@ namespace SampleServerClasses
 
 		public int Idx { get; }
 		public ReferencedComponent Component { get; }
+
+		public virtual int CallbackViaComponent()
+		{
+			return Component.Data;
+		}
+
+		public virtual SerializableClassWithMarshallableMembers ReturnSelfToCaller()
+		{
+			return this;
+		}
 	}
 }
