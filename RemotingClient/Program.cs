@@ -82,6 +82,12 @@ namespace RemotingClient
 				Console.WriteLine("Caught " + x);
 			}
 
+			SerializableClassWithMarshallableMembers sc = new SerializableClassWithMarshallableMembers(1, new ReferencedComponent() { Data = 10 });
+
+			int reply = cls.UseMixedArgument(sc);
+
+			Console.WriteLine($"This result should be 10. It is {reply}");
+
 			Console.WriteLine("Shutting down server, then client");
 			client.ShutdownServer();
 		}

@@ -63,15 +63,15 @@ namespace NewRemoting
 				return;
 			}
 
-			int thisSeq;
+			int thisSeq = NextSequenceNumber();
 
 			MemoryStream rawDataMessage = new MemoryStream(1024);
 			BinaryWriter writer = new BinaryWriter(rawDataMessage, Encoding.Unicode);
 
+			using CallContext ctx = CreateCallContext(invocation, thisSeq);
+
 			lock (_messageHandler.CommunicationLinkLock)
 			{
-				thisSeq = NextSequenceNumber();
-
 				Debug.WriteLine($"{_side}: Intercepting {invocation.Method}, sequence {thisSeq}");
 
 				// Console.WriteLine($"Here should be a call to {invocation.Method}");
@@ -85,7 +85,13 @@ namespace NewRemoting
 
 				if (!_messageHandler.InstanceManager.TryGetObjectId(invocation.Proxy, out var remoteInstanceId))
 				{
-					throw new RemotingException("Not a valid remoting proxy", RemotingExceptionKind.ProxyManagementError);
+					// One valid case when we may get here is when the proxy is just being created (as a class proxy) and within that ctor,
+					// a virtual member function is called. So we can execute the call locally (the object should be in an useful state, since its default ctor
+					// has been called)
+					Debug.WriteLine("Not a valid remoting proxy. Assuming within ctor of class proxy");
+					invocation.Proceed();
+					_pendingInvocations.TryRemove(thisSeq, out _);
+					return;
 				}
 
 				hd.WriteTo(writer);
@@ -132,18 +138,23 @@ namespace NewRemoting
 				rawDataMessage.CopyTo(_serverLink.GetStream());
 			}
 
-			WaitForReply(invocation, thisSeq);
+			WaitForReply(invocation, ctx);
 		}
 
-		internal void WaitForReply(IInvocation invocation, int thisSeq)
+		internal CallContext CreateCallContext(IInvocation invocation, int thisSeq)
 		{
-			using CallContext ctx = new CallContext(invocation);
+			CallContext ctx = new CallContext(invocation);
 			if (!_pendingInvocations.TryAdd(thisSeq, ctx))
 			{
 				// This really shouldn't happen
 				throw new InvalidOperationException("A call with the same id is already being processed");
 			}
 
+			return ctx;
+		}
+
+		internal void WaitForReply(IInvocation invocation, CallContext ctx)
+		{
 			// The event is signaled by the receiver thread when the message was processed
 			ctx.Wait();
 			Debug.WriteLine($"{_side}: {invocation.Method} done.");
@@ -227,7 +238,7 @@ namespace NewRemoting
 			_receiverThread = null;
 		}
 
-		private sealed class CallContext : IDisposable
+		internal sealed class CallContext : IDisposable
 		{
 			public CallContext(IInvocation invocation)
 			{
