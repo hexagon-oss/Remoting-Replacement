@@ -171,7 +171,28 @@ namespace NewRemoting
 #pragma warning restore 618
 			w.Write((int) RemotingReferenceType.SerializedItem);
 			w.Write((int) ms.Length);
-			w.Write(ms.ToArray(), 0, (int) ms.Length);
+			// The following is for testing purposes only (slow!)
+			var array = ms.ToArray();
+			byte[] compare = Encoding.ASCII.GetBytes("DynamicProxyGenAss");
+			for (int i = 0; i < array.Length; i++)
+			{
+				int needleIdx = 0;
+				while (needleIdx < compare.Length && array[i + needleIdx] == compare[needleIdx])
+				{
+					needleIdx++;
+				}
+
+				if (needleIdx >= compare.Length)
+				{
+					ms.Position = 0;
+#pragma warning disable 618
+					_formatter.Serialize(ms, data);
+#pragma warning restore 618
+					throw new RemotingException("Should not have serialized a dynamic proxy with its internal name", RemotingExceptionKind.UnsupportedOperation);
+				}
+			}
+			
+			w.Write(array, 0, (int) ms.Length);
 		}
 
 		/// <summary>
