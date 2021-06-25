@@ -23,7 +23,7 @@ namespace NewRemoting
 		private readonly TcpClient _serverLink;
 		private readonly MessageHandler _messageHandler;
 		private int _sequence;
-		private ConcurrentDictionary<int, (IInvocation, AutoResetEvent eventToTrigger)> _pendingInvocations;
+		private ConcurrentDictionary<int, CallContext> _pendingInvocations;
 		private Thread _receiverThread;
 		private bool _receiving;
 
@@ -137,17 +137,21 @@ namespace NewRemoting
 
 		internal void WaitForReply(IInvocation invocation, int thisSeq)
 		{
-			AutoResetEvent ev = new AutoResetEvent(false);
-			if (!_pendingInvocations.TryAdd(thisSeq, (invocation, ev)))
+			using CallContext ctx = new CallContext(invocation);
+			if (!_pendingInvocations.TryAdd(thisSeq, ctx))
 			{
 				// This really shouldn't happen
 				throw new InvalidOperationException("A call with the same id is already being processed");
 			}
 
 			// The event is signaled by the receiver thread when the message was processed
-			ev.WaitOne();
-			ev.Dispose();
+			ctx.Wait();
 			Debug.WriteLine($"{_side}: {invocation.Method} done.");
+			if (ctx.Exception != null)
+			{
+				// Rethrow remote exception
+				throw ctx.Exception;
+			}
 		}
 
 		private void ReceiverThread()
@@ -166,17 +170,28 @@ namespace NewRemoting
 
 					Debug.WriteLine($"{_side}: Decoding message {hdReturnValue.Sequence} of type {hdReturnValue.Function}");
 
-					if (hdReturnValue.Function != RemotingFunctionType.MethodReply)
+					if (hdReturnValue.Function != RemotingFunctionType.MethodReply && hdReturnValue.Function != RemotingFunctionType.ExceptionReturn)
 					{
-						throw new RemotingException("I think only replies should end here", RemotingExceptionKind.ProtocolError);
+						throw new RemotingException("Only replies or exceptions should end here", RemotingExceptionKind.ProtocolError);
 					}
 
 					if (_pendingInvocations.TryGetValue(hdReturnValue.Sequence, out var item))
 					{
-						Debug.WriteLine($"{_side}: Receiving reply for {item.Item1.Method}");
-						_messageHandler.ProcessCallResponse(item.Item1, reader);
-						_pendingInvocations.TryRemove(hdReturnValue.Sequence, out _);
-						item.eventToTrigger.Set();
+						if (hdReturnValue.Function == RemotingFunctionType.ExceptionReturn)
+						{
+							Debug.WriteLine($"{_side}: Receiving exception in reply to {item.Invocation.Method}");
+							var exception = _messageHandler.DecodeException(reader);
+							_pendingInvocations.TryRemove(hdReturnValue.Sequence, out var ctx);
+							ctx.Exception = exception;
+							item.Set();
+						}
+						else
+						{
+							Debug.WriteLine($"{_side}: Receiving reply for {item.Invocation.Method}");
+							_messageHandler.ProcessCallResponse(item.Invocation, reader);
+							_pendingInvocations.TryRemove(hdReturnValue.Sequence, out _);
+							item.Set();
+						}
 					}
 					else
 					{
@@ -210,6 +225,47 @@ namespace NewRemoting
 			_receiving = false;
 			_receiverThread?.Join();
 			_receiverThread = null;
+		}
+
+		private sealed class CallContext : IDisposable
+		{
+			public CallContext(IInvocation invocation)
+			{
+				Invocation = invocation;
+				EventToTrigger = new AutoResetEvent(false);
+				Exception = null;
+			}
+
+			public IInvocation Invocation
+			{
+				get;
+			}
+
+			public AutoResetEvent EventToTrigger
+			{
+				get;
+			}
+
+			public Exception Exception
+			{
+				get;
+				set;
+			}
+
+			public void Wait()
+			{
+				EventToTrigger.WaitOne();
+			}
+
+			public void Set()
+			{
+				EventToTrigger.Set();
+			}
+
+			public void Dispose()
+			{
+				EventToTrigger.Dispose();
+			}
 		}
 	}
 }

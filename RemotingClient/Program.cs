@@ -73,6 +73,15 @@ namespace RemotingClient
 			string[] versions = bios.GetBiosVersions();
 			Console.WriteLine($"Server bios versions are: {string.Join(", ", versions)}.");
 
+			try
+			{
+				cls.MaybeThrowException(0);
+			}
+			catch (DivideByZeroException x)
+			{
+				Console.WriteLine("Caught " + x);
+			}
+
 			Console.WriteLine("Shutting down server, then client");
 			client.ShutdownServer();
 		}

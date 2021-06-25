@@ -102,5 +102,11 @@ namespace SampleServerClasses
 			list.Add(new ReferencedComponent());
 			return list;
 		}
+
+		public virtual int MaybeThrowException(int mustBeZero)
+		{
+			return 10 / mustBeZero;
+
+		}
 	}
 }

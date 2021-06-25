@@ -58,7 +58,6 @@ namespace NewRemoting
 			{
 				throw new InvalidOperationException("Instance is not initialized");
 			}
-			MemoryStream ms = new MemoryStream();
 			if (ReferenceEquals(data, null))
 			{
 				w.Write((int)RemotingReferenceType.NullPointer);
@@ -150,12 +149,7 @@ namespace NewRemoting
 			}
 			else if (t.IsSerializable)
 			{
-#pragma warning disable 618
-				_formatter.Serialize(ms, data);
-#pragma warning restore 618
-				w.Write((int)RemotingReferenceType.SerializedItem);
-				w.Write((int)ms.Length);
-				w.Write(ms.ToArray(), 0, (int)ms.Length);
+				SendSerializedObject(w, data);
 			}
 			else if (t.IsAssignableTo(typeof(MarshalByRefObject)))
 			{
@@ -168,6 +162,18 @@ namespace NewRemoting
 			{
 				throw new SerializationException($"Object {data} is neither serializable nor MarshalByRefObject");
 			}
+		}
+
+		private void SendSerializedObject(BinaryWriter w, object data)
+		{
+			MemoryStream ms = new MemoryStream();
+
+#pragma warning disable 618
+			_formatter.Serialize(ms, data);
+#pragma warning restore 618
+			w.Write((int) RemotingReferenceType.SerializedItem);
+			w.Write((int) ms.Length);
+			w.Write(ms.ToArray(), 0, (int) ms.Length);
 		}
 
 		/// <summary>
@@ -267,6 +273,13 @@ namespace NewRemoting
 			}
 		}
 
+		public void SendExceptionReply(Exception exception, BinaryWriter w, int sequence)
+		{
+			RemotingCallHeader hdReturnValue = new RemotingCallHeader(RemotingFunctionType.ExceptionReturn, sequence);
+			hdReturnValue.WriteTo(w);
+			SendSerializedObject(w, exception);
+		}
+
 		public object ReadArgumentFromStream(BinaryReader r, IInvocation invocation, bool canAttemptToInstantiate, Type typeOfArgument)
 		{
 			if (!_initialized)
@@ -324,8 +337,9 @@ namespace NewRemoting
 						// If the call returns an interface, only create an interface proxy, because we might not be able to instantiate the actual class (because it's not public, it's sealed, has no public ctors, etc)
 						instance = _proxyGenerator.CreateInterfaceProxyWithoutTarget(typeOfArgument, interfaces, Interceptor);
 					}
-					else if (canAttemptToInstantiate && (!type.IsSealed) && (HasDefaultCtor(type)))
+					else if (canAttemptToInstantiate && (!type.IsSealed) && (HasDefaultCtor(type) || (invocation != null && invocation.Arguments.Length > 0)))
 					{
+						// We can attempt to create a class proxy if we have ctor arguments and the type is not sealed
 						instance = _proxyGenerator.CreateClassProxy(type, interfaces, ProxyGenerationOptions.Default, invocation.Arguments, Interceptor);
 					}
 					else if ((type.IsSealed || !HasDefaultCtor(type)) && interfaces.Length > 0)
@@ -437,6 +451,18 @@ namespace NewRemoting
 		{
 			var ctor = t.GetConstructor(BindingFlags.Public | BindingFlags.Instance, null, CallingConventions.Any, new Type[0], null);
 			return ctor != null;
+		}
+
+		public Exception DecodeException(BinaryReader reader)
+		{
+			reader.ReadInt32(); // RemotingReferenceType.SerializedItem
+			int argumentLen = reader.ReadInt32();
+			byte[] argumentData = reader.ReadBytes(argumentLen);
+			MemoryStream ms = new MemoryStream(argumentData, false);
+#pragma warning disable 618
+			object decodedArg = _formatter.Deserialize(ms);
+#pragma warning restore 618
+			return (Exception)decodedArg;
 		}
 	}
 }
