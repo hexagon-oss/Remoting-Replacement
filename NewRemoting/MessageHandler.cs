@@ -240,7 +240,13 @@ namespace NewRemoting
 		{
 			foreach (var e in enumerable)
 			{
-				if (e != null && e.GetType().IsSubclassOf(typeof(MarshalByRefObject)))
+				if (e == null)
+				{
+					continue;
+				}
+
+				Type t = e.GetType();
+				if (t.IsSubclassOf(typeof(MarshalByRefObject)) || ProxyUtil.IsProxyType(t))
 				{
 					return true;
 				}
