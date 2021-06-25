@@ -106,7 +106,11 @@ namespace SampleServerClasses
 		public virtual int MaybeThrowException(int mustBeZero)
 		{
 			return 10 / mustBeZero;
+		}
 
+		public virtual int UseMixedArgument(SerializableClassWithMarshallableMembers sc)
+		{
+			return sc.Component.Data;
 		}
 	}
 }

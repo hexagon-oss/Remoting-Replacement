@@ -32,21 +32,24 @@ namespace NewRemoting
 		private readonly ClientSideInterceptor _interceptor;
 		private readonly MessageHandler _messageHandler;
 		private readonly InstanceManager _instanceManager;
+		private readonly FormatterFactory _formatterFactory;
 
 		public Client(string server, int port)
 		{
 			_accessLock = new object();
-			_formatter = new BinaryFormatter();
 			_client = new TcpClient(server, port);
 			_writer = new BinaryWriter(_client.GetStream(), Encoding.Unicode);
 			_reader = new BinaryReader(_client.GetStream(), Encoding.Unicode);
 			_builder = new DefaultProxyBuilder();
 			_proxy = new ProxyGenerator(_builder);
-			_instanceManager = new InstanceManager();
+			_instanceManager = new InstanceManager(_proxy);
+			_formatterFactory = new FormatterFactory(_instanceManager);
+			_formatter = _formatterFactory.CreateFormatter();
 
-			_messageHandler = new MessageHandler(_instanceManager, _proxy, _formatter);
+			_messageHandler = new MessageHandler(_instanceManager, _formatter);
 
 			_interceptor = new ClientSideInterceptor("Client", _client, _messageHandler);
+			_instanceManager.Interceptor = _interceptor;
 
 			_messageHandler.Init(_interceptor);
 
@@ -130,6 +133,9 @@ namespace NewRemoting
 				throw new RemotingException($"No public default constructor found on type {typeOfInstance}.", RemotingExceptionKind.UnsupportedOperation);
 			}
 
+			ManualInvocation dummyInvocation = new ManualInvocation(ctorType, args);
+			using ClientSideInterceptor.CallContext ctx = _interceptor.CreateCallContext(dummyInvocation, sequence);
+
 			lock (_accessLock)
 			{
 				if (args == null || args.Length == 0)
@@ -161,8 +167,7 @@ namespace NewRemoting
 			}
 
 			// Just the reply is interesting for us
-			ManualInvocation dummyInvocation = new ManualInvocation(ctorType, args);
-			_interceptor.WaitForReply(dummyInvocation, sequence);
+			_interceptor.WaitForReply(dummyInvocation, ctx);
 
 			return dummyInvocation.ReturnValue;
 			/*

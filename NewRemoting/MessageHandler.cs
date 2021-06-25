@@ -17,15 +17,13 @@ namespace NewRemoting
 	{
 		private readonly InstanceManager _instanceManager;
 		private readonly IFormatter _formatter;
-		private readonly ProxyGenerator _proxyGenerator;
 		private readonly object _communicationLock;
 		private bool _initialized;
 
-		public MessageHandler(InstanceManager instanceManager, ProxyGenerator proxyGenerator, IFormatter formatter)
+		public MessageHandler(InstanceManager instanceManager, IFormatter formatter)
 		{
 			_instanceManager = instanceManager;
 			_formatter = formatter;
-			_proxyGenerator = proxyGenerator;
 			_communicationLock = new object();
 			_initialized = false;
 		}
@@ -307,52 +305,7 @@ namespace NewRemoting
 					string objectId = r.ReadString();
 					string typeName = r.ReadString();
 					object instance = null;
-					Type type = string.IsNullOrEmpty(typeName) ? null : Server.GetTypeFromAnyAssembly(typeName);
-					switch (type)
-					{
-						case null:
-							// The type name may be omitted if the client knows that this instance must exist
-							// (i.e. because it is sending a reference to a proxy back)
-							if (_instanceManager.TryGetObjectFromId(objectId, out instance))
-							{
-								return instance;
-							}
-							throw new RemotingException("Unknown type found in argument stream", RemotingExceptionKind.ProxyManagementError);
-					}
-
-					if (_instanceManager.TryGetObjectFromId(objectId, out instance))
-					{
-						return instance;
-					}
-
-					if (_instanceManager.IsLocalInstanceId(objectId))
-					{
-						throw new InvalidOperationException("Got an instance that should be local but it isn't");
-					}
-
-					// Create a class proxy with all interfaces proxied as well.
-					var interfaces = type.GetInterfaces();
-					if (typeOfArgument != null && typeOfArgument.IsInterface)
-					{
-						// If the call returns an interface, only create an interface proxy, because we might not be able to instantiate the actual class (because it's not public, it's sealed, has no public ctors, etc)
-						instance = _proxyGenerator.CreateInterfaceProxyWithoutTarget(typeOfArgument, interfaces, Interceptor);
-					}
-					else if (canAttemptToInstantiate && (!type.IsSealed) && (HasDefaultCtor(type) || (invocation != null && invocation.Arguments.Length > 0)))
-					{
-						// We can attempt to create a class proxy if we have ctor arguments and the type is not sealed
-						instance = _proxyGenerator.CreateClassProxy(type, interfaces, ProxyGenerationOptions.Default, invocation.Arguments, Interceptor);
-					}
-					else if ((type.IsSealed || !HasDefaultCtor(type)) && interfaces.Length > 0)
-					{
-						// Best would be to create a class proxy but we can't. So try an interface proxy with one of the interfaces instead
-						instance = _proxyGenerator.CreateInterfaceProxyWithoutTarget(interfaces[0], interfaces, Interceptor);
-					}
-					else
-					{
-						instance = _proxyGenerator.CreateClassProxy(type, interfaces, Interceptor);
-					}
-
-					_instanceManager.AddInstance(instance, objectId);
+					instance = InstanceManager.CreateOrGetReferenceInstance(invocation, canAttemptToInstantiate, typeOfArgument, typeName, objectId);
 					return instance;
 				}
 				case RemotingReferenceType.InstanceOfSystemType:

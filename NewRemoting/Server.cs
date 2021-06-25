@@ -44,19 +44,21 @@ namespace NewRemoting
 
 		private readonly InstanceManager _instanceManager;
 		private readonly MessageHandler _messageHandler;
+		private readonly FormatterFactory _formatterFactory;
 
 		public Server(int networkPort)
 		{
 			m_networkPort = networkPort;
 			m_threads = new();
-			m_formatter = new BinaryFormatter();
 			_proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
 			_returnChannel = null;
-			_instanceManager = new InstanceManager();
+			_instanceManager = new InstanceManager(_proxyGenerator);
+			_formatterFactory = new FormatterFactory(_instanceManager);
+			m_formatter = _formatterFactory.CreateFormatter();
 			KillProcessWhenChannelDisconnected = false;
 
 			// This instance will only be finally initialized once the return channel is opened
-			_messageHandler = new MessageHandler(_instanceManager, _proxyGenerator, m_formatter);
+			_messageHandler = new MessageHandler(_instanceManager, m_formatter);
 			AppDomain.CurrentDomain.AssemblyResolve += AssemblyResolver;
 		}
 
@@ -70,7 +72,8 @@ namespace NewRemoting
 			_instanceManager = messageHandler.InstanceManager;
 			messageHandler.Init(localInterceptor);
 			m_threads = new();
-			m_formatter = new BinaryFormatter();
+			_formatterFactory = new FormatterFactory(_instanceManager);
+			m_formatter = _formatterFactory.CreateFormatter();
 			_proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
 			_returnChannel = null;
 			_serverInterceptorForCallbacks = localInterceptor;
@@ -440,6 +443,7 @@ namespace NewRemoting
 				_returnChannel = new TcpClient(clientIp, clientPort);
 				_serverInterceptorForCallbacks = new ClientSideInterceptor("Server", _returnChannel, _messageHandler);
 				_messageHandler.Init(_serverInterceptorForCallbacks);
+				_instanceManager.Interceptor = _serverInterceptorForCallbacks;
 				return true;
 			}
 
