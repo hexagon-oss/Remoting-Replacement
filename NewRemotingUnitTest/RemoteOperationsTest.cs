@@ -195,6 +195,31 @@ namespace NewRemotingUnitTest
 
 		}
 
+		[Test]
+		public void UseMixedInstanceAsArgument()
+		{
+			var server = CreateRemoteInstance();
+			var reference = new ReferencedComponent() { Data = 10 };
+			// This is a serializable class that has a MarshalByRef member
+			SerializableClassWithMarshallableMembers sc = new SerializableClassWithMarshallableMembers(1, reference);
+
+			int reply = server.UseMixedArgument(sc);
+
+			Assert.AreEqual(10, reply);
+
+			reply = sc.CallbackViaComponent();
+
+			Assert.AreEqual(10, reply);
+
+			reference.Data = 20;
+			reply = sc.CallbackViaComponent();
+			Assert.AreEqual(20, reply);
+
+			var sc2 = sc.ReturnSelfToCaller();
+
+			Assert.True(ReferenceEquals(sc, sc2));
+		}
+
 		/// <summary>
 		/// This just verifies the test below
 		/// </summary>
