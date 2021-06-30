@@ -26,6 +26,7 @@ namespace NewRemoting
 		private ConcurrentDictionary<int, CallContext> _pendingInvocations;
 		private Thread _receiverThread;
 		private bool _receiving;
+		private int _numberOfCallsInspected;
 
 		public ClientSideInterceptor(String side, TcpClient serverLink, MessageHandler messageHandler)
 		{
@@ -33,6 +34,7 @@ namespace NewRemoting
 			_sequence = side == "Client" ? 1 : 10000;
 			_side = side;
 			_serverLink = serverLink;
+			_numberOfCallsInspected = 0;
 			_messageHandler = messageHandler ?? throw new ArgumentNullException(nameof(messageHandler));
 			_pendingInvocations = new();
 			_receiverThread = new Thread(ReceiverThread);
@@ -54,6 +56,11 @@ namespace NewRemoting
 
 		public void Intercept(IInvocation invocation)
 		{
+			if (_receiverThread == null)
+			{
+				throw new ObjectDisposedException("Remoting infrastructure has been shut down. Remote proxies are no longer valid");
+			}
+
 			string methodName = invocation.Method.ToString();
 
 			// Todo: Check this stuff
@@ -63,10 +70,12 @@ namespace NewRemoting
 				return;
 			}
 
+			CleanStaleReferences();
+
 			int thisSeq = NextSequenceNumber();
 
-			MemoryStream rawDataMessage = new MemoryStream(1024);
-			BinaryWriter writer = new BinaryWriter(rawDataMessage, Encoding.Unicode);
+			using MemoryStream rawDataMessage = new MemoryStream(1024);
+			using BinaryWriter writer = new BinaryWriter(rawDataMessage, Encoding.Unicode);
 
 			using CallContext ctx = CreateCallContext(invocation, thisSeq);
 
@@ -139,6 +148,21 @@ namespace NewRemoting
 			}
 
 			WaitForReply(invocation, ctx);
+		}
+
+		/// <summary>
+		/// Informs the server about stale object references.
+		/// This method must only be called when the connection is in idle state!
+		/// </summary>
+		private void CleanStaleReferences()
+		{
+			if (_numberOfCallsInspected++ % 100 == 0)
+			{
+				using MemoryStream rawDataMessage = new MemoryStream(1024);
+				using BinaryWriter writer = new BinaryWriter(rawDataMessage, Encoding.Unicode);
+				_messageHandler.InstanceManager.PerformGc(writer);
+				rawDataMessage.CopyTo(_serverLink.GetStream());
+			}
 		}
 
 		internal CallContext CreateCallContext(IInvocation invocation, int thisSeq)

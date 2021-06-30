@@ -226,6 +226,8 @@ namespace NewRemoting
 				_server.Terminate();
 				_server.Dispose();
 				_client.Dispose();
+				_interceptor.Dispose();
+				_instanceManager.Clear();
 			}
 		}
 	}
