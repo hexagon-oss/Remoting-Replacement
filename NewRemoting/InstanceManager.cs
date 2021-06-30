@@ -17,9 +17,13 @@ namespace NewRemoting
 	{
 		private ConcurrentDictionary<string, InstanceInfo> _objects;
 
+		static InstanceManager()
+		{
+			InstanceIdentifier = Environment.MachineName + "/" + Environment.ProcessId.ToString(CultureInfo.CurrentCulture);
+		}
+
 		public InstanceManager(ProxyGenerator proxyGenerator)
 		{
-			InstanceIdentifier = Environment.MachineName + "/"+Environment.ProcessId.ToString(CultureInfo.CurrentCulture);
 			ProxyGenerator = proxyGenerator;
 			_objects = new();
 		}
@@ -38,7 +42,7 @@ namespace NewRemoting
 			set;
 		}
 
-		public string InstanceIdentifier
+		public static string InstanceIdentifier
 		{
 			get;
 		}
@@ -65,21 +69,31 @@ namespace NewRemoting
 			return false;
 		}
 
-		public bool IsLocalInstanceId(string objectId)
+		public static bool IsLocalInstanceId(string objectId)
 		{
 			return objectId.StartsWith(InstanceIdentifier);
 		}
 
 		public void AddInstance(object instance, string objectId)
 		{
+			if (instance == null)
+			{
+				throw new ArgumentNullException(nameof(instance));
+			}
 			_objects.AddOrUpdate(objectId, s => new InstanceInfo(instance, objectId), (s, info) => new InstanceInfo(instance, objectId));
 		}
 
 		/// <summary>
-		/// This method is slow and should only be used for debugging purposes (invariant validation)
+		/// Gets the instance id for a given object.
+		/// This method is slow - should be improved by a reverse dictionary or similar (maybe use <see cref="ConditionalWeakTable{TKey,TValue}"/>)
 		/// </summary>
 		public bool TryGetObjectId(object instance, out string instanceId)
 		{
+			if (ReferenceEquals(instance, null))
+			{
+				throw new ArgumentNullException(nameof(instance));
+			}
+
 			var values = _objects.Values.ToList();
 			foreach (var v in values)
 			{
@@ -113,15 +127,45 @@ namespace NewRemoting
 
 		private class InstanceInfo
 		{
+			private readonly object _instanceHardReference;
+			private readonly WeakReference _instanceWeakReference;
+
 			public InstanceInfo(object obj, string identifier)
 			{
-				Instance = obj;
+				// If the actual instance lives in our process, we need to keep the hard reference, because
+				// there are clients that may keep a reference to this object.
+				// If it is a remote reference, we can use a weak reference. It will be gone, once there are no
+				// other references to it within our process - meaning no one has a reference to the proxy any more.
+				if (IsLocalInstanceId(identifier))
+				{
+					_instanceHardReference = obj;
+				}
+				else
+				{
+					_instanceWeakReference = new WeakReference(obj, false);
+				}
+
 				Identifier = identifier;
 			}
 
 			public object Instance
 			{
-				get;
+				get
+				{
+					if (_instanceHardReference != null)
+					{
+						return _instanceHardReference;
+					}
+
+					var ret = _instanceWeakReference?.Target;
+					//// Enable when TryGetObjectId is no more relying on this.
+					////if (ret == null)
+					////{
+					////	throw new RemotingException($"Unable to recover instance of object id {Identifier}", RemotingExceptionKind.ProxyManagementError);
+					////}
+
+					return ret;
+				}
 			}
 
 			public string Identifier
