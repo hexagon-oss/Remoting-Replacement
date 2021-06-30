@@ -126,6 +126,41 @@ namespace NewRemoting
 			return objectReference;
 		}
 
+		public void Clear()
+		{
+			_objects.Clear();
+		}
+
+		public void PerformGc(BinaryWriter w)
+		{
+			// Would be good if we could synchronize our updates with the GC, but that appears to be a bit fuzzy and fails if the
+			// GC is in concurrent mode.
+			List<InstanceInfo> instancesToClear = new();
+			foreach (var e in _objects)
+			{
+				// Iterating over a ConcurrentDictionary should be thread safe
+				if (e.Value.IsReleased)
+				{
+					instancesToClear.Add(e.Value);
+					_objects.TryRemove(e);
+				}
+			}
+
+			if (instancesToClear.Count == 0)
+			{
+				return;
+			}
+
+			Debug.WriteLine($"Cleaning up references to {instancesToClear.Count} objects");
+			RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.GcCleanup, 0);
+			hd.WriteTo(w);
+			w.Write(instancesToClear.Count);
+			foreach (var x in instancesToClear)
+			{
+				w.Write(x.Identifier);
+			}
+		}
+
 		private class InstanceInfo
 		{
 			private readonly object _instanceHardReference;
@@ -172,6 +207,14 @@ namespace NewRemoting
 			public string Identifier
 			{
 				get;
+			}
+
+			public bool IsReleased
+			{
+				get
+				{
+					return _instanceHardReference == null && !_instanceWeakReference.IsAlive;
+				}
 			}
 		}
 
@@ -246,6 +289,12 @@ namespace NewRemoting
 
 			Debug.WriteLine($"Created proxy instance for {instance.GetType()} with object id {objectId}");
 			return instance;
+		}
+
+		public void Remove(string objectId)
+		{
+			// Just forget about this object - the server GC will care for the rest.
+			_objects.TryRemove(objectId, out _);
 		}
 	}
 }

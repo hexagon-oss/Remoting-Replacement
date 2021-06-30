@@ -17,6 +17,7 @@ namespace NewRemoting
 		ShutdownServer,
 		RequestServiceReference,
 		LoadClientAssemblyIntoServer,
-		ExceptionReturn
+		ExceptionReturn,
+		GcCleanup
 	}
 }

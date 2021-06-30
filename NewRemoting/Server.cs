@@ -468,6 +468,16 @@ namespace NewRemoting
 				return true;
 			}
 
+			if (hd.Function == RemotingFunctionType.GcCleanup)
+			{
+				int cnt = r.ReadInt32(); // Number of elements that follow
+				for (int i = 0; i < cnt; i++)
+				{
+					string objectId = r.ReadString();
+					_instanceManager.Remove(objectId);
+				}
+			}
+
 			if (hd.Function == RemotingFunctionType.ShutdownServer)
 			{
 				_terminatingSource.Cancel();
