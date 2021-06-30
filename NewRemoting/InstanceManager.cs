@@ -13,7 +13,7 @@ using Castle.DynamicProxy;
 
 namespace NewRemoting
 {
-	public class InstanceManager
+	internal class InstanceManager
 	{
 		private ConcurrentDictionary<string, InstanceInfo> _objects;
 

@@ -9,7 +9,7 @@ using Castle.DynamicProxy;
 
 namespace NewRemoting
 {
-	public class FormatterFactory : SurrogateSelector, ISurrogateSelector
+	internal class FormatterFactory : SurrogateSelector, ISurrogateSelector
 	{
 		private readonly InstanceManager _instanceManager;
 		private readonly MySerializationSurrogate _serializationSurrogate;
