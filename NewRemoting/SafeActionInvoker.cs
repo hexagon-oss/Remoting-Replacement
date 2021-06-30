@@ -124,6 +124,7 @@ namespace NewRemoting
 							{
 								exceptions = new List<Exception>();
 							}
+
 							exceptions.Add(e);
 						}
 					}
@@ -147,9 +148,11 @@ namespace NewRemoting
 								{
 									unhandledExceptions = new List<Exception>();
 								}
+
 								unhandledExceptions.Add(exception);
 							}
 						}
+
 						if (unhandledExceptions != null)
 						{
 							throw new AggregateException(unhandledExceptions);

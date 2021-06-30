@@ -20,6 +20,11 @@ namespace NewRemoting
 	{
 		public const int DefaultNetworkPort = 23456;
 
+		private readonly ClientSideInterceptor _interceptor;
+		private readonly MessageHandler _messageHandler;
+		private readonly InstanceManager _instanceManager;
+		private readonly FormatterFactory _formatterFactory;
+
 		private TcpClient _client;
 		private BinaryWriter _writer;
 		private BinaryReader _reader;
@@ -28,11 +33,6 @@ namespace NewRemoting
 		private IFormatter _formatter;
 		private Server _server;
 		private object _accessLock;
-		
-		private readonly ClientSideInterceptor _interceptor;
-		private readonly MessageHandler _messageHandler;
-		private readonly InstanceManager _instanceManager;
-		private readonly FormatterFactory _formatterFactory;
 
 		public Client(string server, int port)
 		{
@@ -57,7 +57,7 @@ namespace NewRemoting
 			_server = new Server(port + 1, _messageHandler, _interceptor);
 		}
 
-		public IPAddress[] LocalIpAddresses()
+		public static IPAddress[] LocalIpAddresses()
 		{
 			var host = Dns.GetHostEntry(Dns.GetHostName());
 			return host.AddressList;
@@ -105,9 +105,10 @@ namespace NewRemoting
 			}
 		}
 
-		public T CreateRemoteInstance<T>(params object[] args) where T : MarshalByRefObject
+		public T CreateRemoteInstance<T>(params object[] args)
+			where T : MarshalByRefObject
 		{
-			return (T) CreateRemoteInstance(typeof(T), args);
+			return (T)CreateRemoteInstance(typeof(T), args);
 		}
 
 		public object CreateRemoteInstance(Type typeOfInstance, params object[] args)
@@ -151,8 +152,8 @@ namespace NewRemoting
 					_writer.Write(typeOfInstance.AssemblyQualifiedName);
 					_writer.Write(string.Empty);
 					_writer.Write(
-						(int) 0); // Currently, we do not need the correct ctor identifier, since there can only be one default ctor
-					_writer.Write((int) 0); // and no generic args, anyway
+						(int)0); // Currently, we do not need the correct ctor identifier, since there can only be one default ctor
+					_writer.Write((int)0); // and no generic args, anyway
 				}
 				else
 				{
@@ -161,8 +162,8 @@ namespace NewRemoting
 					_writer.Write(typeOfInstance.AssemblyQualifiedName);
 					_writer.Write(string.Empty);
 					_writer.Write(
-						(int) 0); // we let the server resolve the correct ctor to use, based on the argument types
-					_writer.Write((int) 0); // and no generic args, anyway
+						(int)0); // we let the server resolve the correct ctor to use, based on the argument types
+					_writer.Write((int)0); // and no generic args, anyway
 					_writer.Write(args.Length); // but we need to provide the number of arguments that follow
 					foreach (var a in args)
 					{
@@ -175,30 +176,12 @@ namespace NewRemoting
 			_interceptor.WaitForReply(dummyInvocation, ctx);
 
 			return dummyInvocation.ReturnValue;
-			/*
-			RemotingCallHeader hdReply = default;
-			bool hdParseSuccess = hdReply.ReadFrom(_reader);
-			RemotingReferenceType remoteType = (RemotingReferenceType) _reader.ReadInt32();
-
-			if (hdParseSuccess == false || remoteType != RemotingReferenceType.RemoteReference)
-			{
-			    throw new RemotingException("Unexpected reply", RemotingExceptionKind.ProtocolError);
-			}
-
-			string typeName = _reader.ReadString();
-			string objectId = _reader.ReadString();
-			
-			ProxyGenerationOptions options = new ProxyGenerationOptions(_interceptor);
-
-			object instance = _proxy.CreateClassProxy(typeOfInstance, typeOfInstance.GetInterfaces(), options, args, _interceptor);
-			_knownRemoteInstances.Add(instance, objectId);
-			return instance;*/
 
 		}
 
 		public T RequestRemoteInstance<T>()
 		{
-			return (T) RequestRemoteInstance(typeof(T));
+			return (T)RequestRemoteInstance(typeof(T));
 		}
 
 		public object RequestRemoteInstance(Type typeOfInstance)
@@ -207,17 +190,16 @@ namespace NewRemoting
 
 			lock (_accessLock)
 			{
-
 				RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.RequestServiceReference, 0);
 				hd.WriteTo(_writer);
 				_writer.Write(typeOfInstance.AssemblyQualifiedName);
 				_writer.Write(string.Empty);
 				_writer.Write(
-					(int) 0); // Currently, we do not need the correct ctor identifier, since there can only be one default ctor
-				_writer.Write((int) 0); // and no generic args, anyway
+					(int)0); // Currently, we do not need the correct ctor identifier, since there can only be one default ctor
+				_writer.Write((int)0); // and no generic args, anyway
 				RemotingCallHeader hdReply = default;
 				bool hdParseSuccess = hdReply.ReadFrom(_reader);
-				RemotingReferenceType remoteType = (RemotingReferenceType) _reader.ReadInt32();
+				RemotingReferenceType remoteType = (RemotingReferenceType)_reader.ReadInt32();
 
 				if (hdParseSuccess == false)
 				{

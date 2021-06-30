@@ -8,11 +8,11 @@ namespace NewRemoting
 {
 	public class FileHashCalculator : IDisposable
 	{
-		private readonly MD5CryptoServiceProvider m_md5;
+		private readonly MD5CryptoServiceProvider _md5;
 
 		public FileHashCalculator()
 		{
-			m_md5 = new MD5CryptoServiceProvider();
+			_md5 = new MD5CryptoServiceProvider();
 		}
 
 		/// <summary>
@@ -26,7 +26,7 @@ namespace NewRemoting
 
 			if (stream.Length < 64 * 1024)
 			{
-				return m_md5.ComputeHash(stream);
+				return _md5.ComputeHash(stream);
 			}
 
 			FileVersionInfo info = FileVersionInfo.GetVersionInfo(fileName);
@@ -45,11 +45,11 @@ namespace NewRemoting
 				dataToAnalyze.Write(firstBlock, 0, firstBlock.Length);
 				dataToAnalyze.Position = 0;
 
-				return m_md5.ComputeHash(dataToAnalyze);
+				return _md5.ComputeHash(dataToAnalyze);
 			}
 
 			// It's a large, unknown file type. We have to go the full way
-			return m_md5.ComputeHash(stream);
+			return _md5.ComputeHash(stream);
 		}
 
 		/// <summary>
@@ -126,7 +126,7 @@ namespace NewRemoting
 
 		protected virtual void Dispose(bool disposing)
 		{
-			m_md5.Dispose();
+			_md5.Dispose();
 		}
 
 		public void Dispose()

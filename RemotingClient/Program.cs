@@ -8,9 +8,9 @@ using SampleServerClasses;
 
 namespace RemotingClient
 {
-	class Program
+	internal class Program
 	{
-		static void Main(string[] args)
+		public static void Main(string[] args)
 		{
 			Console.WriteLine("Hello World of clients!");
 			DoSomeRemoting();
@@ -51,8 +51,6 @@ namespace RemotingClient
 			IMyComponentInterface myComponentInterface = cls.GetInterface<IMyComponentInterface>();
 
 			Console.WriteLine("Remote process name is " + myComponentInterface.ProcessName());
-
-			// myComponentInterface.TimeChanged += MyComponentInterfaceOnTimeChanged;
 
 			var sinkInstance = new MyClassWithAnEventSink();
 			myComponentInterface.TimeChanged += sinkInstance.OnTimeChanged;

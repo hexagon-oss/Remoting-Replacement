@@ -28,6 +28,11 @@ namespace NewRemoting
 			_objects = new();
 		}
 
+		public static string InstanceIdentifier
+		{
+			get;
+		}
+
 		public ProxyGenerator ProxyGenerator
 		{
 			get;
@@ -42,9 +47,9 @@ namespace NewRemoting
 			set;
 		}
 
-		public static string InstanceIdentifier
+		public static bool IsLocalInstanceId(string objectId)
 		{
-			get;
+			return objectId.StartsWith(InstanceIdentifier);
 		}
 
 		public string GetIdForObject(object instance)
@@ -69,17 +74,13 @@ namespace NewRemoting
 			return false;
 		}
 
-		public static bool IsLocalInstanceId(string objectId)
-		{
-			return objectId.StartsWith(InstanceIdentifier);
-		}
-
 		public void AddInstance(object instance, string objectId)
 		{
 			if (instance == null)
 			{
 				throw new ArgumentNullException(nameof(instance));
 			}
+
 			_objects.AddOrUpdate(objectId, s => new InstanceInfo(instance, objectId), (s, info) => new InstanceInfo(instance, objectId));
 		}
 
@@ -242,10 +243,6 @@ namespace NewRemoting
 			}
 
 			AddInstance(instance, objectId);
-			//if (!TryGetObjectFromId(objectId, out var inst2) || !ReferenceEquals(inst2, instance))
-			//{
-			//	throw new RemotingException("Couldn't add instance. This is an internal error.", RemotingExceptionKind.ProxyManagementError);
-			//}
 
 			Debug.WriteLine($"Created proxy instance for {instance.GetType()} with object id {objectId}");
 			return instance;

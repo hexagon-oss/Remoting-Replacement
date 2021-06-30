@@ -7,9 +7,9 @@ using CommandLine;
 
 namespace RemotingServer
 {
-	class Program
+	internal class Program
 	{
-		static void Main(string[] args)
+		public static void Main(string[] args)
 		{
 			Console.WriteLine("Hello World of Remoting Servers!");
 			StartServer(args);
@@ -24,6 +24,7 @@ namespace RemotingServer
 			{
 				port = parsed.Value.Port.Value;
 			}
+
 			var server = new Server(port);
 			if (parsed.Value.KillSelf)
 			{

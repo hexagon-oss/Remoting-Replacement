@@ -53,7 +53,6 @@ namespace SampleServerClasses
 			return ComponentName;
 		}
 
-
 		public virtual int SuperNumber()
 		{
 			return _data;
