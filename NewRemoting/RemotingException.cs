@@ -24,19 +24,22 @@ namespace NewRemoting
 			ExceptionKind = RemotingExceptionKind.Unknown;
 		}
 
-		public RemotingException(string message, RemotingExceptionKind exceptionKind) : base(message)
+		public RemotingException(string message, RemotingExceptionKind exceptionKind)
+			: base(message)
 		{
 			ExceptionKind = exceptionKind;
 		}
 
-		public RemotingException(string message, RemotingExceptionKind exceptionKind, Exception inner) : base(message, inner)
+		public RemotingException(string message, RemotingExceptionKind exceptionKind, Exception inner)
+			: base(message, inner)
 		{
 			ExceptionKind = exceptionKind;
 		}
 
 		protected RemotingException(
 			SerializationInfo info,
-			StreamingContext context) : base(info, context)
+			StreamingContext context)
+			: base(info, context)
 		{
 			ExceptionKind = (RemotingExceptionKind)info.GetValue(nameof(ExceptionKind), typeof(int));
 		}

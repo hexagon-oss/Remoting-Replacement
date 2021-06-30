@@ -12,14 +12,14 @@ namespace NewRemotingUnitTest
 	[TestFixture]
 	internal class RemoteServerServiceTest
 	{
-		private RemoteServerService m_service;
-		private Mock<FileHashCalculator> m_hashCalculatorMock;
+		private RemoteServerService _service;
+		private Mock<FileHashCalculator> _hashCalculatorMock;
 
 		[SetUp]
 		public void SetUp()
 		{
-			m_hashCalculatorMock = new Mock<FileHashCalculator>();
-			m_service = new RemoteServerService();
+			_hashCalculatorMock = new Mock<FileHashCalculator>();
+			_service = new RemoteServerService();
 		}
 
 		[Test]

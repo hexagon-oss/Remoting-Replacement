@@ -16,7 +16,7 @@ namespace SampleServerClasses
 	/// </summary>
 	public class CheckBiosVersion : MarshalByRefObject, IDisposable
 	{
-		private readonly ManagementObjectSearcher m_managementInfo;
+		private readonly ManagementObjectSearcher _managementInfo;
 
 		public CheckBiosVersion()
 		{
@@ -25,12 +25,12 @@ namespace SampleServerClasses
 				throw new PlatformNotSupportedException("This works on Windows only");
 			}
 
-			m_managementInfo = new ManagementObjectSearcher("SELECT * FROM Win32_BIOS");
+			_managementInfo = new ManagementObjectSearcher("SELECT * FROM Win32_BIOS");
 		}
 
 		public CheckBiosVersion(ManagementObjectSearcher searcher)
 		{
-			m_managementInfo = searcher ?? throw new ArgumentNullException(nameof(searcher));
+			_managementInfo = searcher ?? throw new ArgumentNullException(nameof(searcher));
 		}
 
 		public virtual string[] GetBiosVersions()
@@ -40,7 +40,7 @@ namespace SampleServerClasses
 				throw new PlatformNotSupportedException("This works on Windows only");
 			}
 
-			var collection = m_managementInfo.Get();
+			var collection = _managementInfo.Get();
 			foreach (var obj in collection)
 			{
 				if (obj["BIOSVersion"] is string[] versionStrings && versionStrings.Any())
@@ -56,7 +56,7 @@ namespace SampleServerClasses
 		{
 			if (disposing)
 			{
-				m_managementInfo?.Dispose();
+				_managementInfo?.Dispose();
 			}
 		}
 

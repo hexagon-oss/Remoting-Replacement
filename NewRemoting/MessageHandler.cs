@@ -29,7 +29,7 @@ namespace NewRemoting
 		}
 
 		/// <summary>
-		/// Initializes this instance. Separate because of circular dependencies. 
+		/// Initializes this instance. Separate because of circular dependencies.
 		/// </summary>
 		public void Init(IInterceptor interceptor)
 		{
@@ -50,23 +50,32 @@ namespace NewRemoting
 
 		public InstanceManager InstanceManager => _instanceManager;
 
+		public static bool HasDefaultCtor(Type t)
+		{
+			var ctor = t.GetConstructor(BindingFlags.Public | BindingFlags.Instance, null, CallingConventions.Any, new Type[0], null);
+			return ctor != null;
+		}
+
 		public void WriteArgumentToStream(BinaryWriter w, object data)
 		{
 			if (!_initialized)
 			{
 				throw new InvalidOperationException("Instance is not initialized");
 			}
+
 			if (ReferenceEquals(data, null))
 			{
 				w.Write((int)RemotingReferenceType.NullPointer);
 				return;
 			}
+
 			Type t = data.GetType();
 			if (data is Type type)
 			{
 				w.Write((int)RemotingReferenceType.InstanceOfSystemType);
 				w.Write(type.AssemblyQualifiedName);
 			}
+
 			// IPAddress is not serializable, even though it is actually trivially-serializable
 			else if (data is IPAddress address)
 			{
@@ -102,6 +111,7 @@ namespace NewRemoting
 					w.Write(true);
 					WriteArgumentToStream(w, obj);
 				}
+
 				w.Write(false); // Terminate the array
 			}
 			else if (data is Delegate del)
@@ -135,15 +145,16 @@ namespace NewRemoting
 				w.Write(del.Method.MetadataToken);
 			}
 			else if (Client.IsRemoteProxy(data))
-            {
+			{
 				// Proxies are never serializable
 				if (!_instanceManager.TryGetObjectId(data, out string objectId))
 				{
 					throw new RemotingException("A proxy has no existing reference", RemotingExceptionKind.ProxyManagementError);
 				}
-                w.Write((int)RemotingReferenceType.RemoteReference);
-                w.Write(objectId);
-                w.Write(string.Empty);
+
+				w.Write((int)RemotingReferenceType.RemoteReference);
+				w.Write(objectId);
+				w.Write(string.Empty);
 			}
 			else if (t.IsSerializable)
 			{
@@ -169,8 +180,8 @@ namespace NewRemoting
 #pragma warning disable 618
 			_formatter.Serialize(ms, data);
 #pragma warning restore 618
-			w.Write((int) RemotingReferenceType.SerializedItem);
-			w.Write((int) ms.Length);
+			w.Write((int)RemotingReferenceType.SerializedItem);
+			w.Write((int)ms.Length);
 			// The following is for testing purposes only (slow!)
 			var array = ms.ToArray();
 			byte[] compare = Encoding.ASCII.GetBytes("DynamicProxyGenAss");
@@ -191,12 +202,12 @@ namespace NewRemoting
 					throw new RemotingException("Should not have serialized a dynamic proxy with its internal name", RemotingExceptionKind.UnsupportedOperation);
 				}
 			}
-			
-			w.Write(array, 0, (int) ms.Length);
+
+			w.Write(array, 0, (int)ms.Length);
 		}
 
 		/// <summary>
-		/// True when this type implements <see cref="IList{T}" /> with T being <see cref="MarshalByRefObject"/>. 
+		/// True when this type implements <see cref="IList{T}" /> with T being <see cref="MarshalByRefObject"/>.
 		/// </summary>
 		private bool TypeIsContainerWithReference(object data, out Type type)
 		{
@@ -215,6 +226,7 @@ namespace NewRemoting
 					{
 						return false;
 					}
+
 					// Otherwise, we have to test the contents.
 					return ContentIsMarshalByRef(enumerable);
 				}
@@ -261,6 +273,7 @@ namespace NewRemoting
 			{
 				throw new InvalidOperationException("Instance is not initialized");
 			}
+
 			MethodBase methodBase;
 			// This is true if this is a reply to a CreateInstance call (invocation.Method cannot be a ConstructorInfo instance)
 			if (invocation is ManualInvocation mi && invocation.Method == null)
@@ -270,6 +283,7 @@ namespace NewRemoting
 				{
 					throw new RemotingException("Unexpected invocation type", RemotingExceptionKind.ProtocolError);
 				}
+
 				object returnValue = ReadArgumentFromStream(reader, invocation, true, methodBase.DeclaringType);
 				invocation.ReturnValue = returnValue;
 				// out or ref arguments on ctors are rare, but not generally forbidden, so we continue here
@@ -311,6 +325,7 @@ namespace NewRemoting
 			{
 				throw new InvalidOperationException("Instance is not initialized");
 			}
+
 			RemotingReferenceType referenceType = (RemotingReferenceType)r.ReadInt32();
 			switch (referenceType)
 			{
@@ -326,6 +341,7 @@ namespace NewRemoting
 #pragma warning restore 618
 					return decodedArg;
 				}
+
 				case RemotingReferenceType.RemoteReference:
 				{
 					// The server sends a reference to an object that he owns
@@ -335,12 +351,14 @@ namespace NewRemoting
 					instance = InstanceManager.CreateOrGetReferenceInstance(invocation, canAttemptToInstantiate, typeOfArgument, typeName, objectId);
 					return instance;
 				}
+
 				case RemotingReferenceType.InstanceOfSystemType:
 				{
 					string typeName = r.ReadString();
 					Type t = Server.GetTypeFromAnyAssembly(typeName);
 					return t;
 				}
+
 				case RemotingReferenceType.ArrayOfSystemType:
 				{
 					int count = r.ReadInt32();
@@ -361,6 +379,7 @@ namespace NewRemoting
 
 					return ts;
 				}
+
 				case RemotingReferenceType.ContainerType:
 				{
 					string typeName = r.ReadString();
@@ -377,11 +396,13 @@ namespace NewRemoting
 
 					return list;
 				}
+
 				case RemotingReferenceType.IpAddress:
 				{
 					string s = r.ReadString();
 					return IPAddress.Parse(s);
 				}
+
 				case RemotingReferenceType.MethodPointer:
 				{
 					string instanceId = r.ReadString();
@@ -422,15 +443,10 @@ namespace NewRemoting
 
 					return Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
 				}
+
 				default:
 					throw new RemotingException("Unknown argument type", RemotingExceptionKind.UnsupportedOperation);
 			}
-		}
-
-		public static bool HasDefaultCtor(Type t)
-		{
-			var ctor = t.GetConstructor(BindingFlags.Public | BindingFlags.Instance, null, CallingConventions.Any, new Type[0], null);
-			return ctor != null;
 		}
 
 		public Exception DecodeException(BinaryReader reader)

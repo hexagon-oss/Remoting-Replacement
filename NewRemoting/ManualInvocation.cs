@@ -30,6 +30,7 @@ namespace NewRemoting
 
 			Arguments = args;
 		}
+
 		public object GetArgumentValue(int index)
 		{
 			throw new NotImplementedException();

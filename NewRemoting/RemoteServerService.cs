@@ -19,10 +19,10 @@ namespace NewRemoting
 	/// <remarks>Note: Do not seal this class!</remarks>
 	public class RemoteServerService : MarshalByRefObject, IRemoteServerService
 	{
-		private readonly DirectoryInfo m_root;
-		private readonly List<FileInfo> m_existingFiles;
-		private readonly FileHashCalculator m_fileHashCalculator;
-		private List<FileInfo> m_uploadedFiles;
+		private readonly DirectoryInfo _root;
+		private readonly List<FileInfo> _existingFiles;
+		private readonly FileHashCalculator _fileHashCalculator;
+		private List<FileInfo> _uploadedFiles;
 
 		public RemoteServerService()
 			: this(new FileHashCalculator())
@@ -31,18 +31,18 @@ namespace NewRemoting
 
 		public RemoteServerService(FileHashCalculator fileHashCalculator)
 		{
-			m_fileHashCalculator = fileHashCalculator ?? throw new ArgumentNullException(nameof(fileHashCalculator));
-			m_root = new DirectoryInfo(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
-			m_existingFiles = ScanExistingFiles(m_root, new List<FileInfo>());
-			m_uploadedFiles = new List<FileInfo>();
+			_fileHashCalculator = fileHashCalculator ?? throw new ArgumentNullException(nameof(fileHashCalculator));
+			_root = new DirectoryInfo(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
+			_existingFiles = ScanExistingFiles(_root, new List<FileInfo>());
+			_uploadedFiles = new List<FileInfo>();
 		}
 
 		#region Unit Test
 		[Obsolete("Unit test only")]
 		internal List<FileInfo> UploadedFiles
 		{
-			get => m_uploadedFiles;
-			set => m_uploadedFiles = value;
+			get => _uploadedFiles;
+			set => _uploadedFiles = value;
 		}
 		#endregion
 
@@ -72,7 +72,7 @@ namespace NewRemoting
 		public virtual void UploadFile(string relativePath, byte[] hash, Stream content)
 		{
 			// Create desination path for this system. We use current assembly path as root
-			var dest = Path.Combine(m_root.FullName, relativePath);
+			var dest = Path.Combine(_root.FullName, relativePath);
 			var dir = new DirectoryInfo(Path.GetDirectoryName(dest));
 
 			if (!dir.Exists)
@@ -81,11 +81,11 @@ namespace NewRemoting
 			}
 
 			var fi = new FileInfo(dest);
-			m_uploadedFiles.Add(fi);
+			_uploadedFiles.Add(fi);
 
 			if (fi.Exists)
 			{
-				byte[] hashLocal = m_fileHashCalculator.CalculateFastHashFromFile(fi.FullName);
+				byte[] hashLocal = _fileHashCalculator.CalculateFastHashFromFile(fi.FullName);
 				if (hashLocal.SequenceEqual(hash))
 				{
 					// no upload needed, file is already up to date!
@@ -103,9 +103,9 @@ namespace NewRemoting
 		public virtual void UploadFinished()
 		{
 			// Remove all entries that have been uploaded in this session
-			m_existingFiles.RemoveAll(x => m_uploadedFiles.Any(y => x.FullName.Equals(y.FullName, StringComparison.OrdinalIgnoreCase)));
+			_existingFiles.RemoveAll(x => _uploadedFiles.Any(y => x.FullName.Equals(y.FullName, StringComparison.OrdinalIgnoreCase)));
 			// The remaining files in list can be deleted, they where never uploaded
-			foreach (FileInfo fileInfo in m_existingFiles)
+			foreach (FileInfo fileInfo in _existingFiles)
 			{
 				try
 				{

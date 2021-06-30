@@ -25,40 +25,40 @@ namespace NewRemoting
 	{
 		public const string ServerExecutableName = "RemotingServer.exe";
 
-		private int m_networkPort;
-		private TcpListener m_listener;
-		private bool m_threadRunning;
-		private readonly IFormatter m_formatter;
-		private readonly List<(Thread Thread, NetworkStream Stream)> m_threads;
-		private Thread m_mainThread;
+		private readonly IFormatter _formatter;
+		private readonly List<(Thread Thread, NetworkStream Stream)> _threads;
 		private readonly ProxyGenerator _proxyGenerator;
-		private TcpClient _returnChannel;
 		private readonly CancellationTokenSource _terminatingSource = new CancellationTokenSource();
 		private readonly object _channelWriterLock = new object();
-		private readonly ConcurrentDictionary<string, Assembly> _knownAssemblies = new ();
+		private readonly ConcurrentDictionary<string, Assembly> _knownAssemblies = new();
+		private readonly InstanceManager _instanceManager;
+		private readonly MessageHandler _messageHandler;
+		private readonly FormatterFactory _formatterFactory;
+
+		private TcpClient _returnChannel;
+		private Thread _mainThread;
+		private int _networkPort;
+		private TcpListener _listener;
+		private bool _threadRunning;
 
 		/// <summary>
 		/// This is the interceptor for calls from the server to the client using a server-side proxy (i.e. an interface registered for a callback)
 		/// </summary>
 		private ClientSideInterceptor _serverInterceptorForCallbacks;
 
-		private readonly InstanceManager _instanceManager;
-		private readonly MessageHandler _messageHandler;
-		private readonly FormatterFactory _formatterFactory;
-
 		public Server(int networkPort)
 		{
-			m_networkPort = networkPort;
-			m_threads = new();
+			_networkPort = networkPort;
+			_threads = new();
 			_proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
 			_returnChannel = null;
 			_instanceManager = new InstanceManager(_proxyGenerator);
 			_formatterFactory = new FormatterFactory(_instanceManager);
-			m_formatter = _formatterFactory.CreateFormatter();
+			_formatter = _formatterFactory.CreateFormatter();
 			KillProcessWhenChannelDisconnected = false;
 
 			// This instance will only be finally initialized once the return channel is opened
-			_messageHandler = new MessageHandler(_instanceManager, m_formatter);
+			_messageHandler = new MessageHandler(_instanceManager, _formatter);
 			AppDomain.CurrentDomain.AssemblyResolve += AssemblyResolver;
 		}
 
@@ -67,13 +67,13 @@ namespace NewRemoting
 		/// </summary>
 		internal Server(int networkPort, MessageHandler messageHandler, ClientSideInterceptor localInterceptor)
 		{
-			m_networkPort = networkPort;
+			_networkPort = networkPort;
 			_messageHandler = messageHandler;
 			_instanceManager = messageHandler.InstanceManager;
 			messageHandler.Init(localInterceptor);
-			m_threads = new();
+			_threads = new();
 			_formatterFactory = new FormatterFactory(_instanceManager);
-			m_formatter = _formatterFactory.CreateFormatter();
+			_formatter = _formatterFactory.CreateFormatter();
 			_proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
 			_returnChannel = null;
 			_serverInterceptorForCallbacks = localInterceptor;
@@ -89,9 +89,9 @@ namespace NewRemoting
 			set;
 		}
 
-		public bool IsRunning => m_mainThread != null && m_mainThread.IsAlive;
+		public bool IsRunning => _mainThread != null && _mainThread.IsAlive;
 
-		public int NetworkPort => m_networkPort;
+		public int NetworkPort => _networkPort;
 
 		public static Process StartLocalServerProcess()
 		{
@@ -200,11 +200,11 @@ namespace NewRemoting
 
 		public void StartListening()
 		{
-			m_listener = new TcpListener(IPAddress.Any, m_networkPort);
-			m_threadRunning = true;
-			m_listener.Start();
-			m_mainThread = new Thread(ReceiverThread);
-			m_mainThread.Start();
+			_listener = new TcpListener(IPAddress.Any, _networkPort);
+			_threadRunning = true;
+			_listener.Start();
+			_mainThread = new Thread(ReceiverThread);
+			_mainThread.Start();
 		}
 
 		private void ServerStreamHandler(object obj)
@@ -217,7 +217,7 @@ namespace NewRemoting
 
 			try
 			{
-				while (m_threadRunning)
+				while (_threadRunning)
 				{
 					// Clean up task list
 					for (var index = 0; index < openTasks.Count; index++)
@@ -227,6 +227,7 @@ namespace NewRemoting
 						{
 							throw new RemotingException("Unhandled task exception in remote server", RemotingExceptionKind.UnsupportedOperation);
 						}
+
 						if (task.IsCompleted)
 						{
 							openTasks.Remove(task);
@@ -316,7 +317,7 @@ namespace NewRemoting
 						var t = GetTypeFromAnyAssembly(typeName);
 						typeOfGenericArguments.Add(t);
 					}
-					
+
 					object realInstance = _instanceManager.GetObjectFromId(instance);
 
 					if (typeOfCaller == null)
@@ -373,6 +374,7 @@ namespace NewRemoting
 				{
 					throw new NullReferenceException("Cannot invoke on a non-static method without an instance");
 				}
+
 				if (realInstance is Delegate del)
 				{
 					returnValue = me.Invoke(del.Target, args);
@@ -392,6 +394,7 @@ namespace NewRemoting
 						// the exception we want to forward is here the inner exception
 						x = x.InnerException;
 					}
+
 					_messageHandler.SendExceptionReply(x, w, hd.Sequence);
 				}
 
@@ -413,6 +416,7 @@ namespace NewRemoting
 					{
 						Debug.WriteLine($"MainServer: {hd.Sequence} reply is of type {returnValue.GetType()}");
 					}
+
 					_messageHandler.WriteArgumentToStream(w, returnValue);
 				}
 
@@ -487,6 +491,7 @@ namespace NewRemoting
 				// If the type contains a generic argument, its type is embedded in square brackets. We want the assembly of the final type, though
 				start = assemblyQualifiedName.LastIndexOf("]", StringComparison.OrdinalIgnoreCase);
 			}
+
 			int idx = assemblyQualifiedName.IndexOf(',', start);
 			if (idx > 0)
 			{
@@ -521,14 +526,14 @@ namespace NewRemoting
 
 		private void ReceiverThread()
 		{
-			while (m_threadRunning)
+			while (_threadRunning)
 			{
 				try
 				{
-					var tcpClient = m_listener.AcceptTcpClient();
+					var tcpClient = _listener.AcceptTcpClient();
 					var stream = tcpClient.GetStream();
 					Thread ts = new Thread(ServerStreamHandler);
-					m_threads.Add((ts, stream));
+					_threads.Add((ts, stream));
 					ts.Start(stream);
 				}
 				catch (SocketException x)
@@ -543,16 +548,16 @@ namespace NewRemoting
 			_returnChannel?.Dispose();
 			_returnChannel = null;
 
-			m_threadRunning = false;
-			foreach (var thread in m_threads)
+			_threadRunning = false;
+			foreach (var thread in _threads)
 			{
 				thread.Stream.Close();
 				thread.Thread.Join();
 			}
 
-			m_threads.Clear();
-			m_listener?.Stop();
-			m_mainThread?.Join();
+			_threads.Clear();
+			_listener?.Stop();
+			_mainThread?.Join();
 		}
 
 		public void Dispose()
