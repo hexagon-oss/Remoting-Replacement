@@ -33,11 +33,16 @@ namespace NewRemoting
 		private IFormatter _formatter;
 		private Server _server;
 		private object _accessLock;
+		private TcpClient _serverLink;
+		private bool _connectionConfigured;
 
 		public Client(string server, int port)
 		{
 			_accessLock = new object();
+			_connectionConfigured = false;
+
 			_client = new TcpClient(server, port);
+			_serverLink = new TcpClient(server, port);
 			_writer = new BinaryWriter(_client.GetStream(), Encoding.Unicode);
 			_reader = new BinaryReader(_client.GetStream(), Encoding.Unicode);
 			_builder = new DefaultProxyBuilder();
@@ -48,13 +53,18 @@ namespace NewRemoting
 
 			_messageHandler = new MessageHandler(_instanceManager, _formatter);
 
-			_interceptor = new ClientSideInterceptor("Client", _client, _messageHandler);
+			_interceptor = new ClientSideInterceptor("Client", _client.GetStream(), _messageHandler);
 			_instanceManager.Interceptor = _interceptor;
 
 			_messageHandler.Init(_interceptor);
 
+			byte[] authenticationData = new byte[100];
+			_writer.Write(authenticationData);
+			authenticationData[0] = 1;
+			_serverLink.GetStream().Write(authenticationData, 0, 100);
+
 			// This is used as return channel
-			_server = new Server(port + 1, _messageHandler, _interceptor);
+			_server = new Server(_serverLink.GetStream(), _messageHandler, _interceptor);
 		}
 
 		public static IPAddress[] LocalIpAddresses()
@@ -82,9 +92,9 @@ namespace NewRemoting
 		{
 			lock (_accessLock)
 			{
-				if (!_server.IsRunning)
+				if (!_connectionConfigured)
 				{
-					_server.StartListening();
+					_server.StartProcessing();
 					RemotingCallHeader openReturnChannel =
 						new RemotingCallHeader(RemotingFunctionType.OpenReverseChannel, 0);
 					openReturnChannel.WriteTo(_writer);
@@ -92,6 +102,7 @@ namespace NewRemoting
 					var addressToUse = addresses.First(x => x.AddressFamily == AddressFamily.InterNetwork);
 					_writer.Write(addressToUse.ToString());
 					_writer.Write(_server.NetworkPort);
+					_connectionConfigured = true;
 				}
 			}
 		}

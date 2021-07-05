@@ -20,7 +20,7 @@ namespace NewRemoting
 	internal sealed class ClientSideInterceptor : IInterceptor, IProxyGenerationHook, IDisposable
 	{
 		private readonly string _side;
-		private readonly TcpClient _serverLink;
+		private readonly Stream _serverLink;
 		private readonly MessageHandler _messageHandler;
 		private int _sequence;
 		private ConcurrentDictionary<int, CallContext> _pendingInvocations;
@@ -28,7 +28,7 @@ namespace NewRemoting
 		private bool _receiving;
 		private int _numberOfCallsInspected;
 
-		public ClientSideInterceptor(String side, TcpClient serverLink, MessageHandler messageHandler)
+		public ClientSideInterceptor(String side, Stream serverLink, MessageHandler messageHandler)
 		{
 			DebuggerToStringBehavior = DebuggerToStringBehavior.ReturnProxyName;
 			_sequence = side == "Client" ? 1 : 10000;
@@ -144,7 +144,7 @@ namespace NewRemoting
 
 				// now finally write the stream to the network. That way, we don't send incomplete messages if an exception happens encoding a parameter.
 				rawDataMessage.Position = 0;
-				rawDataMessage.CopyTo(_serverLink.GetStream());
+				rawDataMessage.CopyTo(_serverLink);
 			}
 
 			WaitForReply(invocation, ctx);
@@ -161,7 +161,7 @@ namespace NewRemoting
 				using MemoryStream rawDataMessage = new MemoryStream(1024);
 				using BinaryWriter writer = new BinaryWriter(rawDataMessage, Encoding.Unicode);
 				_messageHandler.InstanceManager.PerformGc(writer);
-				rawDataMessage.CopyTo(_serverLink.GetStream());
+				rawDataMessage.CopyTo(_serverLink);
 			}
 		}
 
@@ -191,7 +191,7 @@ namespace NewRemoting
 
 		private void ReceiverThread()
 		{
-			var reader = new BinaryReader(_serverLink.GetStream(), Encoding.Unicode);
+			var reader = new BinaryReader(_serverLink, Encoding.Unicode);
 			try
 			{
 				while (_receiving)
