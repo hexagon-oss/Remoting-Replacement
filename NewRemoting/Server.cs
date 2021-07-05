@@ -26,7 +26,7 @@ namespace NewRemoting
 		public const string ServerExecutableName = "RemotingServer.exe";
 
 		private readonly IFormatter _formatter;
-		private readonly List<(Thread Thread, NetworkStream Stream)> _threads;
+		private readonly List<(Thread Thread, Stream Stream)> _threads;
 		private readonly ProxyGenerator _proxyGenerator;
 		private readonly CancellationTokenSource _terminatingSource = new CancellationTokenSource();
 		private readonly object _channelWriterLock = new object();
@@ -35,11 +35,11 @@ namespace NewRemoting
 		private readonly MessageHandler _messageHandler;
 		private readonly FormatterFactory _formatterFactory;
 
-		private TcpClient _returnChannel;
 		private Thread _mainThread;
 		private int _networkPort;
 		private TcpListener _listener;
 		private bool _threadRunning;
+		private Stream _preopenedStream;
 
 		/// <summary>
 		/// This is the interceptor for calls from the server to the client using a server-side proxy (i.e. an interface registered for a callback)
@@ -51,7 +51,7 @@ namespace NewRemoting
 			_networkPort = networkPort;
 			_threads = new();
 			_proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
-			_returnChannel = null;
+			_preopenedStream = null;
 			_instanceManager = new InstanceManager(_proxyGenerator);
 			_formatterFactory = new FormatterFactory(_instanceManager);
 			_formatter = _formatterFactory.CreateFormatter();
@@ -65,9 +65,10 @@ namespace NewRemoting
 		/// <summary>
 		/// This ctor is used if this server runs on the client side (for the return channel). The actual data store is the local client instance.
 		/// </summary>
-		internal Server(int networkPort, MessageHandler messageHandler, ClientSideInterceptor localInterceptor)
+		internal Server(Stream preopenedStream, MessageHandler messageHandler, ClientSideInterceptor localInterceptor)
 		{
-			_networkPort = networkPort;
+			_networkPort = 0;
+			_preopenedStream = preopenedStream;
 			_messageHandler = messageHandler;
 			_instanceManager = messageHandler.InstanceManager;
 			messageHandler.Init(localInterceptor);
@@ -75,7 +76,6 @@ namespace NewRemoting
 			_formatterFactory = new FormatterFactory(_instanceManager);
 			_formatter = _formatterFactory.CreateFormatter();
 			_proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
-			_returnChannel = null;
 			_serverInterceptorForCallbacks = localInterceptor;
 		}
 
@@ -89,7 +89,13 @@ namespace NewRemoting
 			set;
 		}
 
-		public bool IsRunning => _mainThread != null && _mainThread.IsAlive;
+		public bool IsRunning
+		{
+			get
+			{
+				return _mainThread != null && _mainThread.IsAlive;
+			}
+		}
 
 		public int NetworkPort => _networkPort;
 
@@ -205,6 +211,17 @@ namespace NewRemoting
 			_listener.Start();
 			_mainThread = new Thread(ReceiverThread);
 			_mainThread.Start();
+		}
+
+		/// <summary>
+		/// Starts the server stream handler directly
+		/// </summary>
+		internal void StartProcessing()
+		{
+			_threadRunning = true;
+			Thread ts = new Thread(ServerStreamHandler);
+			_threads.Add((ts, _preopenedStream));
+			ts.Start(_preopenedStream);
 		}
 
 		private void ServerStreamHandler(object obj)
@@ -351,11 +368,13 @@ namespace NewRemoting
 						InvokeRealInstance(me, realInstance, args, hd, w);
 					}));
 				}
+
+				Debug.WriteLine($"Server on port {NetworkPort} exited");
 			}
 			catch (IOException x)
 			{
 				// Remote connection closed
-				Console.WriteLine($"Server handler died due to {x}");
+				Debug.WriteLine($"Server handler died due to {x}");
 				if (KillProcessWhenChannelDisconnected)
 				{
 					_terminatingSource.Cancel();
@@ -439,13 +458,12 @@ namespace NewRemoting
 			{
 				string clientIp = r.ReadString();
 				int clientPort = r.ReadInt32();
-				if (_returnChannel != null && _returnChannel.Connected)
+				if (_preopenedStream == null)
 				{
-					return true;
+					throw new RemotingException("Server not ready for reverse connection. Startup sequence error", RemotingExceptionKind.ProtocolError);
 				}
 
-				_returnChannel = new TcpClient(clientIp, clientPort);
-				_serverInterceptorForCallbacks = new ClientSideInterceptor("Server", _returnChannel, _messageHandler);
+				_serverInterceptorForCallbacks = new ClientSideInterceptor("Server", _preopenedStream, _messageHandler);
 				_messageHandler.Init(_serverInterceptorForCallbacks);
 				_instanceManager.Interceptor = _serverInterceptorForCallbacks;
 				return true;
@@ -542,6 +560,19 @@ namespace NewRemoting
 				{
 					var tcpClient = _listener.AcceptTcpClient();
 					var stream = tcpClient.GetStream();
+					byte[] authenticationToken = new byte[100];
+					if (stream.Read(authenticationToken, 0, 100) != 100)
+					{
+						tcpClient.Dispose();
+						continue;
+					}
+
+					if (authenticationToken[0] == 1)
+					{
+						_preopenedStream = tcpClient.GetStream();
+						continue;
+					}
+
 					Thread ts = new Thread(ServerStreamHandler);
 					_threads.Add((ts, stream));
 					ts.Start(stream);
@@ -555,8 +586,8 @@ namespace NewRemoting
 
 		public void Terminate()
 		{
-			_returnChannel?.Dispose();
-			_returnChannel = null;
+			_preopenedStream?.Dispose();
+			_preopenedStream = null;
 
 			_threadRunning = false;
 			foreach (var thread in _threads)
