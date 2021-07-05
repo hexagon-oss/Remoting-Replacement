@@ -16,6 +16,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Castle.Components.DictionaryAdapter;
+using Castle.Core.Internal;
 using Castle.DynamicProxy;
 
 #pragma warning disable SYSLIB0011
@@ -35,10 +36,21 @@ namespace NewRemoting
 		private readonly MessageHandler _messageHandler;
 		private readonly FormatterFactory _formatterFactory;
 
+		/// <summary>
+		/// This contains a (typically small) queue of streams that will be used for the reverse communication.
+		/// The list is emptied by OpenReverseChannel commands.
+		/// </summary>
+		private readonly Queue<Stream> _clientStreamsExpectingUse;
+
 		private Thread _mainThread;
 		private int _networkPort;
 		private TcpListener _listener;
 		private bool _threadRunning;
+
+		/// <summary>
+		/// This contains the stream that the client class has already opened for its own server.
+		/// If this is non-null, this server instance lives within the client.
+		/// </summary>
 		private Stream _preopenedStream;
 
 		/// <summary>
@@ -52,6 +64,7 @@ namespace NewRemoting
 			_threads = new();
 			_proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
 			_preopenedStream = null;
+			_clientStreamsExpectingUse = new();
 			_instanceManager = new InstanceManager(_proxyGenerator);
 			_formatterFactory = new FormatterFactory(_instanceManager);
 			_formatter = _formatterFactory.CreateFormatter();
@@ -69,6 +82,7 @@ namespace NewRemoting
 		{
 			_networkPort = 0;
 			_preopenedStream = preopenedStream;
+			_clientStreamsExpectingUse = null; // Shall not be used in this case
 			_messageHandler = messageHandler;
 			_instanceManager = messageHandler.InstanceManager;
 			messageHandler.Init(localInterceptor);
@@ -458,12 +472,12 @@ namespace NewRemoting
 			{
 				string clientIp = r.ReadString();
 				int clientPort = r.ReadInt32();
-				if (_preopenedStream == null)
+				if (_clientStreamsExpectingUse.IsNullOrEmpty())
 				{
 					throw new RemotingException("Server not ready for reverse connection. Startup sequence error", RemotingExceptionKind.ProtocolError);
 				}
 
-				_serverInterceptorForCallbacks = new ClientSideInterceptor("Server", _preopenedStream, _messageHandler);
+				_serverInterceptorForCallbacks = new ClientSideInterceptor("Server", _clientStreamsExpectingUse.Dequeue(), _messageHandler);
 				_messageHandler.Init(_serverInterceptorForCallbacks);
 				_instanceManager.Interceptor = _serverInterceptorForCallbacks;
 				return true;
@@ -569,7 +583,7 @@ namespace NewRemoting
 
 					if (authenticationToken[0] == 1)
 					{
-						_preopenedStream = tcpClient.GetStream();
+						_clientStreamsExpectingUse.Enqueue(tcpClient.GetStream());
 						continue;
 					}
 
