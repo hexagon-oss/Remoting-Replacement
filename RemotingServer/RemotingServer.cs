@@ -123,7 +123,7 @@ namespace RemotingServer
                     }
                 }
             }
-            catch (IOException x)
+            catch (IOException)
             {
                 // Remote connection closed
             }

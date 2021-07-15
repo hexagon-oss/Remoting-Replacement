@@ -23,14 +23,16 @@ namespace RemotingClient
             Console.WriteLine($"Local Process: {Process.GetCurrentProcess().Id}, Remote Process: {remotePs}");
             Console.WriteLine($"2 + 5 = {cls.AddValues(2, 5)}");
 
-            Console.WriteLine($"Remote process id (again): {cls.StringProcessId()}");
-
             ReferencedComponent component = cls.GetComponent();
 
             Console.WriteLine($"Component returns {component.SuperNumber()} and {component.SuperNumber()}");
             component.Data = 2;
             Console.WriteLine($"Now the data is {component.Data}");
+
+            IMarshallInterface interf = cls;
+            Console.WriteLine($"Remote process id (again): {interf.StringProcessId()}");
+
         }
-        
+
     }
 }
