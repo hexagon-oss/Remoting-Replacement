@@ -23,5 +23,12 @@ namespace RemotingServer
 			get;
 			set;
 		}
+
+		[Option('v', "verbose", HelpText = "Print verbose output (to console and debug output)")]
+		public bool Verbose
+		{
+			get;
+			set;
+		}
 	}
 }

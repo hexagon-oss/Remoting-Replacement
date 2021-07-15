@@ -25,6 +25,11 @@ namespace RemotingServer
 				port = parsed.Value.Port.Value;
 			}
 
+			if (parsed.Value.Verbose)
+			{
+				LogDispatcher.LoggerFactory = new ServerLogger();
+			}
+
 			var server = new Server(port);
 			if (parsed.Value.KillSelf)
 			{
