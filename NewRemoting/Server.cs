@@ -18,6 +18,8 @@ using System.Threading.Tasks;
 using Castle.Components.DictionaryAdapter;
 using Castle.Core.Internal;
 using Castle.DynamicProxy;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 #pragma warning disable SYSLIB0011
 namespace NewRemoting
@@ -58,14 +60,15 @@ namespace NewRemoting
 		/// </summary>
 		private ClientSideInterceptor _serverInterceptorForCallbacks;
 
-		public Server(int networkPort)
+		public Server(int networkPort, ILogger logger = null)
 		{
+			Logger = logger ?? NullLogger.Instance;
 			_networkPort = networkPort;
 			_threads = new();
 			_proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
 			_preopenedStream = null;
 			_clientStreamsExpectingUse = new();
-			_instanceManager = new InstanceManager(_proxyGenerator);
+			_instanceManager = new InstanceManager(_proxyGenerator, Logger);
 			_formatterFactory = new FormatterFactory(_instanceManager);
 			_formatter = _formatterFactory.CreateFormatter();
 			KillProcessWhenChannelDisconnected = false;
@@ -78,9 +81,10 @@ namespace NewRemoting
 		/// <summary>
 		/// This ctor is used if this server runs on the client side (for the return channel). The actual data store is the local client instance.
 		/// </summary>
-		internal Server(Stream preopenedStream, MessageHandler messageHandler, ClientSideInterceptor localInterceptor)
+		internal Server(Stream preopenedStream, MessageHandler messageHandler, ClientSideInterceptor localInterceptor, ILogger logger = null)
 		{
 			_networkPort = 0;
+			Logger = logger ?? NullLogger.Instance;
 			_preopenedStream = preopenedStream;
 			_clientStreamsExpectingUse = null; // Shall not be used in this case
 			_messageHandler = messageHandler;
@@ -111,6 +115,7 @@ namespace NewRemoting
 			}
 		}
 
+		public ILogger Logger { get; }
 		public int NetworkPort => _networkPort;
 
 		public static Process StartLocalServerProcess()
@@ -120,24 +125,12 @@ namespace NewRemoting
 
 		private Assembly AssemblyResolver(object sender, ResolveEventArgs args)
 		{
-			Debug.WriteLine($"Attempting to resolve {args.Name} from {args.RequestingAssembly}");
+			Logger.Log(LogLevel.Debug, $"Attempting to resolve {args.Name} from {args.RequestingAssembly}");
 			if (args.RequestingAssembly == null)
 			{
 				return null;
 			}
 
-			/* AssemblyLoadContext ctx = AssemblyLoadContext.GetLoadContext(args.RequestingAssembly);
-			try
-			{
-				AssemblyName name = new AssemblyName(args.Name);
-				Assembly loaded = ctx.LoadFromAssemblyName(name);
-				return loaded;
-			}
-			catch (Exception x)
-			{
-				Debug.WriteLine(x.ToString());
-			}
-			*/
 			bool found = _knownAssemblies.TryGetValue(args.Name, out var a);
 			if (found && a != null)
 			{
@@ -158,7 +151,7 @@ namespace NewRemoting
 				}
 				catch (Exception x)
 				{
-					Debug.WriteLine(x.ToString());
+					Logger.Log(LogLevel.Error, x.ToString());
 				}
 			}
 
@@ -208,7 +201,7 @@ namespace NewRemoting
 				}
 				else if (potentialEntries.Length > 1)
 				{
-					Debug.WriteLine($"Found multiple potential implementations for {args.Name}.");
+					Logger.Log(LogLevel.Error, $"Found multiple potential implementations for {args.Name}.");
 					throw new NotImplementedException("Fix this");
 				}
 			}
@@ -383,12 +376,12 @@ namespace NewRemoting
 					}));
 				}
 
-				Debug.WriteLine($"Server on port {NetworkPort} exited");
+				Logger.Log(LogLevel.Information, $"Server on port {NetworkPort} exited");
 			}
 			catch (IOException x)
 			{
 				// Remote connection closed
-				Debug.WriteLine($"Server handler died due to {x}");
+				Logger.Log(LogLevel.Error, $"Server handler died due to {x}");
 				if (KillProcessWhenChannelDisconnected)
 				{
 					_terminatingSource.Cancel();
@@ -399,7 +392,7 @@ namespace NewRemoting
 		private void InvokeRealInstance(MethodInfo me, object realInstance, object[] args, RemotingCallHeader hd, BinaryWriter w)
 		{
 			// Here, the actual target method of the proxied call is invoked.
-			Debug.WriteLine($"MainServer: Invoking {me}, sequence {hd.Sequence}");
+			Logger.Log(LogLevel.Debug, $"MainServer: Invoking {me}, sequence {hd.Sequence}");
 			object returnValue;
 			try
 			{
@@ -419,7 +412,7 @@ namespace NewRemoting
 			}
 			catch (Exception x)
 			{
-				Debug.WriteLine($"Invoking threw {x}");
+				Logger.Log(LogLevel.Debug, $"Invoking threw {x}");
 				lock (_channelWriterLock)
 				{
 					if (x.InnerException != null)
@@ -443,11 +436,11 @@ namespace NewRemoting
 				{
 					if (returnValue == null)
 					{
-						Debug.WriteLine($"MainServer: {hd.Sequence} reply is null");
+						Logger.Log(LogLevel.Debug, $"MainServer: {hd.Sequence} reply is null");
 					}
 					else
 					{
-						Debug.WriteLine($"MainServer: {hd.Sequence} reply is of type {returnValue.GetType()}");
+						Logger.Log(LogLevel.Debug, $"MainServer: {hd.Sequence} reply is of type {returnValue.GetType()}");
 					}
 
 					_messageHandler.WriteArgumentToStream(w, returnValue);
@@ -477,7 +470,7 @@ namespace NewRemoting
 					throw new RemotingException("Server not ready for reverse connection. Startup sequence error", RemotingExceptionKind.ProtocolError);
 				}
 
-				_serverInterceptorForCallbacks = new ClientSideInterceptor("Server", _clientStreamsExpectingUse.Dequeue(), _messageHandler);
+				_serverInterceptorForCallbacks = new ClientSideInterceptor("Server", _clientStreamsExpectingUse.Dequeue(), _messageHandler, Logger);
 				_messageHandler.Init(_serverInterceptorForCallbacks);
 				_instanceManager.Interceptor = _serverInterceptorForCallbacks;
 				return true;
@@ -494,7 +487,7 @@ namespace NewRemoting
 				}
 				catch (Exception x)
 				{
-					Debug.WriteLine(x.ToString());
+					Logger.Log(LogLevel.Error, x.ToString());
 				}
 
 				return true;
@@ -554,9 +547,8 @@ namespace NewRemoting
 						return ass.GetType(typeName, true);
 					}
 				}
-				catch (FileNotFoundException x)
+				catch (FileNotFoundException)
 				{
-					Debug.WriteLine(x.ToString());
 					// Try the legacy way
 					Assembly ass = Assembly.LoadFrom(name.Name + ".dll");
 					return ass.GetType(typeName, true);

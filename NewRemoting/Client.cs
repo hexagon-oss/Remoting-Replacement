@@ -13,6 +13,8 @@ using System.Text;
 using System.Threading.Tasks;
 using Castle.DynamicProxy;
 using Castle.DynamicProxy.Generators.Emitters.SimpleAST;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace NewRemoting
 {
@@ -36,8 +38,9 @@ namespace NewRemoting
 		private TcpClient _serverLink;
 		private bool _connectionConfigured;
 
-		public Client(string server, int port)
+		public Client(string server, int port, ILogger logger = null)
 		{
+			Logger = logger ?? NullLogger.Instance;
 			_accessLock = new object();
 			_connectionConfigured = false;
 
@@ -47,13 +50,13 @@ namespace NewRemoting
 			_reader = new BinaryReader(_client.GetStream(), Encoding.Unicode);
 			_builder = new DefaultProxyBuilder();
 			_proxy = new ProxyGenerator(_builder);
-			_instanceManager = new InstanceManager(_proxy);
+			_instanceManager = new InstanceManager(_proxy, Logger);
 			_formatterFactory = new FormatterFactory(_instanceManager);
 			_formatter = _formatterFactory.CreateFormatter();
 
 			_messageHandler = new MessageHandler(_instanceManager, _formatter);
 
-			_interceptor = new ClientSideInterceptor("Client", _client.GetStream(), _messageHandler);
+			_interceptor = new ClientSideInterceptor("Client", _client.GetStream(), _messageHandler, Logger);
 			_instanceManager.Interceptor = _interceptor;
 
 			_messageHandler.Init(_interceptor);
@@ -66,6 +69,8 @@ namespace NewRemoting
 			// This is used as return channel
 			_server = new Server(_serverLink.GetStream(), _messageHandler, _interceptor);
 		}
+
+		public ILogger Logger { get; }
 
 		public static IPAddress[] LocalIpAddresses()
 		{

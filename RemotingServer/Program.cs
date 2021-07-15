@@ -4,6 +4,7 @@ using System.Threading;
 using Castle.DynamicProxy;
 using NewRemoting;
 using CommandLine;
+using Microsoft.Extensions.Logging;
 
 namespace RemotingServer
 {
@@ -25,12 +26,13 @@ namespace RemotingServer
 				port = parsed.Value.Port.Value;
 			}
 
+			ILogger logger = null;
 			if (parsed.Value.Verbose)
 			{
-				LogDispatcher.LoggerFactory = new ServerLogger();
+				logger = new ConsoleAndDebugLogger("RemotingServer");
 			}
 
-			var server = new Server(port);
+			var server = new Server(port, logger);
 			if (parsed.Value.KillSelf)
 			{
 				server.KillProcessWhenChannelDisconnected = true;

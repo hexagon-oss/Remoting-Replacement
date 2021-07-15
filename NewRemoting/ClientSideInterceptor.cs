@@ -12,6 +12,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Castle.DynamicProxy;
+using Microsoft.Extensions.Logging;
 
 // BinaryFormatter shouldn't be used
 #pragma warning disable SYSLIB0011
@@ -22,13 +23,14 @@ namespace NewRemoting
 		private readonly string _side;
 		private readonly Stream _serverLink;
 		private readonly MessageHandler _messageHandler;
+		private readonly ILogger _logger;
 		private int _sequence;
 		private ConcurrentDictionary<int, CallContext> _pendingInvocations;
 		private Thread _receiverThread;
 		private bool _receiving;
 		private int _numberOfCallsInspected;
 
-		public ClientSideInterceptor(String side, Stream serverLink, MessageHandler messageHandler)
+		public ClientSideInterceptor(String side, Stream serverLink, MessageHandler messageHandler, ILogger logger)
 		{
 			DebuggerToStringBehavior = DebuggerToStringBehavior.ReturnProxyName;
 			_sequence = side == "Client" ? 1 : 10000;
@@ -36,6 +38,7 @@ namespace NewRemoting
 			_serverLink = serverLink;
 			_numberOfCallsInspected = 0;
 			_messageHandler = messageHandler ?? throw new ArgumentNullException(nameof(messageHandler));
+			_logger = logger;
 			_pendingInvocations = new();
 			_receiverThread = new Thread(ReceiverThread);
 			_receiverThread.Name = "ClientSideInterceptor - Receiver - " + side;
@@ -81,7 +84,7 @@ namespace NewRemoting
 
 			lock (_messageHandler.CommunicationLinkLock)
 			{
-				Debug.WriteLine($"{_side}: Intercepting {invocation.Method}, sequence {thisSeq}");
+				_logger.Log(LogLevel.Debug, $"{_side}: Intercepting {invocation.Method}, sequence {thisSeq}");
 
 				// Console.WriteLine($"Here should be a call to {invocation.Method}");
 				MethodInfo me = invocation.Method;
@@ -97,7 +100,7 @@ namespace NewRemoting
 					// One valid case when we may get here is when the proxy is just being created (as a class proxy) and within that ctor,
 					// a virtual member function is called. So we can execute the call locally (the object should be in an useful state, since its default ctor
 					// has been called)
-					Debug.WriteLine("Not a valid remoting proxy. Assuming within ctor of class proxy");
+					_logger.Log(LogLevel.Debug, "Not a valid remoting proxy. Assuming within ctor of class proxy");
 					invocation.Proceed();
 					_pendingInvocations.TryRemove(thisSeq, out _);
 					return;
@@ -181,7 +184,7 @@ namespace NewRemoting
 		{
 			// The event is signaled by the receiver thread when the message was processed
 			ctx.Wait();
-			Debug.WriteLine($"{_side}: {invocation.Method} done.");
+			_logger.Log(LogLevel.Debug, $"{_side}: {invocation.Method} done.");
 			if (ctx.Exception != null)
 			{
 				// Rethrow remote exception
@@ -203,7 +206,7 @@ namespace NewRemoting
 						throw new RemotingException("Unexpected reply or stream out of sync", RemotingExceptionKind.ProtocolError);
 					}
 
-					Debug.WriteLine($"{_side}: Decoding message {hdReturnValue.Sequence} of type {hdReturnValue.Function}");
+					_logger.Log(LogLevel.Debug, $"{_side}: Decoding message {hdReturnValue.Sequence} of type {hdReturnValue.Function}");
 
 					if (hdReturnValue.Function != RemotingFunctionType.MethodReply && hdReturnValue.Function != RemotingFunctionType.ExceptionReturn)
 					{
@@ -214,7 +217,7 @@ namespace NewRemoting
 					{
 						if (hdReturnValue.Function == RemotingFunctionType.ExceptionReturn)
 						{
-							Debug.WriteLine($"{_side}: Receiving exception in reply to {item.Invocation.Method}");
+							_logger.Log(LogLevel.Debug, $"{_side}: Receiving exception in reply to {item.Invocation.Method}");
 							var exception = _messageHandler.DecodeException(reader);
 							_pendingInvocations.TryRemove(hdReturnValue.Sequence, out var ctx);
 							ctx.Exception = exception;
@@ -222,7 +225,7 @@ namespace NewRemoting
 						}
 						else
 						{
-							Debug.WriteLine($"{_side}: Receiving reply for {item.Invocation.Method}");
+							_logger.Log(LogLevel.Debug, $"{_side}: Receiving reply for {item.Invocation.Method}");
 							_messageHandler.ProcessCallResponse(item.Invocation, reader);
 							_pendingInvocations.TryRemove(hdReturnValue.Sequence, out _);
 							item.Set();
@@ -236,7 +239,7 @@ namespace NewRemoting
 			}
 			catch (IOException x)
 			{
-				Console.WriteLine("Terminating client receiver thread - Communication Exception: " + x.Message);
+				_logger.Log(LogLevel.Error, "Terminating client receiver thread - Communication Exception: " + x.Message);
 				_receiving = false;
 			}
 		}
@@ -247,7 +250,7 @@ namespace NewRemoting
 
 		public void NonProxyableMemberNotification(Type type, MemberInfo memberInfo)
 		{
-			Console.WriteLine($"Type {type} has non-virtual method {memberInfo} - cannot be used for proxying");
+			_logger.Log(LogLevel.Error, $"Type {type} has non-virtual method {memberInfo} - cannot be used for proxying");
 		}
 
 		public bool ShouldInterceptMethod(Type type, MethodInfo methodInfo)

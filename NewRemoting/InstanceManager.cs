@@ -10,11 +10,13 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using Castle.DynamicProxy;
+using Microsoft.Extensions.Logging;
 
 namespace NewRemoting
 {
 	internal class InstanceManager
 	{
+		private readonly ILogger _logger;
 		private ConcurrentDictionary<string, InstanceInfo> _objects;
 
 		static InstanceManager()
@@ -22,8 +24,9 @@ namespace NewRemoting
 			InstanceIdentifier = Environment.MachineName + "/" + Environment.ProcessId.ToString(CultureInfo.CurrentCulture);
 		}
 
-		public InstanceManager(ProxyGenerator proxyGenerator)
+		public InstanceManager(ProxyGenerator proxyGenerator, ILogger logger)
 		{
+			_logger = logger;
 			ProxyGenerator = proxyGenerator;
 			_objects = new();
 		}
@@ -122,7 +125,6 @@ namespace NewRemoting
 		private string CreateObjectInstanceId(object obj)
 		{
 			string objectReference = FormattableString.Invariant($"{InstanceIdentifier}/{obj.GetType().FullName}/{RuntimeHelpers.GetHashCode(obj)}");
-			Debug.WriteLine($"Created object reference with id {objectReference}");
 			return objectReference;
 		}
 
@@ -151,7 +153,7 @@ namespace NewRemoting
 				return;
 			}
 
-			Debug.WriteLine($"Cleaning up references to {instancesToClear.Count} objects");
+			_logger.Log(LogLevel.Debug, $"Cleaning up references to {instancesToClear.Count} objects");
 			RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.GcCleanup, 0);
 			hd.WriteTo(w);
 			w.Write(instancesToClear.Count);
@@ -254,19 +256,19 @@ namespace NewRemoting
 			var interfaces = type.GetInterfaces();
 			if (typeOfArgument != null && typeOfArgument.IsInterface)
 			{
-				Debug.WriteLine($"Create interface proxy for main type {typeOfArgument}");
+				_logger.Log(LogLevel.Debug, $"Create interface proxy for main type {typeOfArgument}");
 				// If the call returns an interface, only create an interface proxy, because we might not be able to instantiate the actual class (because it's not public, it's sealed, has no public ctors, etc)
 				instance = ProxyGenerator.CreateInterfaceProxyWithoutTarget(typeOfArgument, interfaces, Interceptor);
 			}
 			else if (canAttemptToInstantiate && (!type.IsSealed) && (MessageHandler.HasDefaultCtor(type) || (invocation != null && invocation.Arguments.Length > 0)))
 			{
-				Debug.WriteLine($"Create class proxy for main type {type}");
+				_logger.Log(LogLevel.Debug, $"Create class proxy for main type {type}");
 				// We can attempt to create a class proxy if we have ctor arguments and the type is not sealed
 				instance = ProxyGenerator.CreateClassProxy(type, interfaces, ProxyGenerationOptions.Default, invocation.Arguments, Interceptor);
 			}
 			else if ((type.IsSealed || !MessageHandler.HasDefaultCtor(type)) && interfaces.Length > 0)
 			{
-				Debug.WriteLine($"Create interface proxy as backup for main type {type} with {interfaces[0]}");
+				_logger.Log(LogLevel.Debug, $"Create interface proxy as backup for main type {type} with {interfaces[0]}");
 				if (type.IsAssignableTo(typeof(Stream)))
 				{
 					// This is a bit of a special case, not sure yet for what other classes we should use this (otherwise, this gets an interface proxy for IDisposable, which is
@@ -281,13 +283,12 @@ namespace NewRemoting
 			}
 			else
 			{
-				Debug.WriteLine($"Create class proxy as fallback for main type {type}");
+				_logger.Log(LogLevel.Debug, $"Create class proxy as fallback for main type {type}");
 				instance = ProxyGenerator.CreateClassProxy(type, interfaces, Interceptor);
 			}
 
 			AddInstance(instance, objectId);
 
-			Debug.WriteLine($"Created proxy instance for {instance.GetType()} with object id {objectId}");
 			return instance;
 		}
 
