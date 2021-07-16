@@ -71,6 +71,12 @@ namespace RemotingClient
 			string[] versions = bios.GetBiosVersions();
 			Console.WriteLine($"Server bios versions are: {string.Join(", ", versions)}.");
 
+			Console.WriteLine("Getting remote server service...");
+			var serverService = client.RequestRemoteInstance<IRemoteServerService>();
+			Stopwatch sw = Stopwatch.StartNew();
+			serverService.Ping();
+			Console.WriteLine($"Pinging took {sw.Elapsed.TotalMilliseconds}ms");
+
 			try
 			{
 				cls.MaybeThrowException(0);

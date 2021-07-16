@@ -129,5 +129,10 @@ namespace NewRemoting
 
 			return files;
 		}
+
+		public bool Ping()
+		{
+			return true;
+		}
 	}
 }

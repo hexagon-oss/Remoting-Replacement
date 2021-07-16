@@ -6,6 +6,10 @@ using System.Threading.Tasks;
 
 namespace NewRemoting
 {
+	/// <summary>
+	/// Acts as a static service container, where an instance can be queried using a type.
+	/// Only one instance can be added for a specific type.
+	/// </summary>
 	public sealed class ServiceContainer
 	{
 		private static Dictionary<Type, object> _serviceDictionary;
@@ -13,9 +17,12 @@ namespace NewRemoting
 		static ServiceContainer()
 		{
 			_serviceDictionary = new Dictionary<Type, object>();
+
+			// Register standard services
+			_serviceDictionary.Add(typeof(IRemoteServerService), new RemoteServerService());
 		}
 
-		public static void AddService<T>(object instance)
+		public static void AddService<T>(T instance)
 		{
 			AddService(typeof(T), instance);
 		}
@@ -38,6 +45,16 @@ namespace NewRemoting
 			}
 
 			return null;
+		}
+
+		public static void RemoveService<T>()
+		{
+			_serviceDictionary.Remove(typeof(T));
+		}
+
+		public static void RemoveService(Type typeOfService)
+		{
+			_serviceDictionary.Remove(typeOfService);
 		}
 	}
 }

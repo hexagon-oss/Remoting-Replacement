@@ -31,6 +31,14 @@ namespace NewRemoting
 			Arguments = args;
 		}
 
+		public ManualInvocation(Type expectedReturnType)
+		{
+			Method = null;
+			Constructor = null;
+			TargetType = expectedReturnType;
+			Arguments = null;
+		}
+
 		public object GetArgumentValue(int index)
 		{
 			throw new NotImplementedException();

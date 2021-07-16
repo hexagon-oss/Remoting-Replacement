@@ -19,5 +19,11 @@ namespace NewRemoting
 		/// Remote system will cleanup unused files and folders.
 		/// </summary>
 		void UploadFinished();
+
+		/// <summary>
+		/// Pings the remote server
+		/// </summary>
+		/// <returns>True</returns>
+		bool Ping();
 	}
 }

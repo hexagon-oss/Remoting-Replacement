@@ -204,35 +204,25 @@ namespace NewRemoting
 		{
 			Start();
 
+			int sequence = _interceptor.NextSequenceNumber();
+			// The method is irrelevant here, so take just any method of the given type
+			ManualInvocation dummyInvocation = new ManualInvocation(typeOfInstance);
+			using ClientSideInterceptor.CallContext ctx = _interceptor.CreateCallContext(dummyInvocation, sequence);
+
 			lock (_accessLock)
 			{
-				RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.RequestServiceReference, 0);
+				RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.RequestServiceReference, sequence);
 				hd.WriteTo(_writer);
 				_writer.Write(typeOfInstance.AssemblyQualifiedName);
 				_writer.Write(string.Empty);
-				_writer.Write(
-					(int)0); // Currently, we do not need the correct ctor identifier, since there can only be one default ctor
+				_writer.Write((int)0); // No ctor is being called
 				_writer.Write((int)0); // and no generic args, anyway
-				RemotingCallHeader hdReply = default;
-				bool hdParseSuccess = hdReply.ReadFrom(_reader);
-				RemotingReferenceType remoteType = (RemotingReferenceType)_reader.ReadInt32();
 
-				if (hdParseSuccess == false)
-				{
-					throw new RemotingException("Unexpected reply", RemotingExceptionKind.ProtocolError);
-				}
-
-				string typeName = _reader.ReadString();
-				string objectId = _reader.ReadString();
-
-				ProxyGenerationOptions options = new ProxyGenerationOptions(_interceptor);
-				var actualType = Type.GetType(typeName);
-
-				object instance =
-					_proxy.CreateClassProxy(typeOfInstance, actualType.GetInterfaces(), options, _interceptor);
-				_instanceManager.AddInstance(instance, objectId);
-				return instance;
 			}
+
+			_interceptor.WaitForReply(dummyInvocation, ctx);
+
+			return dummyInvocation.ReturnValue;
 		}
 
 		public void Dispose()

@@ -276,17 +276,20 @@ namespace NewRemoting
 
 			MethodBase methodBase;
 			// This is true if this is a reply to a CreateInstance call (invocation.Method cannot be a ConstructorInfo instance)
-			if (invocation is ManualInvocation mi && invocation.Method == null)
+			if (invocation is ManualInvocation mi && mi.Method == null && mi.Constructor != null)
 			{
 				methodBase = mi.Constructor;
-				if (mi.Constructor == null)
-				{
-					throw new RemotingException("Unexpected invocation type", RemotingExceptionKind.ProtocolError);
-				}
 
 				object returnValue = ReadArgumentFromStream(reader, invocation, true, methodBase.DeclaringType);
 				invocation.ReturnValue = returnValue;
 				// out or ref arguments on ctors are rare, but not generally forbidden, so we continue here
+			}
+			else if (invocation is ManualInvocation mi2 && mi2.TargetType != null)
+			{
+				// This happens if we request a remote instance directly (by interface type)
+				object returnValue = ReadArgumentFromStream(reader, invocation, true, mi2.TargetType);
+				invocation.ReturnValue = returnValue;
+				return;
 			}
 			else
 			{

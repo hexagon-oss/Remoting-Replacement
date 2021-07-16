@@ -283,6 +283,13 @@ namespace NewRemotingUnitTest
 			Assert.That(didThrow);
 		}
 
+		[Test]
+		public void GetRemotingServerService()
+		{
+			var serverService = _client.RequestRemoteInstance<IRemoteServerService>();
+			Assert.That(serverService.Ping());
+		}
+
 		private MarshallableClass CreateRemoteInstance()
 		{
 			return _client.CreateRemoteInstance<MarshallableClass>();
