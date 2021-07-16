@@ -289,8 +289,18 @@ namespace NewRemoting
 							throw new RemotingException("Constructors cannot have generic arguments", RemotingExceptionKind.UnsupportedOperation);
 						}
 
-						Type t = GetTypeFromAnyAssembly(instance);
-						object newInstance = Activator.CreateInstance(t, false);
+						Type t = null;
+						if (!TryReflectionMethod(() => GetTypeFromAnyAssembly(instance), w, hd.Sequence, out t))
+						{
+							continue;
+						}
+
+						object newInstance = null;
+						if (!TryReflectionMethod(() => Activator.CreateInstance(t, false), w, hd.Sequence, out newInstance))
+						{
+							continue;
+						}
+
 						RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
 						hdReturnValue1.WriteTo(w);
 						_messageHandler.WriteArgumentToStream(w, newInstance);
@@ -315,8 +325,18 @@ namespace NewRemoting
 							ctorArgs[i] = _messageHandler.ReadArgumentFromStream(r, null, false, null);
 						}
 
-						Type t = GetTypeFromAnyAssembly(instance);
-						object newInstance = Activator.CreateInstance(t, ctorArgs);
+						Type t = null;
+						if (!TryReflectionMethod(() => GetTypeFromAnyAssembly(instance), w, hd.Sequence, out t))
+						{
+							continue;
+						}
+
+						object newInstance = null;
+						if (!TryReflectionMethod(() => Activator.CreateInstance(t, ctorArgs), w, hd.Sequence, out newInstance))
+						{
+							continue;
+						}
+
 						RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
 						hdReturnValue1.WriteTo(w);
 						_messageHandler.WriteArgumentToStream(w, newInstance);
@@ -326,7 +346,12 @@ namespace NewRemoting
 
 					if (hd.Function == RemotingFunctionType.RequestServiceReference)
 					{
-						Type t = GetTypeFromAnyAssembly(instance);
+						Type t = null;
+						if (!TryReflectionMethod(() => GetTypeFromAnyAssembly(instance), w, hd.Sequence, out t))
+						{
+							continue;
+						}
+
 						object newInstance = ServiceContainer.GetService(t);
 						RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
 						hdReturnValue1.WriteTo(w);
@@ -387,6 +412,34 @@ namespace NewRemoting
 					_terminatingSource.Cancel();
 				}
 			}
+		}
+
+		/// <summary>
+		/// Calls the given operator, returning its result.
+		/// If the function throws an exception related to reflection (TypeLoadException or similar), the exception is sent back over the stream
+		/// </summary>
+		/// <typeparam name="T">The return type of the operation</typeparam>
+		/// <param name="operation">Whatever needs to be done</param>
+		/// <param name="writer">Binary writer to send the exception back</param>
+		/// <param name="sequenceId">Sequence Id of the call</param>
+		/// <param name="result">[Out] Result of the operation</param>
+		/// <returns>True on success, false if an exception occurred</returns>
+		private bool TryReflectionMethod<T>(Func<T> operation, BinaryWriter writer, int sequenceId, out T result)
+		{
+			T ret = default;
+			try
+			{
+				ret = operation();
+			}
+			catch (Exception x) when (x is TypeLoadException || x is FileNotFoundException || x is TargetInvocationException)
+			{
+				_messageHandler.SendExceptionReply(x, writer, sequenceId);
+				result = default;
+				return false;
+			}
+
+			result = ret;
+			return true;
 		}
 
 		private void InvokeRealInstance(MethodInfo me, object realInstance, object[] args, RemotingCallHeader hd, BinaryWriter w)
