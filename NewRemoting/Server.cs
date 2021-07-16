@@ -235,7 +235,6 @@ namespace NewRemoting
 		{
 			Stream stream = (Stream)obj;
 			BinaryReader r = new BinaryReader(stream, Encoding.Unicode);
-			BinaryWriter w = new BinaryWriter(stream, Encoding.Unicode);
 
 			List<Task> openTasks = new List<Task>();
 
@@ -281,6 +280,9 @@ namespace NewRemoting
 					int methodNo = r.ReadInt32(); // token of method to call
 					int methodGenericArgs = r.ReadInt32(); // number of generic arguments of method (not generic arguments of declaring class!)
 
+					MemoryStream ms = new MemoryStream(4096);
+					BinaryWriter answerWriter = new BinaryWriter(ms, Encoding.Unicode);
+
 					if (hd.Function == RemotingFunctionType.CreateInstanceWithDefaultCtor)
 					{
 						// CreateInstance call, instance is just a type in this case
@@ -290,20 +292,24 @@ namespace NewRemoting
 						}
 
 						Type t = null;
-						if (!TryReflectionMethod(() => GetTypeFromAnyAssembly(instance), w, hd.Sequence, out t))
+						if (!TryReflectionMethod(() => GetTypeFromAnyAssembly(instance), answerWriter, hd.Sequence, out t))
 						{
+							SendAnswer(stream, ms);
 							continue;
 						}
 
 						object newInstance = null;
-						if (!TryReflectionMethod(() => Activator.CreateInstance(t, false), w, hd.Sequence, out newInstance))
+						if (!TryReflectionMethod(() => Activator.CreateInstance(t, false), answerWriter, hd.Sequence, out newInstance))
 						{
 							continue;
 						}
 
 						RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
-						hdReturnValue1.WriteTo(w);
-						_messageHandler.WriteArgumentToStream(w, newInstance);
+						hdReturnValue1.WriteTo(answerWriter);
+						// Can this fail? Typically, this is a reference type, so it shouldn't.
+						_messageHandler.WriteArgumentToStream(answerWriter, newInstance);
+
+						SendAnswer(stream, ms);
 
 						continue;
 					}
@@ -326,36 +332,42 @@ namespace NewRemoting
 						}
 
 						Type t = null;
-						if (!TryReflectionMethod(() => GetTypeFromAnyAssembly(instance), w, hd.Sequence, out t))
+						if (!TryReflectionMethod(() => GetTypeFromAnyAssembly(instance), answerWriter, hd.Sequence, out t))
 						{
+							SendAnswer(stream, ms);
 							continue;
 						}
 
 						object newInstance = null;
-						if (!TryReflectionMethod(() => Activator.CreateInstance(t, ctorArgs), w, hd.Sequence, out newInstance))
+						if (!TryReflectionMethod(() => Activator.CreateInstance(t, ctorArgs), answerWriter, hd.Sequence, out newInstance))
 						{
+							SendAnswer(stream, ms);
 							continue;
 						}
 
 						RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
-						hdReturnValue1.WriteTo(w);
-						_messageHandler.WriteArgumentToStream(w, newInstance);
+						hdReturnValue1.WriteTo(answerWriter);
+						_messageHandler.WriteArgumentToStream(answerWriter, newInstance);
 
+						SendAnswer(stream, ms);
 						continue;
 					}
 
 					if (hd.Function == RemotingFunctionType.RequestServiceReference)
 					{
 						Type t = null;
-						if (!TryReflectionMethod(() => GetTypeFromAnyAssembly(instance), w, hd.Sequence, out t))
+						if (!TryReflectionMethod(() => GetTypeFromAnyAssembly(instance), answerWriter, hd.Sequence, out t))
 						{
+							SendAnswer(stream, ms);
 							continue;
 						}
 
 						object newInstance = ServiceContainer.GetService(t);
 						RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
-						hdReturnValue1.WriteTo(w);
-						_messageHandler.WriteArgumentToStream(w, newInstance);
+						hdReturnValue1.WriteTo(answerWriter);
+						_messageHandler.WriteArgumentToStream(answerWriter, newInstance);
+
+						SendAnswer(stream, ms);
 						continue;
 					}
 
@@ -397,7 +409,8 @@ namespace NewRemoting
 
 					openTasks.Add(Task.Run(() =>
 					{
-						InvokeRealInstance(me, realInstance, args, hd, w);
+						InvokeRealInstance(me, realInstance, args, hd, answerWriter);
+						SendAnswer(stream, ms);
 					}));
 				}
 
@@ -412,6 +425,13 @@ namespace NewRemoting
 					_terminatingSource.Cancel();
 				}
 			}
+		}
+
+		private void SendAnswer(Stream tcpConnection, MemoryStream rawDataMessage)
+		{
+			rawDataMessage.Position = 0;
+			rawDataMessage.CopyTo(tcpConnection);
+			rawDataMessage.Dispose();
 		}
 
 		/// <summary>
