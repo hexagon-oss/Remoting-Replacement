@@ -409,7 +409,19 @@ namespace NewRemoting
 
 					openTasks.Add(Task.Run(() =>
 					{
-						InvokeRealInstance(me, realInstance, args, hd, answerWriter);
+						try
+						{
+							InvokeRealInstance(me, realInstance, args, hd, answerWriter);
+						}
+						catch (SerializationException x)
+						{
+							// The above throws if serializing the return value(s) fails (return type of method call not serializable)
+							// Clear the stream, we must only send the exception
+							ms.Position = 0;
+							ms.SetLength(0);
+							_messageHandler.SendExceptionReply(x, answerWriter, hd.Sequence);
+						}
+
 						SendAnswer(stream, ms);
 					}));
 				}

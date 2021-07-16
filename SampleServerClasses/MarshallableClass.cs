@@ -113,5 +113,22 @@ namespace SampleServerClasses
 		{
 			return sc.Component.Data;
 		}
+
+		/// <summary>
+		/// This is not remote-callable, because the argument is not serializable
+		/// </summary>
+		public virtual bool CallerError(UnserializableObject arg)
+		{
+			return arg != null;
+		}
+
+		/// <summary>
+		/// This is not remote-callable, because the return value is not serializable
+		/// Here, the error happens on the server only.
+		/// </summary>
+		public virtual UnserializableObject ServerError()
+		{
+			return new UnserializableObject();
+		}
 	}
 }

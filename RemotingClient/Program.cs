@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Net.Sockets;
+using System.Runtime.Serialization;
 using System.Threading;
 using NewRemoting;
 using RemotingServer;
@@ -76,6 +77,28 @@ namespace RemotingClient
 			Stopwatch sw = Stopwatch.StartNew();
 			serverService.Ping();
 			Console.WriteLine($"Pinging took {sw.Elapsed.TotalMilliseconds}ms");
+
+			try
+			{
+				cls.CallerError(new UnserializableObject());
+			}
+			catch (SerializationException x)
+			{
+				Console.WriteLine("This exception is expected: " + x.Message);
+			}
+
+			try
+			{
+				var obj = cls.ServerError();
+				if (obj != null)
+				{
+					Console.WriteLine("This shouldn't happen");
+				}
+			}
+			catch (SerializationException x)
+			{
+				Console.WriteLine("This exception is also expected: " + x.Message);
+			}
 
 			try
 			{

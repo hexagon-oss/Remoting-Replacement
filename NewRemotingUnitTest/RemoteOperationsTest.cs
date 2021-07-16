@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Management;
 using System.Reflection;
+using System.Runtime.Serialization;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -288,6 +289,20 @@ namespace NewRemotingUnitTest
 		{
 			var serverService = _client.RequestRemoteInstance<IRemoteServerService>();
 			Assert.That(serverService.Ping());
+		}
+
+		[Test]
+		public void SerializeUnserializableArgument()
+		{
+			var cls = CreateRemoteInstance();
+			Assert.Throws<SerializationException>(() => cls.CallerError(new UnserializableObject()));
+		}
+
+		[Test]
+		public void SerializeUnserializableReturnType()
+		{
+			var cls = CreateRemoteInstance();
+			Assert.Throws<SerializationException>(() => cls.ServerError());
 		}
 
 		private MarshallableClass CreateRemoteInstance()
