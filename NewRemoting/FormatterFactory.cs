@@ -12,12 +12,14 @@ namespace NewRemoting
 	internal class FormatterFactory : SurrogateSelector, ISurrogateSelector
 	{
 		private readonly InstanceManager _instanceManager;
-		private readonly MySerializationSurrogate _serializationSurrogate;
+		private readonly ProxySurrogate _serializationSurrogate;
+		private readonly CustomSerializerSurrogate _customSerializer;
 
 		public FormatterFactory(InstanceManager instanceManager)
 		{
 			_instanceManager = instanceManager;
-			_serializationSurrogate = new MySerializationSurrogate(_instanceManager);
+			_serializationSurrogate = new ProxySurrogate(_instanceManager);
+			_customSerializer = new CustomSerializerSurrogate();
 		}
 
 		public IFormatter CreateFormatter()
@@ -41,14 +43,20 @@ namespace NewRemoting
 				return _serializationSurrogate;
 			}
 
+			if (_customSerializer.CanSerialize(type))
+			{
+				selector = this;
+				return _customSerializer;
+			}
+
 			return base.GetSurrogate(type, context, out selector);
 		}
 
-		private sealed class MySerializationSurrogate : ISerializationSurrogate
+		private sealed class ProxySurrogate : ISerializationSurrogate
 		{
 			private readonly InstanceManager _instanceManager;
 
-			public MySerializationSurrogate(InstanceManager instanceManager)
+			public ProxySurrogate(InstanceManager instanceManager)
 			{
 				_instanceManager = instanceManager;
 			}
