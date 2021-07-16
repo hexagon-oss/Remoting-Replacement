@@ -170,7 +170,7 @@ namespace NewRemoting
 
 		internal CallContext CreateCallContext(IInvocation invocation, int thisSeq)
 		{
-			CallContext ctx = new CallContext(invocation);
+			CallContext ctx = new CallContext(invocation, thisSeq);
 			if (!_pendingInvocations.TryAdd(thisSeq, ctx))
 			{
 				// This really shouldn't happen
@@ -267,9 +267,10 @@ namespace NewRemoting
 
 		internal sealed class CallContext : IDisposable
 		{
-			public CallContext(IInvocation invocation)
+			public CallContext(IInvocation invocation, int sequence)
 			{
 				Invocation = invocation;
+				SequenceNumber = sequence;
 				EventToTrigger = new AutoResetEvent(false);
 				Exception = null;
 			}
@@ -278,6 +279,8 @@ namespace NewRemoting
 			{
 				get;
 			}
+
+			public int SequenceNumber { get; }
 
 			public AutoResetEvent EventToTrigger
 			{
