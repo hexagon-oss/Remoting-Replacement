@@ -18,6 +18,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace NewRemoting
 {
+	/// <summary>
+	/// An instance of this class represents the client side of a remoting interface.
+	/// This connects to a host object that can run on a different computer (or in a separate process on the same computer)
+	/// </summary>
 	public sealed class Client : IDisposable
 	{
 		public const int DefaultNetworkPort = 23456;
@@ -38,6 +42,12 @@ namespace NewRemoting
 		private TcpClient _serverLink;
 		private bool _connectionConfigured;
 
+		/// <summary>
+		/// Creates a remoting client for the given server and opens the network connection
+		/// </summary>
+		/// <param name="server">Server name or IP</param>
+		/// <param name="port">Network port</param>
+		/// <param name="logger">Optional logging sink (for diagnostic messages)</param>
 		public Client(string server, int port, ILogger logger = null)
 		{
 			Logger = logger ?? NullLogger.Instance;
@@ -70,30 +80,55 @@ namespace NewRemoting
 			_server = new Server(_serverLink.GetStream(), _messageHandler, _interceptor);
 		}
 
+		/// <summary>
+		/// The logger
+		/// </summary>
 		public ILogger Logger { get; }
 
+		/// <summary>
+		/// Gets the list of IP addresses of the current computer
+		/// </summary>
+		/// <returns></returns>
 		public static IPAddress[] LocalIpAddresses()
 		{
 			var host = Dns.GetHostEntry(Dns.GetHostName());
 			return host.AddressList;
 		}
 
+		/// <summary>
+		/// Returns true if the given object is a proxy.
+		/// </summary>
+		/// <param name="proxy">The object to test</param>
+		/// <returns>True if the object is a proxy, false otherwise</returns>
 		public static bool IsRemoteProxy(object proxy)
 		{
 			return ProxyUtil.IsProxy(proxy);
 		}
 
+		/// <summary>
+		/// Checks whether the given <see cref="Type"/> is a proxy type.
+		/// </summary>
+		/// <param name="type">A type instance</param>
+		/// <returns>True if the given type is a proxy type</returns>
 		public static bool IsProxyType(Type type)
 		{
 			return ProxyUtil.IsProxyType(type);
 		}
 
+		/// <summary>
+		/// Checks whether the given object can be used for remoting calls.
+		/// </summary>
+		/// <param name="obj">The object to query</param>
+		/// <returns>True if the given object is derived from <see cref="MarshalByRefObject"/> or if it is already a proxy</returns>
 		public static bool IsRemotingCapable(object obj)
 		{
 			return IsRemoteProxy(obj) || obj is MarshalByRefObject;
 		}
 
-		public void Start()
+		/// <summary>
+		/// Completes the infrastructure for RPC calls, namely opens the reverse channel.
+		/// </summary>
+		internal void Start()
 		{
 			lock (_accessLock)
 			{
@@ -112,6 +147,10 @@ namespace NewRemoting
 			}
 		}
 
+		/// <summary>
+		/// Terminates the remote server process.
+		/// This should only be used after the client has no proxy instances in use any more.
+		/// </summary>
 		public void ShutdownServer()
 		{
 			lock (_accessLock)
@@ -121,12 +160,36 @@ namespace NewRemoting
 			}
 		}
 
+		/// <summary>
+		/// Creates an instance of the given type on the remote system and returns a reference to it.
+		/// The type must derive from <see cref="MarshalByRefObject"/> and have a public constructor that takes the given arguments. The server process
+		/// must be able to locate the assembly that contains the type. For best results, the type should NOT be sealed, or you might
+		/// not get a proxy back that mimics the full interface of the given instance, but only an interface implemented by the
+		/// target type.
+		/// </summary>
+		/// <typeparam name="T">The type of the instance to generate</typeparam>
+		/// <param name="args">The list of constructor arguments for the type</param>
+		/// <returns>A proxy representing the remote instance.</returns>
+		/// <exception cref="RemotingException">The type is not derived from <see cref="MarshalByRefObject"/> or there's no suitable constructor</exception>
+		/// <exception cref="InvalidCastException">The type is probably sealed</exception>
 		public T CreateRemoteInstance<T>(params object[] args)
 			where T : MarshalByRefObject
 		{
 			return (T)CreateRemoteInstance(typeof(T), args);
 		}
 
+		/// <summary>
+		/// Creates an instance of the given type on the remote system and returns a reference to it.
+		/// The type must derive from <see cref="MarshalByRefObject"/> and have a public constructor that takes the given arguments. The server process
+		/// must be able to locate the assembly that contains the type. For best results, the type should NOT be sealed, or you might
+		/// not get a proxy back that mimics the full interface of the given instance, but only an interface implemented by the
+		/// target type.
+		/// </summary>
+		/// <param name="typeOfInstance">The type of the instance to generate</param>
+		/// <param name="args">The list of constructor arguments for the type</param>
+		/// <returns>A proxy representing the remote instance. This attempts to return a proxy for the class type,
+		/// but might return a proxy that represents an interface only, particularly if <paramref name="typeOfInstance"/> is sealed.</returns>
+		/// <exception cref="RemotingException">The type is not derived from <see cref="MarshalByRefObject"/> or there's no suitable constructor</exception>
 		public object CreateRemoteInstance(Type typeOfInstance, params object[] args)
 		{
 			if (typeOfInstance == null)
@@ -195,11 +258,23 @@ namespace NewRemoting
 
 		}
 
+		/// <summary>
+		/// Requests an instance of type T from the remote server. This is typically used with interface types only.
+		/// <seealso cref="RequestRemoteInstance"/>
+		/// </summary>
+		/// <typeparam name="T">The type to get</typeparam>
+		/// <returns>An instance of T, if available</returns>
 		public T RequestRemoteInstance<T>()
 		{
 			return (T)RequestRemoteInstance(typeof(T));
 		}
 
+		/// <summary>
+		/// Requests an instance of the given type from the remote server. This is typically used with interface types only.
+		/// This is used to query references that have been statically registered on the server, using the <see cref="ServiceContainer"/>.
+		/// </summary>
+		/// <param name="typeOfInstance">The type to get</param>
+		/// <returns>A proxy for the given remote instance, if available</returns>
 		public object RequestRemoteInstance(Type typeOfInstance)
 		{
 			Start();
