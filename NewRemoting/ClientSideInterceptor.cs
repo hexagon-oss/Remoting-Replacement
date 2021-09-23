@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Sockets;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
@@ -30,6 +31,12 @@ namespace NewRemoting
 		private bool _receiving;
 		private int _numberOfCallsInspected;
 
+		/// <summary>
+		/// This is only used withhin the receiver thread, but must be global so it can be closed on dispose (to
+		/// force falling out of the blocking Read call)
+		/// </summary>
+		private BinaryReader _reader;
+
 		public ClientSideInterceptor(String side, Stream serverLink, MessageHandler messageHandler, ILogger logger)
 		{
 			DebuggerToStringBehavior = DebuggerToStringBehavior.ReturnProxyName;
@@ -40,6 +47,7 @@ namespace NewRemoting
 			_messageHandler = messageHandler ?? throw new ArgumentNullException(nameof(messageHandler));
 			_logger = logger;
 			_pendingInvocations = new();
+			_reader = new BinaryReader(_serverLink, Encoding.Unicode);
 			_receiverThread = new Thread(ReceiverThread);
 			_receiverThread.Name = "ClientSideInterceptor - Receiver - " + side;
 			_receiving = true;
@@ -146,11 +154,24 @@ namespace NewRemoting
 				}
 
 				// now finally write the stream to the network. That way, we don't send incomplete messages if an exception happens encoding a parameter.
-				rawDataMessage.Position = 0;
-				rawDataMessage.CopyTo(_serverLink);
+				SafeSendToServer(rawDataMessage);
 			}
 
 			WaitForReply(invocation, ctx);
+		}
+
+		private void SafeSendToServer(MemoryStream rawDataMessage)
+		{
+			try
+			{
+				rawDataMessage.Position = 0;
+				rawDataMessage.CopyTo(_serverLink);
+			}
+			catch (IOException x)
+			{
+				throw new RemotingException("Error sending data to server. Link down?",
+					RemotingExceptionKind.CommunicationError, x);
+			}
 		}
 
 		/// <summary>
@@ -164,7 +185,7 @@ namespace NewRemoting
 				using MemoryStream rawDataMessage = new MemoryStream(1024);
 				using BinaryWriter writer = new BinaryWriter(rawDataMessage, Encoding.Unicode);
 				_messageHandler.InstanceManager.PerformGc(writer);
-				rawDataMessage.CopyTo(_serverLink);
+				SafeSendToServer(rawDataMessage);
 			}
 		}
 
@@ -188,20 +209,19 @@ namespace NewRemoting
 			if (ctx.Exception != null)
 			{
 				// Rethrow remote exception
-				throw ctx.Exception;
+				ExceptionDispatchInfo.Capture(ctx.Exception).Throw();
 			}
 		}
 
 		private void ReceiverThread()
 		{
-			var reader = new BinaryReader(_serverLink, Encoding.Unicode);
 			try
 			{
 				while (_receiving)
 				{
 					RemotingCallHeader hdReturnValue = default;
 					// This read is blocking
-					if (!hdReturnValue.ReadFrom(reader))
+					if (!hdReturnValue.ReadFrom(_reader))
 					{
 						throw new RemotingException("Unexpected reply or stream out of sync", RemotingExceptionKind.ProtocolError);
 					}
@@ -213,22 +233,24 @@ namespace NewRemoting
 						throw new RemotingException("Only replies or exceptions should end here", RemotingExceptionKind.ProtocolError);
 					}
 
-					if (_pendingInvocations.TryGetValue(hdReturnValue.Sequence, out var item))
+					if (_pendingInvocations.TryRemove(hdReturnValue.Sequence, out var ctx))
 					{
 						if (hdReturnValue.Function == RemotingFunctionType.ExceptionReturn)
 						{
-							_logger.Log(LogLevel.Debug, $"{_side}: Receiving exception in reply to {item.Invocation.Method}");
-							var exception = _messageHandler.DecodeException(reader);
-							_pendingInvocations.TryRemove(hdReturnValue.Sequence, out var ctx);
+							_logger.Log(LogLevel.Debug, $"{_side}: Receiving exception in reply to {ctx.Invocation.Method}");
+							var exception = _messageHandler.DecodeException(_reader);
 							ctx.Exception = exception;
-							item.Set();
+							// Hack to move the remote stack trace to the correct field.
+							var remoteField = typeof(Exception).GetField("_remoteStackTraceString", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+							remoteField.SetValue(exception, exception.StackTrace);
+							ctx.Set();
 						}
 						else
 						{
-							_logger.Log(LogLevel.Debug, $"{_side}: Receiving reply for {item.Invocation.Method}");
-							_messageHandler.ProcessCallResponse(item.Invocation, reader);
+							_logger.Log(LogLevel.Debug, $"{_side}: Receiving reply for {ctx.Invocation.Method}");
+							_messageHandler.ProcessCallResponse(ctx.Invocation, _reader);
 							_pendingInvocations.TryRemove(hdReturnValue.Sequence, out _);
-							item.Set();
+							ctx.Set();
 						}
 					}
 					else
@@ -261,6 +283,7 @@ namespace NewRemoting
 		public void Dispose()
 		{
 			_receiving = false;
+			_reader.Dispose();
 			_receiverThread?.Join();
 			_receiverThread = null;
 		}

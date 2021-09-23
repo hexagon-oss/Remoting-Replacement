@@ -29,7 +29,7 @@ namespace NewRemoting
 		public const string ServerExecutableName = "RemotingServer.exe";
 
 		private readonly IFormatter _formatter;
-		private readonly List<(Thread Thread, Stream Stream)> _threads;
+		private readonly List<ThreadData> _threads;
 		private readonly ProxyGenerator _proxyGenerator;
 		private readonly CancellationTokenSource _terminatingSource = new CancellationTokenSource();
 		private readonly object _channelWriterLock = new object();
@@ -227,14 +227,16 @@ namespace NewRemoting
 		{
 			_threadRunning = true;
 			Thread ts = new Thread(ServerStreamHandler);
-			_threads.Add((ts, _preopenedStream));
-			ts.Start(_preopenedStream);
+			var td = new ThreadData(ts, _preopenedStream, new BinaryReader(_preopenedStream, Encoding.Unicode));
+			_threads.Add(td);
+			ts.Start(td);
 		}
 
 		private void ServerStreamHandler(object obj)
 		{
-			Stream stream = (Stream)obj;
-			BinaryReader r = new BinaryReader(stream, Encoding.Unicode);
+			ThreadData td = (ThreadData)obj;
+			var stream = td.Stream;
+			var r = td.BinaryReader;
 
 			List<Task> openTasks = new List<Task>();
 
@@ -586,6 +588,8 @@ namespace NewRemoting
 					string objectId = r.ReadString();
 					_instanceManager.Remove(objectId);
 				}
+
+				return true;
 			}
 
 			if (hd.Function == RemotingFunctionType.ShutdownServer)
@@ -665,8 +669,9 @@ namespace NewRemoting
 					}
 
 					Thread ts = new Thread(ServerStreamHandler);
-					_threads.Add((ts, stream));
-					ts.Start(stream);
+					var td = new ThreadData(ts, stream, new BinaryReader(stream, Encoding.Unicode));
+					_threads.Add(td);
+					ts.Start(td);
 				}
 				catch (SocketException x)
 				{
@@ -684,6 +689,7 @@ namespace NewRemoting
 			foreach (var thread in _threads)
 			{
 				thread.Stream.Close();
+				thread.BinaryReader.Dispose();
 				thread.Thread.Join();
 			}
 
@@ -700,6 +706,20 @@ namespace NewRemoting
 		public void WaitForTermination()
 		{
 			_terminatingSource.Token.WaitHandle.WaitOne();
+		}
+
+		private sealed class ThreadData
+		{
+			public ThreadData(Thread thread, Stream stream, BinaryReader binaryReader)
+			{
+				Thread = thread;
+				Stream = stream;
+				BinaryReader = binaryReader;
+			}
+
+			public Thread Thread { get; }
+			public Stream Stream { get; }
+			public BinaryReader BinaryReader { get; }
 		}
 	}
 }
