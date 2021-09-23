@@ -34,6 +34,11 @@ namespace NewRemoting
 					// Normally, this will even be our intermediate internal sink, because we reroute the delegate call through that.
 					_normalReference = targetReference;
 				}
+
+				if (targetReference.GetType().GetCustomAttributes(typeof(CompilerGeneratedAttribute), false).Length != 0)
+				{
+					_normalReference = targetReference; // if enclosure, store the reference, otherwise it can be collected
+				}
 			}
 
 			_targetReference = new WeakReference(targetReference);
