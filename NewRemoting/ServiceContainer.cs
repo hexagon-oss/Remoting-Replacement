@@ -17,9 +17,6 @@ namespace NewRemoting
 		static ServiceContainer()
 		{
 			_serviceDictionary = new Dictionary<Type, object>();
-
-			// Register standard services
-			_serviceDictionary.Add(typeof(IRemoteServerService), new RemoteServerService());
 		}
 
 		public static void AddService<T>(T instance)

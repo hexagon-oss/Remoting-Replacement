@@ -24,6 +24,13 @@ using Microsoft.Extensions.Logging.Abstractions;
 #pragma warning disable SYSLIB0011
 namespace NewRemoting
 {
+	/// <summary>
+	/// Create a remoting server.
+	/// A remoting server is listening on a network port for commands from other processes and computers.
+	/// It is intended behavior that this allows a remote process to execute arbitrary code within this process, including
+	/// code that is uploaded to the server from the client. No security checks nor authentication is currently used,
+	/// so USE ONLY IN TRUSTED NETWORKS!
+	/// </summary>
 	public sealed class Server : IDisposable
 	{
 		public const string ServerExecutableName = "RemotingServer.exe";
@@ -60,6 +67,12 @@ namespace NewRemoting
 		/// </summary>
 		private ClientSideInterceptor _serverInterceptorForCallbacks;
 
+		/// <summary>
+		/// Create a remoting server instance. Other processes (local or remote) will be able to perform remote calls to this process.
+		/// Start <see cref="StartListening"/> to actually start the server.
+		/// </summary>
+		/// <param name="networkPort">Network port to open server on</param>
+		/// <param name="logger">Optional logger instance, for debugging purposes</param>
 		public Server(int networkPort, ILogger logger = null)
 		{
 			Logger = logger ?? NullLogger.Instance;
@@ -76,6 +89,7 @@ namespace NewRemoting
 			// This instance will only be finally initialized once the return channel is opened
 			_messageHandler = new MessageHandler(_instanceManager, _formatter);
 			AppDomain.CurrentDomain.AssemblyResolve += AssemblyResolver;
+			RegisterStandardServices();
 		}
 
 		/// <summary>
@@ -121,6 +135,15 @@ namespace NewRemoting
 		public static Process StartLocalServerProcess()
 		{
 			return Process.Start("RemotingServer.exe");
+		}
+
+		private void RegisterStandardServices()
+		{
+			// Register standard services
+			if (ServiceContainer.GetService<IRemoteServerService>() == null)
+			{
+				ServiceContainer.AddService(typeof(IRemoteServerService), new RemoteServerService(Logger));
+			}
 		}
 
 		private Assembly AssemblyResolver(object sender, ResolveEventArgs args)
