@@ -94,7 +94,6 @@ namespace NewRemoting
 			{
 				_logger.Log(LogLevel.Debug, $"{_side}: Intercepting {invocation.Method}, sequence {thisSeq}");
 
-				// Console.WriteLine($"Here should be a call to {invocation.Method}");
 				MethodInfo me = invocation.Method;
 				RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.MethodCall, thisSeq);
 
