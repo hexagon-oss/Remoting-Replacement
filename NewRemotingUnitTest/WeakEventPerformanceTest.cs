@@ -6,7 +6,7 @@ using NewRemoting;
 namespace NewRemotingUnitTest
 {
 	[TestFixture]
-	[Explicit("Event performance test")]
+	// [Explicit("Event performance test")]
 	internal class WeakEventPerformanceTest
 	{
 		private int _counter;

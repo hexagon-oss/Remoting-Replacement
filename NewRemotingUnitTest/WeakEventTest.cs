@@ -182,7 +182,7 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
-		[Ignore("TODO FCMS-4580 Temporarily disabled")]
+		[Explicit("Currently disabled, because it fails")]
 		public void TargetIsRemovedAfterCollected()
 		{
 			var eventSource = new EventSource();

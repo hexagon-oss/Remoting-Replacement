@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using NewRemoting;
 using NUnit.Framework;
@@ -19,7 +21,7 @@ namespace NewRemotingUnitTest
 		public void SetUp()
 		{
 			_hashCalculatorMock = new Mock<FileHashCalculator>();
-			_service = new RemoteServerService();
+			_service = new RemoteServerService(_hashCalculatorMock.Object, NullLogger.Instance);
 		}
 
 		[Test]
@@ -28,6 +30,21 @@ namespace NewRemotingUnitTest
 			// To simplify the remote infrastructure at this point, it must be possible to create a proxy of this class
 			var t = typeof(RemoteServerService);
 			Assert.False(t.IsSealed);
+		}
+
+		[Test]
+		public void CalculateHash()
+		{
+			MemoryStream ms = new MemoryStream();
+			ms.WriteByte(0);
+			ms.Position = 0;
+			_service.UploadFile("Test.dat", new byte[] { 0, 1, 2, 3 }, ms);
+		}
+
+		[Test]
+		public void IsSingleRemoteServerInstance()
+		{
+			Assert.True(_service.IsSingleRemoteServerInstance());
 		}
 	}
 }
