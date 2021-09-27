@@ -40,6 +40,16 @@ namespace NewRemoting
 			DoCallback(arg1, arg2);
 		}
 
+		public void ActionSink<T1, T2, T3>(T1 arg1, T2 arg2, T3 arg3)
+		{
+			DoCallback(arg1, arg2, arg3);
+		}
+
+		public void ActionSink<T1, T2, T3, T4>(T1 arg1, T2 arg2, T3 arg3, T4 arg4)
+		{
+			DoCallback(arg1, arg2, arg3, arg4);
+		}
+
 		public T FuncSink<T>()
 		{
 			return DoCallback<T>();
@@ -53,6 +63,16 @@ namespace NewRemoting
 		public TRet FuncSink<T1, T2, TRet>(T1 arg1, T2 arg2)
 		{
 			return DoCallback<TRet>(arg1, arg2);
+		}
+
+		public TRet FuncSink<T1, T2, T3, TRet>(T1 arg1, T2 arg2, T3 arg3)
+		{
+			return DoCallback<TRet>(arg1, arg2, arg3);
+		}
+
+		public TRet FuncSink<T1, T2, T3, T4, TRet>(T1 arg1, T2 arg2, T3 arg3, T4 arg4)
+		{
+			return DoCallback<TRet>(arg1, arg2, arg3, arg4);
 		}
 
 		private void DoCallback(params object[] args)
