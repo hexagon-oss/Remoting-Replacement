@@ -10,6 +10,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace NewRemoting
 {
@@ -22,23 +23,24 @@ namespace NewRemoting
 		private readonly DirectoryInfo _root;
 		private readonly List<FileInfo> _existingFiles;
 		private readonly FileHashCalculator _fileHashCalculator;
+		private readonly ILogger _logger;
 		private List<FileInfo> _uploadedFiles;
 
-		public RemoteServerService()
-			: this(new FileHashCalculator())
+		internal RemoteServerService(ILogger logger)
+			: this(new FileHashCalculator(), logger)
 		{
 		}
 
-		public RemoteServerService(FileHashCalculator fileHashCalculator)
+		internal RemoteServerService(FileHashCalculator fileHashCalculator, ILogger logger)
 		{
 			_fileHashCalculator = fileHashCalculator ?? throw new ArgumentNullException(nameof(fileHashCalculator));
+			_logger = logger;
 			_root = new DirectoryInfo(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
 			_existingFiles = ScanExistingFiles(_root, new List<FileInfo>());
 			_uploadedFiles = new List<FileInfo>();
 		}
 
 		#region Unit Test
-		[Obsolete("Unit test only")]
 		internal List<FileInfo> UploadedFiles
 		{
 			get => _uploadedFiles;
@@ -46,11 +48,16 @@ namespace NewRemoting
 		}
 		#endregion
 
-		public virtual bool IsSingleRemoteLoaderInstance()
+		/// <summary>
+		/// Returns true if this server is the only server instance running on this system.
+		/// If this returns false, this may indicate that there's a dangling remote process potentially causing
+		/// problems (unless it's expected to have multiple servers running on the same machine)
+		/// </summary>
+		public virtual bool IsSingleRemoteServerInstance()
 		{
 			try
 			{
-				var otherprocesses = OtherRemoteLoaders();
+				var otherprocesses = OtherRemoteServers();
 				return !otherprocesses.Any();
 			}
 			catch (Win32Exception)
@@ -61,7 +68,11 @@ namespace NewRemoting
 			}
 		}
 
-		private static IEnumerable<Process> OtherRemoteLoaders()
+		/// <summary>
+		/// Returns a list of other running server processes
+		/// </summary>
+		/// <returns>A list of server processes</returns>
+		private static IEnumerable<Process> OtherRemoteServers()
 		{
 			var loaderWithoutExt = Path.GetFileNameWithoutExtension(Server.ServerExecutableName);
 			var processes = Process.GetProcessesByName(loaderWithoutExt);
@@ -69,6 +80,13 @@ namespace NewRemoting
 			return otherprocesses;
 		}
 
+		/// <summary>
+		/// Copies the contents of the provided stream to a file on the server (where this instance lives).
+		/// This should not be used if the server process lives on the same computer as the client.
+		/// </summary>
+		/// <param name="relativePath">The path where the file is to be placed, relative to the current executing directory</param>
+		/// <param name="hash">The hash code of the file</param>
+		/// <param name="content">The payload</param>
 		public virtual void UploadFile(string relativePath, byte[] hash, Stream content)
 		{
 			// Create desination path for this system. We use current assembly path as root
@@ -95,11 +113,15 @@ namespace NewRemoting
 
 			using (var stream = fi.OpenWrite())
 			{
-				Console.WriteLine("Upload file to target: {0}", dest);
+				_logger.LogInformation("Uploading file to target: {0}", dest);
 				content.CopyTo(stream);
 			}
 		}
 
+		/// <summary>
+		/// Terminates the upload procedure.
+		/// All files that were not uploaded but exist locally will be deleted.
+		/// </summary>
 		public virtual void UploadFinished()
 		{
 			// Remove all entries that have been uploaded in this session
@@ -113,7 +135,7 @@ namespace NewRemoting
 				}
 				catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
 				{
-					Console.WriteLine("Cleanup partially failed, could not delete file:" + fileInfo.FullName);
+					_logger.LogWarning("Cleanup partially failed, could not delete file:" + fileInfo.FullName);
 				}
 			}
 		}
@@ -130,6 +152,10 @@ namespace NewRemoting
 			return files;
 		}
 
+		/// <summary>
+		/// Returns true. If called remotely, this tests the connection.
+		/// </summary>
+		/// <returns>Always true</returns>
 		public bool Ping()
 		{
 			return true;
