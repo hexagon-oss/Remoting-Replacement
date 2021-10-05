@@ -22,17 +22,19 @@ namespace NewRemoting
 	{
 		private readonly DirectoryInfo _root;
 		private readonly List<FileInfo> _existingFiles;
+		private readonly Server _server;
 		private readonly FileHashCalculator _fileHashCalculator;
 		private readonly ILogger _logger;
 		private List<FileInfo> _uploadedFiles;
 
-		internal RemoteServerService(ILogger logger)
-			: this(new FileHashCalculator(), logger)
+		internal RemoteServerService(Server server, ILogger logger)
+			: this(server, new FileHashCalculator(), logger)
 		{
 		}
 
-		internal RemoteServerService(FileHashCalculator fileHashCalculator, ILogger logger)
+		internal RemoteServerService(Server server, FileHashCalculator fileHashCalculator, ILogger logger)
 		{
+			_server = server;
 			_fileHashCalculator = fileHashCalculator ?? throw new ArgumentNullException(nameof(fileHashCalculator));
 			_logger = logger;
 			_root = new DirectoryInfo(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
@@ -159,6 +161,11 @@ namespace NewRemoting
 		public bool Ping()
 		{
 			return true;
+		}
+
+		public void TerminateRemoteServerService()
+		{
+			_server.Terminate();
 		}
 	}
 }

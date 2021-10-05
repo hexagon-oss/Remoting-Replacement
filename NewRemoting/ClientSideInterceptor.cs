@@ -30,6 +30,7 @@ namespace NewRemoting
 		private Thread _receiverThread;
 		private bool _receiving;
 		private int _numberOfCallsInspected;
+		private CancellationTokenSource _terminator;
 
 		/// <summary>
 		/// This is only used withhin the receiver thread, but must be global so it can be closed on dispose (to
@@ -47,6 +48,7 @@ namespace NewRemoting
 			_messageHandler = messageHandler ?? throw new ArgumentNullException(nameof(messageHandler));
 			_logger = logger;
 			_pendingInvocations = new();
+			_terminator = new CancellationTokenSource();
 			_reader = new BinaryReader(_serverLink, Encoding.Unicode);
 			_receiverThread = new Thread(ReceiverThread);
 			_receiverThread.Name = "ClientSideInterceptor - Receiver - " + side;
@@ -190,7 +192,7 @@ namespace NewRemoting
 
 		internal CallContext CreateCallContext(IInvocation invocation, int thisSeq)
 		{
-			CallContext ctx = new CallContext(invocation, thisSeq);
+			CallContext ctx = new CallContext(invocation, thisSeq, _terminator.Token);
 			if (!_pendingInvocations.TryAdd(thisSeq, ctx))
 			{
 				// This really shouldn't happen
@@ -207,6 +209,14 @@ namespace NewRemoting
 			_logger.Log(LogLevel.Debug, $"{_side}: {invocation.Method} done.");
 			if (ctx.Exception != null)
 			{
+				var terminationMethod =
+					typeof(RemoteServerService).GetMethod(nameof(RemoteServerService.TerminateRemoteServerService));
+				if (ctx.Invocation.Method.Name == terminationMethod.Name && ctx.Invocation.Method.DeclaringType == typeof(IRemoteServerService))
+				{
+					// If this is a call to the above method, we drop the exception, because it is expected.
+					return;
+				}
+
 				// Rethrow remote exception
 				ExceptionDispatchInfo.Capture(ctx.Exception).Throw();
 			}
@@ -216,7 +226,7 @@ namespace NewRemoting
 		{
 			try
 			{
-				while (_receiving)
+				while (_receiving && !_terminator.IsCancellationRequested)
 				{
 					RemotingCallHeader hdReturnValue = default;
 					// This read is blocking
@@ -226,6 +236,21 @@ namespace NewRemoting
 					}
 
 					_logger.Log(LogLevel.Debug, $"{_side}: Decoding message {hdReturnValue.Sequence} of type {hdReturnValue.Function}");
+
+					if (hdReturnValue.Function == RemotingFunctionType.ServerShuttingDown)
+					{
+						// Quit here.
+						foreach (var inv in _pendingInvocations)
+						{
+							inv.Value.Exception = new RemotingException("Server terminated itself. Call aborted",
+								RemotingExceptionKind.CommunicationError);
+							inv.Value.Set();
+						}
+
+						_pendingInvocations.Clear();
+						_terminator.Cancel();
+						return;
+					}
 
 					if (hdReturnValue.Function != RemotingFunctionType.MethodReply && hdReturnValue.Function != RemotingFunctionType.ExceptionReturn)
 					{
@@ -248,7 +273,6 @@ namespace NewRemoting
 						{
 							_logger.Log(LogLevel.Debug, $"{_side}: Receiving reply for {ctx.Invocation.Method}");
 							_messageHandler.ProcessCallResponse(ctx.Invocation, _reader);
-							_pendingInvocations.TryRemove(hdReturnValue.Sequence, out _);
 							ctx.Set();
 						}
 					}
@@ -281,6 +305,7 @@ namespace NewRemoting
 
 		public void Dispose()
 		{
+			_terminator.Cancel();
 			_receiving = false;
 			_reader.Dispose();
 			_receiverThread?.Join();
@@ -289,8 +314,11 @@ namespace NewRemoting
 
 		internal sealed class CallContext : IDisposable
 		{
-			public CallContext(IInvocation invocation, int sequence)
+			private readonly CancellationToken _externalTerminator;
+
+			public CallContext(IInvocation invocation, int sequence, CancellationToken externalTerminator)
 			{
+				_externalTerminator = externalTerminator;
 				Invocation = invocation;
 				SequenceNumber = sequence;
 				EventToTrigger = new AutoResetEvent(false);
@@ -304,9 +332,10 @@ namespace NewRemoting
 
 			public int SequenceNumber { get; }
 
-			public AutoResetEvent EventToTrigger
+			private AutoResetEvent EventToTrigger
 			{
 				get;
+				set;
 			}
 
 			public Exception Exception
@@ -317,17 +346,25 @@ namespace NewRemoting
 
 			public void Wait()
 			{
-				EventToTrigger.WaitOne();
+				WaitHandle[] handles = new WaitHandle[] { EventToTrigger, _externalTerminator.WaitHandle };
+				if (handles.All(x => x != null))
+				{
+					WaitHandle.WaitAny(handles);
+				}
 			}
 
 			public void Set()
 			{
-				EventToTrigger.Set();
+				EventToTrigger?.Set();
 			}
 
 			public void Dispose()
 			{
-				EventToTrigger.Dispose();
+				if (EventToTrigger != null)
+				{
+					EventToTrigger.Dispose();
+					EventToTrigger = null;
+				}
 			}
 		}
 	}

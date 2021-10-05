@@ -142,7 +142,7 @@ namespace NewRemoting
 			// Register standard services
 			if (ServiceContainer.GetService<IRemoteServerService>() == null)
 			{
-				ServiceContainer.AddService(typeof(IRemoteServerService), new RemoteServerService(Logger));
+				ServiceContainer.AddService(typeof(IRemoteServerService), new RemoteServerService(this, Logger));
 			}
 		}
 
@@ -319,7 +319,7 @@ namespace NewRemoting
 						Type t = null;
 						if (!TryReflectionMethod(() => GetTypeFromAnyAssembly(instance), answerWriter, hd.Sequence, out t))
 						{
-							SendAnswer(stream, ms);
+							SendAnswer(td, ms);
 							continue;
 						}
 
@@ -334,7 +334,7 @@ namespace NewRemoting
 						// Can this fail? Typically, this is a reference type, so it shouldn't.
 						_messageHandler.WriteArgumentToStream(answerWriter, newInstance);
 
-						SendAnswer(stream, ms);
+						SendAnswer(td, ms);
 
 						continue;
 					}
@@ -359,14 +359,14 @@ namespace NewRemoting
 						Type t = null;
 						if (!TryReflectionMethod(() => GetTypeFromAnyAssembly(instance), answerWriter, hd.Sequence, out t))
 						{
-							SendAnswer(stream, ms);
+							SendAnswer(td, ms);
 							continue;
 						}
 
 						object newInstance = null;
 						if (!TryReflectionMethod(() => Activator.CreateInstance(t, ctorArgs), answerWriter, hd.Sequence, out newInstance))
 						{
-							SendAnswer(stream, ms);
+							SendAnswer(td, ms);
 							continue;
 						}
 
@@ -374,7 +374,7 @@ namespace NewRemoting
 						hdReturnValue1.WriteTo(answerWriter);
 						_messageHandler.WriteArgumentToStream(answerWriter, newInstance);
 
-						SendAnswer(stream, ms);
+						SendAnswer(td, ms);
 						continue;
 					}
 
@@ -383,7 +383,7 @@ namespace NewRemoting
 						Type t = null;
 						if (!TryReflectionMethod(() => GetTypeFromAnyAssembly(instance), answerWriter, hd.Sequence, out t))
 						{
-							SendAnswer(stream, ms);
+							SendAnswer(td, ms);
 							continue;
 						}
 
@@ -392,7 +392,7 @@ namespace NewRemoting
 						hdReturnValue1.WriteTo(answerWriter);
 						_messageHandler.WriteArgumentToStream(answerWriter, newInstance);
 
-						SendAnswer(stream, ms);
+						SendAnswer(td, ms);
 						continue;
 					}
 
@@ -447,7 +447,7 @@ namespace NewRemoting
 							_messageHandler.SendExceptionReply(x, answerWriter, hd.Sequence);
 						}
 
-						SendAnswer(stream, ms);
+						SendAnswer(td, ms);
 					}));
 				}
 
@@ -464,11 +464,14 @@ namespace NewRemoting
 			}
 		}
 
-		private void SendAnswer(Stream tcpConnection, MemoryStream rawDataMessage)
+		private void SendAnswer(ThreadData thread, MemoryStream rawDataMessage)
 		{
-			rawDataMessage.Position = 0;
-			rawDataMessage.CopyTo(tcpConnection);
-			rawDataMessage.Dispose();
+			lock (thread)
+			{
+				rawDataMessage.Position = 0;
+				rawDataMessage.CopyTo(thread.Stream);
+				rawDataMessage.Dispose();
+			}
 		}
 
 		/// <summary>
@@ -692,6 +695,7 @@ namespace NewRemoting
 					}
 
 					Thread ts = new Thread(ServerStreamHandler);
+					ts.Name = $"Remote server client {tcpClient.Client.RemoteEndPoint}";
 					var td = new ThreadData(ts, stream, new BinaryReader(stream, Encoding.Unicode));
 					_threads.Add(td);
 					ts.Start(td);
@@ -705,6 +709,22 @@ namespace NewRemoting
 
 		public void Terminate()
 		{
+			MemoryStream ms = new MemoryStream();
+			BinaryWriter binaryWriter = new BinaryWriter(ms, Encoding.Unicode);
+			RemotingCallHeader hdReturnValue = new RemotingCallHeader(RemotingFunctionType.ServerShuttingDown, 0);
+			hdReturnValue.WriteTo(binaryWriter);
+			foreach (var thread in _threads)
+			{
+				try
+				{
+					SendAnswer(thread, ms);
+				}
+				catch (IOException x)
+				{
+					Logger.LogInformation(x, $"Sending termination command to client {thread.Thread.Name} failed. Ignoring.");
+				}
+			}
+
 			_preopenedStream?.Dispose();
 			_preopenedStream = null;
 

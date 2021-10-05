@@ -25,5 +25,12 @@ namespace NewRemoting
 		/// </summary>
 		/// <returns>True</returns>
 		bool Ping();
+
+		/// <summary>
+		/// This terminates the remote service.
+		/// Typically this is not used directly as the client shuts down first. It may be helpful to shut down
+		/// a complex system of multiple server and client instances.
+		/// </summary>
+		public void TerminateRemoteServerService();
 	}
 }

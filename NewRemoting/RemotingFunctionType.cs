@@ -14,7 +14,8 @@ namespace NewRemoting
 		MethodCall,
 		MethodReply,
 		OpenReverseChannel,
-		ShutdownServer,
+		ShutdownServer, // The client requests the server to terminate
+		ServerShuttingDown, // The server shuts down and requests the client to disconnect
 		RequestServiceReference,
 		LoadClientAssemblyIntoServer,
 		ExceptionReturn,

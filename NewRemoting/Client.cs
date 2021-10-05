@@ -156,7 +156,14 @@ namespace NewRemoting
 			lock (_accessLock)
 			{
 				RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.ShutdownServer, 0);
-				hd.WriteTo(_writer);
+				try
+				{
+					hd.WriteTo(_writer);
+				}
+				catch (System.IO.IOException x)
+				{
+					Logger.LogError(x, "Sending termination command failed. Server already down?");
+				}
 			}
 		}
 
