@@ -453,7 +453,7 @@ namespace NewRemoting
 
 				Logger.Log(LogLevel.Information, $"Server on port {NetworkPort} exited");
 			}
-			catch (IOException x)
+			catch (Exception x) when (x is IOException || x is ObjectDisposedException)
 			{
 				// Remote connection closed
 				Logger.Log(LogLevel.Error, $"Server handler died due to {x}");
@@ -469,7 +469,16 @@ namespace NewRemoting
 			lock (thread)
 			{
 				rawDataMessage.Position = 0;
-				rawDataMessage.CopyTo(thread.Stream);
+				try
+				{
+					rawDataMessage.CopyTo(thread.Stream);
+				}
+				catch (ObjectDisposedException x)
+				{
+					// Ignore
+					Logger.LogWarning(x, $"It appears the connection is closed: {x.Message}");
+				}
+
 				rawDataMessage.Dispose();
 			}
 		}

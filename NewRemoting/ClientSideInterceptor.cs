@@ -351,6 +351,12 @@ namespace NewRemoting
 				{
 					WaitHandle.WaitAny(handles);
 				}
+
+				if (_externalTerminator.IsCancellationRequested)
+				{
+					throw new RemotingException("Error executing remote call: Link is going down",
+						RemotingExceptionKind.CommunicationError);
+				}
 			}
 
 			public void Set()
