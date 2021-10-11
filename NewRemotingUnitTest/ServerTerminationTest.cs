@@ -46,6 +46,7 @@ namespace NewRemotingUnitTest
 			{
 				_serverProcess.WaitForExit(2000);
 				_serverProcess.Kill(); // May be necessary here
+				_serverProcess.WaitForExit();
 				_serverProcess = null;
 			}
 		}

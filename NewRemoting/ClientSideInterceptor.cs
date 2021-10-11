@@ -282,7 +282,7 @@ namespace NewRemoting
 					}
 				}
 			}
-			catch (IOException x)
+			catch (Exception x) when (x is IOException || x is ObjectDisposedException)
 			{
 				_logger.Log(LogLevel.Error, "Terminating client receiver thread - Communication Exception: " + x.Message);
 				_receiving = false;
