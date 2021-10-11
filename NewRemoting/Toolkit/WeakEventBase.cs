@@ -4,7 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Reflection.Emit;
 
-namespace NewRemoting
+namespace NewRemoting.Toolkit
 {
 	/// <summary>
 	/// This class is required to share a invoker cache among all generic types of WeakEvent

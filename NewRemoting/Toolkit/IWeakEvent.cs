@@ -1,4 +1,4 @@
-﻿namespace NewRemoting
+﻿namespace NewRemoting.Toolkit
 {
 	public interface IWeakEvent<T>
 		where T : class

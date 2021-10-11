@@ -15,6 +15,7 @@ using Castle.DynamicProxy;
 using Castle.DynamicProxy.Generators.Emitters.SimpleAST;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using NewRemoting.Toolkit;
 
 namespace NewRemoting
 {
@@ -86,16 +87,6 @@ namespace NewRemoting
 		public ILogger Logger { get; }
 
 		/// <summary>
-		/// Gets the list of IP addresses of the current computer
-		/// </summary>
-		/// <returns></returns>
-		public static IPAddress[] LocalIpAddresses()
-		{
-			var host = Dns.GetHostEntry(Dns.GetHostName());
-			return host.AddressList;
-		}
-
-		/// <summary>
 		/// Returns true if the given object is a proxy.
 		/// </summary>
 		/// <param name="proxy">The object to test</param>
@@ -138,7 +129,7 @@ namespace NewRemoting
 					RemotingCallHeader openReturnChannel =
 						new RemotingCallHeader(RemotingFunctionType.OpenReverseChannel, 0);
 					openReturnChannel.WriteTo(_writer);
-					var addresses = LocalIpAddresses();
+					var addresses = NetworkUtil.LocalIpAddresses();
 					var addressToUse = addresses.First(x => x.AddressFamily == AddressFamily.InterNetwork);
 					_writer.Write(addressToUse.ToString());
 					_writer.Write(_server.NetworkPort);

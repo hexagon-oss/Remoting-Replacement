@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using NUnit.Framework;
 using NewRemoting;
+using NewRemoting.Toolkit;
 
 namespace NewRemotingUnitTest
 {

@@ -4,7 +4,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Threading;
 
-namespace NewRemoting
+namespace NewRemoting.Toolkit
 {
 	/// <summary>
 	/// This is used to provide improved event mechanism which removes some  pitfalls of normal c# events.

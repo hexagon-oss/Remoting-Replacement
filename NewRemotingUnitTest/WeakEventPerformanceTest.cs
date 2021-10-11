@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using NUnit.Framework;
 using NewRemoting;
+using NewRemoting.Toolkit;
 
 namespace NewRemotingUnitTest
 {

@@ -2,7 +2,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
-namespace NewRemoting
+namespace NewRemoting.Toolkit
 {
 	/// <summary>
 	/// Stores the weak reference to the subscriber of the event and the method information

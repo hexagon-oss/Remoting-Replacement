@@ -1,4 +1,4 @@
-﻿namespace NewRemoting
+﻿namespace NewRemoting.Toolkit
 {
 	internal interface IWeakEventInvoker
 	{

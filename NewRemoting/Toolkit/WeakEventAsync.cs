@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using NewRemoting.Collections;
 
-namespace NewRemoting
+namespace NewRemoting.Toolkit
 {
 	internal class WeakEventAsync<T> : WeakEvent<T>
 		where T : class

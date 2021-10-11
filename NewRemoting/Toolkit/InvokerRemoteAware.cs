@@ -1,7 +1,7 @@
 ﻿using System.Net.Sockets;
 using System.Runtime.Remoting;
 
-namespace NewRemoting
+namespace NewRemoting.Toolkit
 {
 	internal class InvokerRemoteAware : IWeakEventInvoker
 	{
