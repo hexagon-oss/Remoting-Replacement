@@ -32,12 +32,6 @@ namespace NewRemoting
 			where T : MarshalByRefObject;
 
 		/// <summary>
-		/// Detects whether this is the only instance of the remote loader currently running.
-		/// It would be possible to perform other operations (such as kill those), if desired.
-		/// </summary>
-		bool IsSingleRemoteLoaderInstance();
-
-		/// <summary>
 		/// Connects the remote loader to the remote system;
 		/// </summary>
 		void Connect(CancellationToken externalToken);

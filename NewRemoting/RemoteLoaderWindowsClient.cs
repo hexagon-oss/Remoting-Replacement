@@ -110,12 +110,6 @@ namespace NewRemoting
 			return _remotingClient.RequestRemoteInstance<T>();
 		}
 
-		public bool IsSingleRemoteLoaderInstance()
-		{
-			// TODO: Implement
-			return true;
-		}
-
 		public Process LaunchProcess(CancellationToken externalCancellation, bool isRemoteHostOnLocalMachine)
 		{
 			string arguments = _remoteLoaderId;
