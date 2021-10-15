@@ -36,15 +36,22 @@ namespace NewRemoting
 
 		private ResetableCancellationTokenSource _internalCancellationTokenSource;
 		private Process _process;
-		private string _remoteHost;
 
+		/// <summary>
+		/// Prepare starting a remote process
+		/// </summary>
+		/// <param name="remoteCredentials">Credentials for accessing the remote system</param>
+		/// <param name="remoteHost">Remote host name/IP</param>
 		public PaExecClient(Credentials remoteCredentials, string remoteHost)
 			: this(remoteCredentials, remoteHost, TimeSpan.FromSeconds(1))
 		{
 		}
 
+		/// <summary>
+		/// Prepare parameters for starting a remote process.
+		/// </summary>
 		/// <exception cref="ArgumentNullException">Thrown if credentials are null</exception>
-		/// <exception cref="ArgumentException">Thrown if host name is invlalid</exception>
+		/// <exception cref="ArgumentException">Thrown if host name is invalid</exception>
 		public PaExecClient(Credentials remoteCredentials, string remoteHost, TimeSpan waitTimeBetweenPaExecExecute, ILogger logger = null)
 		{
 			if (remoteCredentials == null)
@@ -60,7 +67,7 @@ namespace NewRemoting
 			_waitTimeBetweenPaExecExecute = waitTimeBetweenPaExecExecute;
 
 			_root = new DirectoryInfo(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
-			_remoteHost = remoteHost;
+			RemoteHost = remoteHost;
 			_remoteCredentials = remoteCredentials;
 
 			_internalCancellationTokenSource = new ResetableCancellationTokenSource();
@@ -80,18 +87,9 @@ namespace NewRemoting
 
 		protected ILogger Logger => _logger;
 
-		public string RemoteHost
-		{
-			get
-			{
-				return _remoteHost;
-			}
+		public string RemoteHost { get; protected set; }
 
-			protected set
-			{
-				_remoteHost = value;
-			}
-		}
+		public Credentials Credentials => _remoteCredentials;
 
 		protected DirectoryInfo LocalRootDirectory => _root;
 
@@ -144,7 +142,7 @@ namespace NewRemoting
 
 		protected static bool IsPaexecRetryableErrorCode(int errorCode)
 		{
-			return errorCode == RemoteLoaderClient.PAEXEC_SERVICE_COULD_NOT_BE_INSTALLED || errorCode == RemoteLoaderClient.PAEXEC_FAILED_TO_COPY_APP;
+			return errorCode == RemoteLoaderWindowsClient.PAEXEC_SERVICE_COULD_NOT_BE_INSTALLED || errorCode == RemoteLoaderWindowsClient.PAEXEC_FAILED_TO_COPY_APP;
 		}
 
 		private static string PrependAppDomainPath(string file)
@@ -166,7 +164,7 @@ namespace NewRemoting
 			var interactionArgument = enableUserInterfaceInteraction ? "-i " : string.Empty;
 			var copyArgments = string.IsNullOrEmpty(fileListPath) ? string.Empty : FormattableString.Invariant($"-c -f -clist {fileListPath} ");
 			var workingDirAgruments = string.IsNullOrEmpty(workingDirectory) ? string.Empty : FormattableString.Invariant($"-w \"{workingDirectory}\" ");
-			startInfo.Arguments = FormattableString.Invariant($@"\\{_remoteHost} -u {_remoteCredentials.DomainQualifiedUsername} -p {_remoteCredentials.Password} -dfr {interactionArgument}{workingDirAgruments}{copyArgments}{commandLine}");
+			startInfo.Arguments = FormattableString.Invariant($@"\\{RemoteHost} -u {_remoteCredentials.DomainQualifiedUsername} -p {_remoteCredentials.Password} -dfr {interactionArgument}{workingDirAgruments}{copyArgments}{commandLine}");
 
 			var unstartedProcess = new Process();
 			unstartedProcess.StartInfo = startInfo;
@@ -187,7 +185,7 @@ namespace NewRemoting
 		/// <exception cref="RemoteAccessException">Error sharing local folder</exception>
 		protected virtual Process CreateProcessOnRemoteMachine(CancellationToken externalCancellation, string processName, string dependenciesFile, string remoteFileDirectory, string arguments)
 		{
-			var remoteConsole = new RemoteConsole(_remoteHost, _remoteCredentials);
+			var remoteConsole = new RemoteConsole(RemoteHost, _remoteCredentials);
 			// 1. Because not all systems use the same folder for %TEMP% we read the path from remote system.
 			// 2. Create working directory if not exist on remote system
 			string workingDirectory = string.Empty;
@@ -230,7 +228,7 @@ namespace NewRemoting
 
 			// Launch remote loader
 			var commandLaunch = FormattableString.Invariant($"\"{Path.Combine(workingDirectory, processName)}\" {arguments}");
-			_logger.LogInformation("Execute command {0} on {1}", commandLaunch, _remoteHost);
+			_logger.LogInformation("Execute command {0} on {1}", commandLaunch, RemoteHost);
 			return remoteConsole.CreateProcess(commandLaunch, false, dependenciesFile, workingDirectory, true, true, false);
 		}
 
@@ -253,7 +251,7 @@ namespace NewRemoting
 				isRemoteHostOnLocalMachine = NetworkUtil.IsLocalIpAddress(RemoteHost);
 			}
 
-			if (!PingUtil.CancellableTryWaitForPingResponse(_remoteHost, TimeSpan.MaxValue, externalToken))
+			if (!PingUtil.CancellableTryWaitForPingResponse(RemoteHost, TimeSpan.MaxValue, externalToken))
 			{
 				_process = null;
 				return _process;
@@ -322,7 +320,7 @@ namespace NewRemoting
 						// process have to be terminated here, because operation is only canceled externally or if process exits
 						if (!process.HasExited)
 						{
-							var errorMsg = string.Format(CultureInfo.InvariantCulture, "Could not get interface of remote loader on machine {0} ", _remoteHost);
+							var errorMsg = string.Format(CultureInfo.InvariantCulture, "Could not get interface of remote loader on machine {0} ", RemoteHost);
 							Logger.LogError(errorMsg);
 
 							process.Kill(); // if process is still running, we didn't receive the process exit event - this should never happen but just in case we terminate the remote process
@@ -336,7 +334,7 @@ namespace NewRemoting
 						}
 						else
 						{
-							var errorMsg = string.Format(CultureInfo.InvariantCulture, "Could not launch remote loader on machine {0} Error Code: {1} Arguments {2}", _remoteHost, errorCode, arguments);
+							var errorMsg = string.Format(CultureInfo.InvariantCulture, "Could not launch remote loader on machine {0} Error Code: {1} Arguments {2}", RemoteHost, errorCode, arguments);
 							Logger.LogError(errorMsg);
 							throw new RemoteAccessException(errorMsg);
 						}

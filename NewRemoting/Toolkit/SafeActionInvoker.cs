@@ -4,7 +4,7 @@ using System.Net.Sockets;
 using System.Runtime.Remoting;
 using System.Threading.Tasks;
 
-namespace NewRemoting
+namespace NewRemoting.Toolkit
 {
 	/// <summary>
 	/// Invokes actions sync or async and exception safe.

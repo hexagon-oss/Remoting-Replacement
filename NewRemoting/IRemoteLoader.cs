@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace NewRemoting
+namespace Airborne.Generic.Remote.Loader
 {
 	/// <summary>
 	///     Creates a objects in a host process on a remote machine

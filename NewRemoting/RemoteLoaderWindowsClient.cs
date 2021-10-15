@@ -5,12 +5,11 @@ using System.IO;
 using System.Net;
 using System.Threading;
 using Microsoft.Extensions.Logging;
-using NewRemoting;
 using NewRemoting.Toolkit;
 
 namespace NewRemoting
 {
-	public class RemoteLoaderClient : PaExecClient, IRemoteLoaderClient
+	public class RemoteLoaderWindowsClient : PaExecClient, IRemoteLoaderClient
 	{
 		public const string REMOTELOADER_EXECUTABLE = "RemotingServer.exe";
 		private const string REMOTELOADER_DIRECTORY = @"%temp%\RemoteLoader";
@@ -23,21 +22,12 @@ namespace NewRemoting
 		private IRemoteServerService _remoteLoader;
 		private Client _remotingClient;
 
-		public RemoteLoaderClient(Credentials remoteCredentials, string remoteHost)
-			: this(remoteCredentials, remoteHost, (x) => true)
-		{
-		}
-
-		public RemoteLoaderClient(Credentials remoteCredentials, string remoteHost, Func<FileInfo, bool> shouldFileBeUploadedFunc)
-			: this(remoteCredentials, remoteHost, new FileHashCalculator(), shouldFileBeUploadedFunc, TimeSpan.FromSeconds(1))
-		{
-		}
-
-		internal RemoteLoaderClient(Credentials remoteCredentials, string remoteHost,
+		public RemoteLoaderWindowsClient(Credentials remoteCredentials, string remoteHost, int remotePort,
 			FileHashCalculator fileHashCalculator,
 			Func<FileInfo, bool> shouldFileBeUploadedFunc, TimeSpan waitTimeBetweenPaExecExecute)
 			: base(remoteCredentials, remoteHost, waitTimeBetweenPaExecExecute)
 		{
+			RemotePort = remotePort;
 			_shouldFileBeUploadedFunc = shouldFileBeUploadedFunc ?? throw new ArgumentNullException(nameof(shouldFileBeUploadedFunc));
 			_remoteLoaderId = Guid.NewGuid().ToString();
 			_fileHashCalculator = fileHashCalculator ?? throw new ArgumentNullException(nameof(fileHashCalculator));
@@ -54,11 +44,16 @@ namespace NewRemoting
 			};
 		}
 
-		[Obsolete("UnitTestOnly")]
-		internal void SetRemoteLoaderUnitTestOnly(IRemoteServerService remoteLoader)
+		public int RemotePort
 		{
-			_remoteLoader = remoteLoader;
+			get;
 		}
+
+		/// <summary>
+		/// Gets the internal remote client reference.
+		/// May be required for advanced service queries.
+		/// </summary>
+		public Client RemoteClient => _remotingClient;
 
 		private void UploadBinaries(DirectoryInfo directory, string folder)
 		{
@@ -83,27 +78,39 @@ namespace NewRemoting
 			}
 		}
 
-		T IRemoteLoader.CreateObject<T>(object[] parameters)
+		public T CreateObject<T>(object[] parameters)
+			where T : MarshalByRefObject
 		{
 			return _remotingClient.CreateRemoteInstance<T>(parameters);
 		}
 
-		T IRemoteLoader.CreateObject<T>()
+		public T CreateObject<T>()
+			where T : MarshalByRefObject
 		{
 			return _remotingClient.CreateRemoteInstance<T>();
 		}
 
-		TReturn IRemoteLoaderClient.CreateObject<TCreate, TReturn>(object[] parameters)
+		public TReturn CreateObject<TCreate, TReturn>(object[] parameters)
+			where TCreate : MarshalByRefObject, TReturn
+			where TReturn : class
 		{
 			return (TReturn)_remotingClient.CreateRemoteInstance(typeof(TCreate), parameters);
 		}
 
-		TReturn IRemoteLoaderClient.CreateObject<TCreate, TReturn>()
+		public TReturn CreateObject<TCreate, TReturn>()
+			where TCreate : MarshalByRefObject, TReturn
+			where TReturn : class
 		{
 			return _remotingClient.CreateRemoteInstance<TCreate>();
 		}
 
-		bool IRemoteLoader.IsSingleRemoteLoaderInstance()
+		public T RequestRemoteInstance<T>()
+			where T : class
+		{
+			return _remotingClient.RequestRemoteInstance<T>();
+		}
+
+		public bool IsSingleRemoteLoaderInstance()
 		{
 			// TODO: Implement
 			return true;
@@ -157,7 +164,7 @@ namespace NewRemoting
 
 			LaunchProcess(externalToken, isRemoteHostOnLocalMachine);
 
-			_remotingClient = new Client(RemoteHost, Client.DefaultNetworkPort);
+			_remotingClient = new Client(RemoteHost, RemotePort);
 			_remoteLoader = _remotingClient.RequestRemoteInstance<IRemoteServerService>();
 			Logger.LogInformation("Got interface to {0}", _remoteLoader.GetType().Name);
 			if (_remoteLoader == null)
