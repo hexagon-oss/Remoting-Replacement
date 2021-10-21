@@ -86,26 +86,16 @@ namespace NewRemoting
 		/// <exception cref="ArgumentNullException">Parameter was null</exception>
 		public static Credentials Create(string username, string password, string domainName)
 		{
-			if (username == null)
-			{
-				throw new ArgumentNullException(nameof(username));
-			}
-
-			if (password == null)
-			{
-				throw new ArgumentNullException(nameof(password));
-			}
-
-			if (domainName == null)
-			{
-				throw new ArgumentNullException(nameof(domainName));
-			}
-
-			return new Credentials(username, password, domainName);
+			return new Credentials(username ?? string.Empty, password ?? string.Empty, domainName ?? string.Empty);
 		}
 
 		public bool Equals(Credentials other)
 		{
+			if (other == null)
+			{
+				return false;
+			}
+
 			return string.Equals(Password, other.Password) && string.Equals(DomainName, other.DomainName) && string.Equals(Username, other.Username);
 		}
 

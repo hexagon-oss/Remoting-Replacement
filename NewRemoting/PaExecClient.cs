@@ -35,7 +35,7 @@ namespace NewRemoting
 		private ILogger _logger;
 
 		private ResetableCancellationTokenSource _internalCancellationTokenSource;
-		private Process _process;
+		private IProcess _process;
 
 		/// <summary>
 		/// Prepare starting a remote process
@@ -122,7 +122,7 @@ namespace NewRemoting
 			GC.SuppressFinalize(this);
 		}
 
-		internal static Process CreateProcessLocal(string executableName, string arguments)
+		internal static IProcess CreateProcessLocal(string executableName, string arguments)
 		{
 			var startInfo = new ProcessStartInfo
 			{
@@ -137,7 +137,7 @@ namespace NewRemoting
 			};
 			var unstartedProcess = new Process();
 			unstartedProcess.StartInfo = startInfo;
-			return unstartedProcess;
+			return new ProcessWrapper(unstartedProcess);
 		}
 
 		protected static bool IsPaexecRetryableErrorCode(int errorCode)
@@ -150,6 +150,7 @@ namespace NewRemoting
 			return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, file);
 		}
 
+		/* Not sure why this overload existed. It is unused
 		private Process CreateProcess(string commandLine, bool enableUserInterfaceInteraction = false, string fileListPath = null, string workingDirectory = null, bool redirectStandardOutput = false, bool redirectStandardError = false, bool redirectStandardInput = false)
 		{
 			var startInfo = new ProcessStartInfo();
@@ -170,6 +171,7 @@ namespace NewRemoting
 			unstartedProcess.StartInfo = startInfo;
 			return unstartedProcess;
 		}
+		*/
 
 		/// <summary>
 		/// Launches the remote loader executable on the remote system, therefor:
@@ -183,7 +185,7 @@ namespace NewRemoting
 		/// <param name="arguments">Arguments to remote program</param>
 		/// <returns>A process instance, pointing to the remote process</returns>
 		/// <exception cref="RemoteAccessException">Error sharing local folder</exception>
-		protected virtual Process CreateProcessOnRemoteMachine(CancellationToken externalCancellation, string processName, string dependenciesFile, string remoteFileDirectory, string arguments)
+		protected virtual IProcess CreateProcessOnRemoteMachine(CancellationToken externalCancellation, string processName, string dependenciesFile, string remoteFileDirectory, string arguments)
 		{
 			var remoteConsole = new RemoteConsole(RemoteHost, _remoteCredentials);
 			// 1. Because not all systems use the same folder for %TEMP% we read the path from remote system.
@@ -229,7 +231,8 @@ namespace NewRemoting
 			// Launch remote loader
 			var commandLaunch = FormattableString.Invariant($"\"{Path.Combine(workingDirectory, processName)}\" {arguments}");
 			_logger.LogInformation("Execute command {0} on {1}", commandLaunch, RemoteHost);
-			return remoteConsole.CreateProcess(commandLaunch, false, dependenciesFile, workingDirectory, true, true, false);
+			var process = remoteConsole.CreateProcess(commandLaunch, false, dependenciesFile, workingDirectory, true, true, false);
+			return new ProcessWrapper(process);
 		}
 
 		/// <summary>
@@ -242,7 +245,7 @@ namespace NewRemoting
 		/// <param name="remoteFileDirectory">The directory on the remote machine where the file should be copied to</param>
 		/// <param name="arguments">Arguments to the remote process</param>
 		/// <returns>The created process. Do NOT dispose the returned process instance directly, but dispose the <see cref="PaExecClient"/> instance instead.</returns>
-		public virtual Process LaunchProcess(CancellationToken externalToken, bool? isRemoteHostOnLocalMachine, string processName,
+		public virtual IProcess LaunchProcess(CancellationToken externalToken, bool? isRemoteHostOnLocalMachine, string processName,
 			string dependenciesFile, string remoteFileDirectory, string arguments)
 		{
 			var sw = Stopwatch.StartNew();
@@ -370,7 +373,7 @@ namespace NewRemoting
 			return false;
 		}
 
-		protected virtual bool WaitForRemoteProcessStartup(CancellationTokenSource linkedCancellationTokenSource, Process process)
+		protected virtual bool WaitForRemoteProcessStartup(CancellationTokenSource linkedCancellationTokenSource, IProcess process)
 		{
 			Thread.Sleep(100);
 			return true;

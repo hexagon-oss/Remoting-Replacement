@@ -110,7 +110,7 @@ namespace NewRemoting
 			return _remotingClient.RequestRemoteInstance<T>();
 		}
 
-		public Process LaunchProcess(CancellationToken externalCancellation, bool isRemoteHostOnLocalMachine)
+		public IProcess LaunchProcess(CancellationToken externalCancellation, bool isRemoteHostOnLocalMachine)
 		{
 			string arguments = _remoteLoaderId;
 			IPAddress ip;
@@ -137,7 +137,7 @@ namespace NewRemoting
 									arguments);
 		}
 
-		protected override bool WaitForRemoteProcessStartup(CancellationTokenSource linkedCancellationTokenSource, Process process)
+		protected override bool WaitForRemoteProcessStartup(CancellationTokenSource linkedCancellationTokenSource, IProcess process)
 		{
 			// TODO: Implement FCMS-8056
 			Thread.Sleep(1000);
