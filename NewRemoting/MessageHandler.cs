@@ -18,6 +18,7 @@ namespace NewRemoting
 		private readonly InstanceManager _instanceManager;
 		private readonly IFormatter _formatter;
 		private readonly object _communicationLock;
+		private readonly Dictionary<string, ClientSideInterceptor> _interceptors;
 		private bool _initialized;
 
 		public MessageHandler(InstanceManager instanceManager, IFormatter formatter)
@@ -26,21 +27,7 @@ namespace NewRemoting
 			_formatter = formatter;
 			_communicationLock = new object();
 			_initialized = false;
-		}
-
-		/// <summary>
-		/// Initializes this instance. Separate because of circular dependencies.
-		/// </summary>
-		public void Init(IInterceptor interceptor)
-		{
-			Interceptor = interceptor;
-			_initialized = true;
-		}
-
-		public IInterceptor Interceptor
-		{
-			get;
-			private set;
+			_interceptors = new();
 		}
 
 		/// <summary>
@@ -419,9 +406,11 @@ namespace NewRemoting
 
 					// TODO: This copying of arrays here is not really performance-friendly
 					var argumentsOfTarget = methodInfoOfTarget.GetParameters().Select(x => x.ParameterType).ToList();
+
+					var interceptor = InstanceManager.GetInterceptor(_interceptors, instanceId);
 					// This creates an instance of the DelegateInternalSink class, which acts as a proxy for delegate callbacks. Instead of the actual delegate
 					// target, we register a method from this class as a delegate target
-					var internalSink = new DelegateInternalSink(Interceptor, targetId, methodInfoOfTarget);
+					var internalSink = new DelegateInternalSink(interceptor, targetId, methodInfoOfTarget);
 					_instanceManager.AddInstance(internalSink, targetId);
 
 					IEnumerable<MethodInfo> possibleSinks = null;
@@ -462,6 +451,12 @@ namespace NewRemoting
 			object decodedArg = _formatter.Deserialize(ms);
 #pragma warning restore 618
 			return (Exception)decodedArg;
+		}
+
+		public void AddInterceptor(ClientSideInterceptor newInterceptor)
+		{
+			_interceptors.Add(newInterceptor.OtherSideInstanceId, newInterceptor);
+			_initialized = true; // at least one entry exists
 		}
 	}
 }

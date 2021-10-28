@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Net.Sockets;
 using System.Runtime.Serialization;
 using System.Threading;
@@ -14,6 +15,15 @@ namespace RemotingClient
 		public static void Main(string[] args)
 		{
 			Console.WriteLine("Hello World of clients!");
+			if (args.Any(x => x == "--debug"))
+			{
+				Console.WriteLine("Waiting for debugger...");
+				while (!Console.KeyAvailable && !Debugger.IsAttached)
+				{
+					Thread.Sleep(20);
+				}
+			}
+
 			DoSomeRemoting();
 		}
 
@@ -58,7 +68,7 @@ namespace RemotingClient
 
 			myComponentInterface.StartTiming();
 
-			Thread.Sleep(5000);
+			Thread.Sleep(10000);
 			IDisposable disposable = (IDisposable)myComponentInterface;
 			disposable.Dispose();
 
@@ -100,6 +110,7 @@ namespace RemotingClient
 				Console.WriteLine("This exception is also expected: " + x.Message);
 			}
 
+			/*
 			try
 			{
 				cls.MaybeThrowException(0);
@@ -108,6 +119,7 @@ namespace RemotingClient
 			{
 				Console.WriteLine("Caught " + x);
 			}
+			*/
 
 			SerializableClassWithMarshallableMembers sc = new SerializableClassWithMarshallableMembers(1, new ReferencedComponent() { Data = 10 });
 

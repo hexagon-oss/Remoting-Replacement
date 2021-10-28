@@ -67,10 +67,10 @@ namespace NewRemoting
 
 			_messageHandler = new MessageHandler(_instanceManager, _formatter);
 
-			_interceptor = new ClientSideInterceptor("Client", _client.GetStream(), _messageHandler, Logger);
-			_instanceManager.Interceptor = _interceptor;
-
-			_messageHandler.Init(_interceptor);
+			// A client side has only one server, so there's also only one interceptor and only one server side
+			_interceptor = new ClientSideInterceptor(string.Empty, InstanceManager.InstanceIdentifier, true, _client.GetStream(), _messageHandler, Logger);
+			_instanceManager.AddInterceptor(_interceptor);
+			_messageHandler.AddInterceptor(_interceptor);
 
 			byte[] authenticationData = new byte[100];
 			_writer.Write(authenticationData);
@@ -133,6 +133,7 @@ namespace NewRemoting
 					var addressToUse = addresses.First(x => x.AddressFamily == AddressFamily.InterNetwork);
 					_writer.Write(addressToUse.ToString());
 					_writer.Write(_server.NetworkPort);
+					_writer.Write(InstanceManager.InstanceIdentifier);
 					_connectionConfigured = true;
 				}
 			}

@@ -21,7 +21,6 @@ namespace NewRemoting
 {
 	internal sealed class ClientSideInterceptor : IInterceptor, IProxyGenerationHook, IDisposable
 	{
-		private readonly string _side;
 		private readonly Stream _serverLink;
 		private readonly MessageHandler _messageHandler;
 		private readonly ILogger _logger;
@@ -38,11 +37,12 @@ namespace NewRemoting
 		/// </summary>
 		private BinaryReader _reader;
 
-		public ClientSideInterceptor(String side, Stream serverLink, MessageHandler messageHandler, ILogger logger)
+		public ClientSideInterceptor(string otherSideInstanceId, string thisSideInstanceId, bool clientSide, Stream serverLink, MessageHandler messageHandler, ILogger logger)
 		{
+			OtherSideInstanceId = otherSideInstanceId;
+			ThisSideInstanceId = thisSideInstanceId;
 			DebuggerToStringBehavior = DebuggerToStringBehavior.ReturnProxyName;
-			_sequence = side == "Client" ? 1 : 10000;
-			_side = side;
+			_sequence = clientSide ? 1 : 10000;
 			_serverLink = serverLink;
 			_numberOfCallsInspected = 0;
 			_messageHandler = messageHandler ?? throw new ArgumentNullException(nameof(messageHandler));
@@ -51,7 +51,7 @@ namespace NewRemoting
 			_terminator = new CancellationTokenSource();
 			_reader = new BinaryReader(_serverLink, Encoding.Unicode);
 			_receiverThread = new Thread(ReceiverThread);
-			_receiverThread.Name = "ClientSideInterceptor - Receiver - " + side;
+			_receiverThread.Name = "ClientSideInterceptor - " + thisSideInstanceId;
 			_receiving = true;
 			_receiverThread.Start();
 		}
@@ -61,6 +61,9 @@ namespace NewRemoting
 			get;
 			set;
 		}
+
+		public string OtherSideInstanceId { get; }
+		public string ThisSideInstanceId { get; }
 
 		internal int NextSequenceNumber()
 		{
@@ -94,7 +97,7 @@ namespace NewRemoting
 
 			lock (_messageHandler.CommunicationLinkLock)
 			{
-				_logger.Log(LogLevel.Debug, $"{_side}: Intercepting {invocation.Method}, sequence {thisSeq}");
+				_logger.Log(LogLevel.Debug, $"{ThisSideInstanceId}: Intercepting {invocation.Method}, sequence {thisSeq}");
 
 				MethodInfo me = invocation.Method;
 				RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.MethodCall, thisSeq);
@@ -206,7 +209,7 @@ namespace NewRemoting
 		{
 			// The event is signaled by the receiver thread when the message was processed
 			ctx.Wait();
-			_logger.Log(LogLevel.Debug, $"{_side}: {invocation.Method} done.");
+			_logger.Log(LogLevel.Debug, $"{ThisSideInstanceId}: {invocation.Method} done.");
 			if (ctx.Exception != null)
 			{
 				var terminationMethod =
@@ -235,7 +238,7 @@ namespace NewRemoting
 						throw new RemotingException("Unexpected reply or stream out of sync", RemotingExceptionKind.ProtocolError);
 					}
 
-					_logger.Log(LogLevel.Debug, $"{_side}: Decoding message {hdReturnValue.Sequence} of type {hdReturnValue.Function}");
+					_logger.Log(LogLevel.Debug, $"{ThisSideInstanceId}: Decoding message {hdReturnValue.Sequence} of type {hdReturnValue.Function}");
 
 					if (hdReturnValue.Function == RemotingFunctionType.ServerShuttingDown)
 					{
@@ -261,7 +264,7 @@ namespace NewRemoting
 					{
 						if (hdReturnValue.Function == RemotingFunctionType.ExceptionReturn)
 						{
-							_logger.Log(LogLevel.Debug, $"{_side}: Receiving exception in reply to {ctx.Invocation.Method}");
+							_logger.Log(LogLevel.Debug, $"{ThisSideInstanceId}: Receiving exception in reply to {ctx.Invocation.Method}");
 							var exception = _messageHandler.DecodeException(_reader);
 							ctx.Exception = exception;
 							// Hack to move the remote stack trace to the correct field.
@@ -271,7 +274,7 @@ namespace NewRemoting
 						}
 						else
 						{
-							_logger.Log(LogLevel.Debug, $"{_side}: Receiving reply for {ctx.Invocation.Method}");
+							_logger.Log(LogLevel.Debug, $"{ThisSideInstanceId}: Receiving reply for {ctx.Invocation.Method}");
 							_messageHandler.ProcessCallResponse(ctx.Invocation, _reader);
 							ctx.Set();
 						}

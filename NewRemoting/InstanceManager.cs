@@ -18,11 +18,12 @@ namespace NewRemoting
 	internal class InstanceManager
 	{
 		private readonly ILogger _logger;
+		private readonly Dictionary<string, ClientSideInterceptor> _interceptors;
 		private ConcurrentDictionary<string, InstanceInfo> _objects;
 
 		static InstanceManager()
 		{
-			InstanceIdentifier = Environment.MachineName + "/" + Environment.ProcessId.ToString(CultureInfo.CurrentCulture);
+			InstanceIdentifier = Environment.MachineName + ":" + Environment.ProcessId.ToString(CultureInfo.CurrentCulture);
 		}
 
 		public InstanceManager(ProxyGenerator proxyGenerator, ILogger logger)
@@ -30,6 +31,7 @@ namespace NewRemoting
 			_logger = logger;
 			ProxyGenerator = proxyGenerator;
 			_objects = new();
+			_interceptors = new();
 		}
 
 		public static string InstanceIdentifier
@@ -45,15 +47,23 @@ namespace NewRemoting
 		/// <summary>
 		/// This has a setter, because of the initialization sequence
 		/// </summary>
-		public IInterceptor Interceptor
-		{
-			get;
-			set;
-		}
-
 		public static bool IsLocalInstanceId(string objectId)
 		{
 			return objectId.StartsWith(InstanceIdentifier);
+		}
+
+		public static ClientSideInterceptor GetInterceptor(Dictionary<string, ClientSideInterceptor> interceptors, string objectId)
+		{
+			// When first starting the client, we don't know the other side's instance id, so we use
+			// an empty string for it. The client should only ever have this one entry in the list, anyway
+			if (interceptors.TryGetValue(string.Empty, out var other))
+			{
+				return other;
+			}
+
+			// TODO: Since the list of interceptors is typically small, iterating may be faster
+			string interceptorName = objectId.Substring(0, objectId.IndexOf("/", StringComparison.Ordinal));
+			return interceptors[interceptorName];
 		}
 
 		public string GetIdForObject(object instance)
@@ -223,7 +233,7 @@ namespace NewRemoting
 
 		public object CreateOrGetReferenceInstance(IInvocation invocation, bool canAttemptToInstantiate, Type typeOfArgument, string typeName, string objectId)
 		{
-			if (Interceptor == null)
+			if (!_interceptors.Any())
 			{
 				throw new InvalidOperationException("Interceptor not set. Invalid initialization sequence");
 			}
@@ -250,22 +260,23 @@ namespace NewRemoting
 
 			if (IsLocalInstanceId(objectId))
 			{
-				throw new InvalidOperationException("Got an instance that should be local but it isn't");
+				throw new InvalidOperationException("Got an instance that should be proxied, but it is a local object");
 			}
 
+			var interceptor = GetInterceptor(_interceptors, objectId);
 			// Create a class proxy with all interfaces proxied as well.
 			var interfaces = type.GetInterfaces();
 			if (typeOfArgument != null && typeOfArgument.IsInterface)
 			{
 				_logger.Log(LogLevel.Debug, $"Create interface proxy for main type {typeOfArgument}");
 				// If the call returns an interface, only create an interface proxy, because we might not be able to instantiate the actual class (because it's not public, it's sealed, has no public ctors, etc)
-				instance = ProxyGenerator.CreateInterfaceProxyWithoutTarget(typeOfArgument, interfaces, Interceptor);
+				instance = ProxyGenerator.CreateInterfaceProxyWithoutTarget(typeOfArgument, interfaces, interceptor);
 			}
 			else if (canAttemptToInstantiate && (!type.IsSealed) && (MessageHandler.HasDefaultCtor(type) || (invocation != null && invocation.Arguments.Length > 0)))
 			{
 				_logger.Log(LogLevel.Debug, $"Create class proxy for main type {type}");
 				// We can attempt to create a class proxy if we have ctor arguments and the type is not sealed
-				instance = ProxyGenerator.CreateClassProxy(type, interfaces, ProxyGenerationOptions.Default, invocation.Arguments, Interceptor);
+				instance = ProxyGenerator.CreateClassProxy(type, interfaces, ProxyGenerationOptions.Default, invocation.Arguments, interceptor);
 			}
 			else if ((type.IsSealed || !MessageHandler.HasDefaultCtor(type)) && interfaces.Length > 0)
 			{
@@ -274,22 +285,22 @@ namespace NewRemoting
 				{
 					// This is a bit of a special case, not sure yet for what other classes we should use this (otherwise, this gets an interface proxy for IDisposable, which is
 					// not castable to Stream, which is most likely required)
-					instance = ProxyGenerator.CreateClassProxy(typeof(Stream), interfaces, ProxyGenerationOptions.Default, Interceptor);
+					instance = ProxyGenerator.CreateClassProxy(typeof(Stream), interfaces, ProxyGenerationOptions.Default, interceptor);
 				}
 				else if (type.IsAssignableTo(typeof(WaitHandle)))
 				{
-					instance = ProxyGenerator.CreateClassProxy(typeof(WaitHandle), interfaces, ProxyGenerationOptions.Default, Interceptor);
+					instance = ProxyGenerator.CreateClassProxy(typeof(WaitHandle), interfaces, ProxyGenerationOptions.Default, interceptor);
 				}
 				else
 				{
 					// Best would be to create a class proxy but we can't. So try an interface proxy with one of the interfaces instead
-					instance = ProxyGenerator.CreateInterfaceProxyWithoutTarget(interfaces[0], interfaces, Interceptor);
+					instance = ProxyGenerator.CreateInterfaceProxyWithoutTarget(interfaces[0], interfaces, interceptor);
 				}
 			}
 			else
 			{
 				_logger.Log(LogLevel.Debug, $"Create class proxy as fallback for main type {type}");
-				instance = ProxyGenerator.CreateClassProxy(type, interfaces, Interceptor);
+				instance = ProxyGenerator.CreateClassProxy(type, interfaces, interceptor);
 			}
 
 			AddInstance(instance, objectId);
@@ -301,6 +312,11 @@ namespace NewRemoting
 		{
 			// Just forget about this object - the server GC will care for the rest.
 			_objects.TryRemove(objectId, out _);
+		}
+
+		public void AddInterceptor(ClientSideInterceptor interceptor)
+		{
+			_interceptors.Add(interceptor.OtherSideInstanceId, interceptor);
 		}
 	}
 }

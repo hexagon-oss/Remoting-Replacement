@@ -63,9 +63,10 @@ namespace NewRemoting
 		private Stream _preopenedStream;
 
 		/// <summary>
-		/// This is the interceptor for calls from the server to the client using a server-side proxy (i.e. an interface registered for a callback)
+		/// This is the interceptor list for calls from the server to the client using a server-side proxy (i.e. an interface registered for a callback)
+		/// There is one instance per client.
 		/// </summary>
-		private ClientSideInterceptor _serverInterceptorForCallbacks;
+		private Dictionary<string, ClientSideInterceptor> _serverInterceptorForCallbacks;
 
 		/// <summary>
 		/// Create a remoting server instance. Other processes (local or remote) will be able to perform remote calls to this process.
@@ -81,6 +82,8 @@ namespace NewRemoting
 			_proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
 			_preopenedStream = null;
 			_clientStreamsExpectingUse = new();
+			_serverInterceptorForCallbacks = new();
+
 			_instanceManager = new InstanceManager(_proxyGenerator, Logger);
 			_formatterFactory = new FormatterFactory(_instanceManager);
 			_formatter = _formatterFactory.CreateFormatter();
@@ -103,12 +106,12 @@ namespace NewRemoting
 			_clientStreamsExpectingUse = null; // Shall not be used in this case
 			_messageHandler = messageHandler;
 			_instanceManager = messageHandler.InstanceManager;
-			messageHandler.Init(localInterceptor);
+
 			_threads = new();
 			_formatterFactory = new FormatterFactory(_instanceManager);
 			_formatter = _formatterFactory.CreateFormatter();
 			_proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
-			_serverInterceptorForCallbacks = localInterceptor;
+			_serverInterceptorForCallbacks = new Dictionary<string, ClientSideInterceptor>() { { localInterceptor.OtherSideInstanceId, localInterceptor } };
 		}
 
 		/// <summary>
@@ -587,14 +590,17 @@ namespace NewRemoting
 			{
 				string clientIp = r.ReadString();
 				int clientPort = r.ReadInt32();
+				string otherSideInstanceId = r.ReadString();
 				if (_clientStreamsExpectingUse.IsNullOrEmpty())
 				{
 					throw new RemotingException("Server not ready for reverse connection. Startup sequence error", RemotingExceptionKind.ProtocolError);
 				}
 
-				_serverInterceptorForCallbacks = new ClientSideInterceptor("Server", _clientStreamsExpectingUse.Dequeue(), _messageHandler, Logger);
-				_messageHandler.Init(_serverInterceptorForCallbacks);
-				_instanceManager.Interceptor = _serverInterceptorForCallbacks;
+				var newInterceptor = new ClientSideInterceptor(otherSideInstanceId, InstanceManager.InstanceIdentifier, false, _clientStreamsExpectingUse.Dequeue(), _messageHandler, Logger);
+
+				_messageHandler.AddInterceptor(newInterceptor);
+				_instanceManager.AddInterceptor(newInterceptor);
+				_serverInterceptorForCallbacks.Add(otherSideInstanceId, newInterceptor);
 				return true;
 			}
 
