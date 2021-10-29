@@ -82,7 +82,15 @@ namespace SampleServerClasses
 		{
 			while (_isThreadRunning)
 			{
-				TimeChanged?.Invoke(DateTime.Now, ProcessName());
+				try
+				{
+					TimeChanged?.Invoke(DateTime.Now, ProcessName());
+				}
+				catch (ObjectDisposedException)
+				{
+					return;
+				}
+
 				Thread.Sleep(1000);
 			}
 		}

@@ -734,7 +734,7 @@ namespace NewRemoting
 				{
 					SendAnswer(thread, ms);
 				}
-				catch (IOException x)
+				catch (Exception x) when (x is IOException || x is ObjectDisposedException)
 				{
 					Logger.LogInformation(x, $"Sending termination command to client {thread.Thread.Name} failed. Ignoring.");
 				}
@@ -752,6 +752,14 @@ namespace NewRemoting
 			}
 
 			_threads.Clear();
+
+			foreach (var clientThread in _serverInterceptorForCallbacks)
+			{
+				clientThread.Value.Dispose();
+			}
+
+			_serverInterceptorForCallbacks.Clear();
+
 			_listener?.Stop();
 			_mainThread?.Join();
 		}

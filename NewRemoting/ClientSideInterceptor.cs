@@ -289,6 +289,7 @@ namespace NewRemoting
 			{
 				_logger.Log(LogLevel.Error, "Terminating client receiver thread - Communication Exception: " + x.Message);
 				_receiving = false;
+				_terminator.Cancel();
 			}
 		}
 
