@@ -43,6 +43,8 @@ namespace NewRemoting
 		private TcpClient _serverLink;
 		private bool _connectionConfigured;
 
+		private bool _disconnected;
+
 		/// <summary>
 		/// Creates a remoting client for the given server and opens the network connection
 		/// </summary>
@@ -73,7 +75,14 @@ namespace NewRemoting
 			_instanceManager.AddInterceptor(_interceptor);
 			_messageHandler.AddInterceptor(_interceptor);
 
+			// Current use of this connection header:
+			// bytes       | Function
+			// 0           | 0 = forwarding stream, 1 = callback stream
+			// 1 - 4       | instance hash of this client
+			// remaining   | reserved
 			byte[] authenticationData = new byte[100];
+			int instanceHash = InstanceManager.InstanceIdentifier.GetHashCode(StringComparison.Ordinal);
+			Array.Copy(BitConverter.GetBytes(instanceHash), 0, authenticationData, 1, 4);
 			_writer.Write(authenticationData);
 			authenticationData[0] = 1;
 			_serverLink.GetStream().Write(authenticationData, 0, 100);
@@ -135,6 +144,7 @@ namespace NewRemoting
 					_writer.Write(addressToUse.ToString());
 					_writer.Write(_server.NetworkPort);
 					_writer.Write(InstanceManager.InstanceIdentifier);
+					_writer.Write(InstanceManager.InstanceIdentifier.GetHashCode(StringComparison.Ordinal));
 					_connectionConfigured = true;
 				}
 			}

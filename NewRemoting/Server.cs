@@ -49,7 +49,7 @@ namespace NewRemoting
 		/// This contains a (typically small) queue of streams that will be used for the reverse communication.
 		/// The list is emptied by OpenReverseChannel commands.
 		/// </summary>
-		private readonly Queue<Stream> _clientStreamsExpectingUse;
+		private readonly ConcurrentDictionary<int, Stream> _clientStreamsExpectingUse;
 
 		private Thread _mainThread;
 		private int _networkPort;
@@ -251,6 +251,11 @@ namespace NewRemoting
 		/// </summary>
 		internal void StartProcessing()
 		{
+			if (_preopenedStream == null)
+			{
+				throw new InvalidOperationException($"{nameof(StartProcessing)} must only be called for the client's own server");
+			}
+
 			_threadRunning = true;
 			Thread ts = new Thread(ServerStreamHandler);
 			var td = new ThreadData(ts, _preopenedStream, new BinaryReader(_preopenedStream, Encoding.Unicode));
@@ -591,12 +596,16 @@ namespace NewRemoting
 				string clientIp = r.ReadString();
 				int clientPort = r.ReadInt32();
 				string otherSideInstanceId = r.ReadString();
-				if (_clientStreamsExpectingUse.IsNullOrEmpty())
+				int connectionIdentifier = r.ReadInt32();
+				Stream streamToUse;
+				while (!_clientStreamsExpectingUse.TryGetValue(connectionIdentifier, out streamToUse))
 				{
-					throw new RemotingException("Server not ready for reverse connection. Startup sequence error", RemotingExceptionKind.ProtocolError);
+					// Wait until the matching connection is available - when several clients connect simultaneously, they may interfere here
+					Thread.Sleep(20);
+					// throw new RemotingException("Server not ready for reverse connection. Startup sequence error", RemotingExceptionKind.ProtocolError);
 				}
 
-				var newInterceptor = new ClientSideInterceptor(otherSideInstanceId, InstanceManager.InstanceIdentifier, false, _clientStreamsExpectingUse.Dequeue(), _messageHandler, Logger);
+				var newInterceptor = new ClientSideInterceptor(otherSideInstanceId, InstanceManager.InstanceIdentifier, false, streamToUse, _messageHandler, Logger);
 
 				_messageHandler.AddInterceptor(newInterceptor);
 				_instanceManager.AddInterceptor(newInterceptor);
@@ -706,15 +715,20 @@ namespace NewRemoting
 					var tcpClient = _listener.AcceptTcpClient();
 					var stream = tcpClient.GetStream();
 					byte[] authenticationToken = new byte[100];
+
+					// TODO: This needs some kind of authentication / trust management, but I have _no_ clue on how to get that safely done,
+					// since we (by design) want anyone to be able to connect and execute arbitrary code locally. Bad combination...
 					if (stream.Read(authenticationToken, 0, 100) != 100)
 					{
 						tcpClient.Dispose();
 						continue;
 					}
 
+					int instanceHash = BitConverter.ToInt32(authenticationToken, 1);
+
 					if (authenticationToken[0] == 1)
 					{
-						_clientStreamsExpectingUse.Enqueue(tcpClient.GetStream());
+						_clientStreamsExpectingUse.TryAdd(instanceHash, tcpClient.GetStream());
 						continue;
 					}
 
