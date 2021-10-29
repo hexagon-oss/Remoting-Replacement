@@ -212,11 +212,8 @@ namespace NewRemoting
 			_logger.Log(LogLevel.Debug, $"{ThisSideInstanceId}: {invocation.Method} done.");
 			if (ctx.Exception != null)
 			{
-				var terminationMethod =
-					typeof(RemoteServerService).GetMethod(nameof(RemoteServerService.TerminateRemoteServerService));
-				if (ctx.Invocation.Method.Name == terminationMethod.Name && ctx.Invocation.Method.DeclaringType == typeof(IRemoteServerService))
+				if (ctx.IsInTerminationMethod())
 				{
-					// If this is a call to the above method, we drop the exception, because it is expected.
 					return;
 				}
 
@@ -318,6 +315,9 @@ namespace NewRemoting
 
 		internal sealed class CallContext : IDisposable
 		{
+			private static readonly MethodInfo TerminationMethod =
+				typeof(RemoteServerService).GetMethod(nameof(RemoteServerService.TerminateRemoteServerService));
+
 			private readonly CancellationToken _externalTerminator;
 
 			public CallContext(IInvocation invocation, int sequence, CancellationToken externalTerminator)
@@ -356,11 +356,30 @@ namespace NewRemoting
 					WaitHandle.WaitAny(handles);
 				}
 
+				if (IsInTerminationMethod())
+				{
+					// Report, but don't throw (special handling by parent)
+					Exception = new RemotingException("Error executing remote call: Link is going down",
+						RemotingExceptionKind.CommunicationError);
+					return;
+				}
+
 				if (_externalTerminator.IsCancellationRequested)
 				{
 					throw new RemotingException("Error executing remote call: Link is going down",
 						RemotingExceptionKind.CommunicationError);
 				}
+			}
+
+			public bool IsInTerminationMethod()
+			{
+				if (Invocation.Method != null && Invocation.Method.Name == TerminationMethod.Name && Invocation.Method.DeclaringType == typeof(IRemoteServerService))
+				{
+					// If this is a call to the above method, we drop the exception, because it is expected.
+					return true;
+				}
+
+				return false;
 			}
 
 			public void Set()
