@@ -146,13 +146,23 @@ namespace NewRemoting
 
 		public void PerformGc(BinaryWriter w)
 		{
+			PerformGc(w, false);
+		}
+
+		/// <summary>
+		/// Checks for dead references in our instance cache and tells the server to clean them up.
+		/// </summary>
+		/// <param name="w">The link to the server</param>
+		/// <param name="dropAll">True to drop all references, including active ones (used if about to disconnect)</param>
+		public void PerformGc(BinaryWriter w, bool dropAll)
+		{
 			// Would be good if we could synchronize our updates with the GC, but that appears to be a bit fuzzy and fails if the
 			// GC is in concurrent mode.
 			List<InstanceInfo> instancesToClear = new();
 			foreach (var e in _objects)
 			{
 				// Iterating over a ConcurrentDictionary should be thread safe
-				if (e.Value.IsReleased)
+				if (e.Value.IsReleased || dropAll)
 				{
 					instancesToClear.Add(e.Value);
 					_objects.TryRemove(e);

@@ -604,6 +604,15 @@ namespace NewRemoting
 				return true;
 			}
 
+			if (hd.Function == RemotingFunctionType.ClientDisconnecting)
+			{
+				string clientName = r.ReadString();
+				if (_serverInterceptorForCallbacks.TryGetValue(clientName, out var interceptor))
+				{
+					interceptor.Dispose();
+				}
+			}
+
 			if (hd.Function == RemotingFunctionType.LoadClientAssemblyIntoServer)
 			{
 				string assemblyName = r.ReadString();
@@ -722,21 +731,28 @@ namespace NewRemoting
 			}
 		}
 
-		public void Terminate()
+		/// <summary>
+		/// Terminate a link
+		/// </summary>
+		/// <param name="disconnected">True if the client has already logically disconnected</param>
+		public void Terminate(bool disconnected)
 		{
-			MemoryStream ms = new MemoryStream();
-			BinaryWriter binaryWriter = new BinaryWriter(ms, Encoding.Unicode);
-			RemotingCallHeader hdReturnValue = new RemotingCallHeader(RemotingFunctionType.ServerShuttingDown, 0);
-			hdReturnValue.WriteTo(binaryWriter);
-			foreach (var thread in _threads)
+			if (!disconnected)
 			{
-				try
+				MemoryStream ms = new MemoryStream();
+				BinaryWriter binaryWriter = new BinaryWriter(ms, Encoding.Unicode);
+				RemotingCallHeader hdReturnValue = new RemotingCallHeader(RemotingFunctionType.ServerShuttingDown, 0);
+				hdReturnValue.WriteTo(binaryWriter);
+				foreach (var thread in _threads)
 				{
-					SendAnswer(thread, ms);
-				}
-				catch (Exception x) when (x is IOException || x is ObjectDisposedException)
-				{
-					Logger.LogInformation(x, $"Sending termination command to client {thread.Thread.Name} failed. Ignoring.");
+					try
+					{
+						SendAnswer(thread, ms);
+					}
+					catch (Exception x) when (x is IOException || x is ObjectDisposedException)
+					{
+						Logger.LogInformation(x, $"Sending termination command to client {thread.Thread.Name} failed. Ignoring.");
+					}
 				}
 			}
 
@@ -766,7 +782,7 @@ namespace NewRemoting
 
 		public void Dispose()
 		{
-			Terminate();
+			Terminate(false);
 		}
 
 		public void WaitForTermination()

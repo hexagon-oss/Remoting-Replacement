@@ -54,6 +54,7 @@ namespace NewRemoting
 			Logger = logger ?? NullLogger.Instance;
 			_accessLock = new object();
 			_connectionConfigured = false;
+			_disconnected = false;
 
 			_client = new TcpClient(server, port);
 			_serverLink = new TcpClient(server, port);
@@ -299,15 +300,51 @@ namespace NewRemoting
 			return dummyInvocation.ReturnValue;
 		}
 
+		/// <summary>
+		/// Disconnects from the server in a way that does not affect the server state.
+		/// All remote resources of this client are freed, but the server can continue
+		/// to serve other clients.
+		/// Calling <see cref="Dispose"/> afterwards is safe.
+		/// </summary>
+		public void Disconnect()
+		{
+			lock (_accessLock)
+			{
+				_instanceManager.PerformGc(_writer, true);
+				int sequence = _interceptor.NextSequenceNumber();
+				RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.ClientDisconnecting, sequence);
+				hd.WriteTo(_writer);
+				_writer.Write(InstanceManager.InstanceIdentifier);
+				_disconnected = true;
+			}
+		}
+
 		public void Dispose()
 		{
 			lock (_accessLock)
 			{
-				_server.Terminate();
-				_server.Dispose();
-				_client.Dispose();
+				if (_server != null)
+				{
+					try
+					{
+						_instanceManager.PerformGc(_writer, true);
+					}
+					catch (Exception x) when (x is RemotingException || x is IOException)
+					{
+						// Ignore
+					}
+
+					_server.Terminate(_disconnected);
+					_server.Dispose();
+				}
+
+				_server = null;
+
+				_client?.Dispose();
 				_interceptor.Dispose();
 				_instanceManager.Clear();
+
+				_client = null;
 			}
 		}
 	}

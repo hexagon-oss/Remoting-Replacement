@@ -165,7 +165,7 @@ namespace NewRemoting
 
 		public void TerminateRemoteServerService()
 		{
-			_server.Terminate();
+			_server.Terminate(false);
 		}
 	}
 }

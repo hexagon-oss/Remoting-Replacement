@@ -43,7 +43,7 @@ namespace RemotingServer
 
 			server.StartListening();
 			server.WaitForTermination();
-			server.Terminate();
+			server.Terminate(false);
 			GC.KeepAlive(server);
 		}
 	}

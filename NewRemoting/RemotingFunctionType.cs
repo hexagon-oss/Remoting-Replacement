@@ -16,9 +16,10 @@ namespace NewRemoting
 		OpenReverseChannel,
 		ShutdownServer, // The client requests the server to terminate
 		ServerShuttingDown, // The server shuts down and requests the client to disconnect
+		ClientDisconnecting, // The client is disconnecting but will not take the server down
 		RequestServiceReference,
 		LoadClientAssemblyIntoServer,
 		ExceptionReturn,
-		GcCleanup
+		GcCleanup,
 	}
 }
