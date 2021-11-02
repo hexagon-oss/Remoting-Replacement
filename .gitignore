@@ -3,3 +3,4 @@ bin
 obj
 /*.user
 /RemotingServer/Properties/launchSettings.json
+/RemotingClient/Properties/launchSettings.json

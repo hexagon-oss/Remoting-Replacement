@@ -29,6 +29,8 @@ namespace SampleServerClasses
 			Identifier = identifier;
 		}
 
+		public event Action<string> AnEvent;
+
 		public virtual long Identifier
 		{
 			get;
@@ -77,6 +79,11 @@ namespace SampleServerClasses
 			{
 				_cb.FireSomeAction("Hello again!");
 			}
+		}
+
+		public virtual void DoCallbackOnEvent(string msg)
+		{
+			AnEvent?.Invoke(msg);
 		}
 
 		public virtual ReferencedComponent GetComponent()

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Dynamic;
 using System.IO;
@@ -267,14 +268,14 @@ namespace NewRemoting
 			{
 				methodBase = mi.Constructor;
 
-				object returnValue = ReadArgumentFromStream(reader, invocation, true, methodBase.DeclaringType);
+				object returnValue = ReadArgumentFromStream(reader, methodBase, invocation, true, methodBase.DeclaringType);
 				invocation.ReturnValue = returnValue;
 				// out or ref arguments on ctors are rare, but not generally forbidden, so we continue here
 			}
 			else if (invocation is ManualInvocation mi2 && mi2.TargetType != null)
 			{
 				// This happens if we request a remote instance directly (by interface type)
-				object returnValue = ReadArgumentFromStream(reader, invocation, true, mi2.TargetType);
+				object returnValue = ReadArgumentFromStream(reader, mi2.Method, invocation, true, mi2.TargetType);
 				invocation.ReturnValue = returnValue;
 				return;
 			}
@@ -284,7 +285,7 @@ namespace NewRemoting
 				methodBase = me;
 				if (me.ReturnType != typeof(void))
 				{
-					object returnValue = ReadArgumentFromStream(reader, invocation, true, me.ReturnType);
+					object returnValue = ReadArgumentFromStream(reader, methodBase, invocation, true, me.ReturnType);
 					invocation.ReturnValue = returnValue;
 				}
 			}
@@ -294,7 +295,7 @@ namespace NewRemoting
 			{
 				if (byRefArguments.ParameterType.IsByRef)
 				{
-					object byRefValue = ReadArgumentFromStream(reader, invocation, false, byRefArguments.ParameterType);
+					object byRefValue = ReadArgumentFromStream(reader, methodBase, invocation, false, byRefArguments.ParameterType);
 					invocation.Arguments[index] = byRefValue;
 				}
 
@@ -309,7 +310,7 @@ namespace NewRemoting
 			SendSerializedObject(w, exception);
 		}
 
-		public object ReadArgumentFromStream(BinaryReader r, IInvocation invocation, bool canAttemptToInstantiate, Type typeOfArgument)
+		public object ReadArgumentFromStream(BinaryReader r, MethodBase callingMethod, IInvocation invocation, bool canAttemptToInstantiate, Type typeOfArgument)
 		{
 			if (!_initialized)
 			{
@@ -379,7 +380,7 @@ namespace NewRemoting
 					bool cont = r.ReadBoolean();
 					while (cont)
 					{
-						var nextElem = ReadArgumentFromStream(r, invocation, canAttemptToInstantiate, contentType);
+						var nextElem = ReadArgumentFromStream(r, callingMethod, invocation, canAttemptToInstantiate, contentType);
 						list.Add(nextElem);
 						cont = r.ReadBoolean();
 					}
@@ -433,7 +434,26 @@ namespace NewRemoting
 						localSinkTarget = localSinkTarget.MakeGenericMethod(argumentsOfTarget.ToArray());
 					}
 
-					return Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
+					string delegateId = instanceId + "." + methodInfoOfTarget.Name;
+					if (callingMethod != null && callingMethod.IsSpecialName && callingMethod.Name.StartsWith("add_", StringComparison.Ordinal))
+					{
+						var newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
+						_instanceManager.AddInstance(newDelegate, delegateId);
+						return newDelegate;
+					}
+					else if (callingMethod != null && callingMethod.IsSpecialName && callingMethod.Name.StartsWith("remove_", StringComparison.Ordinal))
+					{
+						var existingDelegate = _instanceManager.GetObjectFromId(delegateId);
+						// Remove delegate (and forget about it), it is not used here any more.
+						_instanceManager.Remove(delegateId);
+						return existingDelegate;
+					}
+					else
+					{
+						// No need to register - this is a delegate used as method argument in an "ordinary" call
+						var newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
+						return newDelegate;
+					}
 				}
 
 				default:

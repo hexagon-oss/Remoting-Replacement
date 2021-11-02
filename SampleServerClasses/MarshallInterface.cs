@@ -8,6 +8,9 @@ namespace SampleServerClasses
 {
 	public interface IMarshallInterface
 	{
+		event Action<string> AnEvent;
+
 		string StringProcessId();
+		void DoCallbackOnEvent(string msg);
 	}
 }

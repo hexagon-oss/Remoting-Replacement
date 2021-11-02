@@ -68,7 +68,7 @@ namespace RemotingClient
 
 			myComponentInterface.StartTiming();
 
-			Thread.Sleep(10000);
+			Thread.Sleep(20000);
 			IDisposable disposable = (IDisposable)myComponentInterface;
 			disposable.Dispose();
 

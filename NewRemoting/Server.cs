@@ -258,6 +258,7 @@ namespace NewRemoting
 
 			_threadRunning = true;
 			Thread ts = new Thread(ServerStreamHandler);
+			ts.Name = "Server stream handler for client side";
 			var td = new ThreadData(ts, _preopenedStream, new BinaryReader(_preopenedStream, Encoding.Unicode));
 			_threads.Add(td);
 			ts.Start(td);
@@ -369,7 +370,7 @@ namespace NewRemoting
 						{
 							// Constructors are selected dynamically on the server side (below), therefore we can't pass the argument type here.
 							// This may disallow calling a constructor with a client-side reference. It is yet to clarify whether that's a problem or not.
-							ctorArgs[i] = _messageHandler.ReadArgumentFromStream(r, null, false, null);
+							ctorArgs[i] = _messageHandler.ReadArgumentFromStream(r, null, null, false, null);
 						}
 
 						Type t = null;
@@ -444,7 +445,7 @@ namespace NewRemoting
 					object[] args = new object[numArgs];
 					for (int i = 0; i < numArgs; i++)
 					{
-						var decodedArg = _messageHandler.ReadArgumentFromStream(r, null, false, me.GetParameters()[i].ParameterType);
+						var decodedArg = _messageHandler.ReadArgumentFromStream(r, me, null, false, me.GetParameters()[i].ParameterType);
 						args[i] = decodedArg;
 					}
 

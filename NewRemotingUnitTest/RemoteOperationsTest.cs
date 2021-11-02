@@ -331,9 +331,50 @@ namespace NewRemotingUnitTest
 			Assert.That(firstInstance.GetSomeData() != 0);
 		}
 
+		[Test]
+		public void CanRegisterUnregisterEvents()
+		{
+			IMarshallInterface instance = _client.CreateRemoteInstance<MarshallableClass>();
+
+			_dataReceived = null;
+			instance.DoCallbackOnEvent("Test string");
+
+			Assert.IsNull(_dataReceived);
+			instance.AnEvent += CallbackMethod;
+			instance.DoCallbackOnEvent("Another test string");
+			Assert.False(string.IsNullOrWhiteSpace(_dataReceived));
+			_dataReceived = null;
+			instance.AnEvent -= CallbackMethod;
+			instance.DoCallbackOnEvent("A final test string");
+			Assert.IsNull(_dataReceived);
+		}
+
+		[Test]
+		public void CanRegisterUnregisterEventWithoutAffectingOtherInstance()
+		{
+			IMarshallInterface instance = _client.CreateRemoteInstance<MarshallableClass>();
+			IMarshallInterface instance2 = _client.CreateRemoteInstance<MarshallableClass>();
+
+			_dataReceived = null;
+			instance.DoCallbackOnEvent("Initial test string");
+
+			Assert.IsNull(_dataReceived);
+			instance.AnEvent += CallbackMethod;
+			instance2.AnEvent += CallbackMethod;
+			_dataReceived = null;
+			instance.AnEvent -= CallbackMethod;
+			instance.DoCallbackOnEvent("More testing");
+			Assert.IsNotNull(_dataReceived);
+		}
+
 		private MarshallableClass CreateRemoteInstance()
 		{
 			return _client.CreateRemoteInstance<MarshallableClass>();
+		}
+
+		public void CallbackMethod(string argument)
+		{
+			_dataReceived = argument;
 		}
 
 		private sealed class CallbackImpl : MarshalByRefObject, ICallbackInterface
