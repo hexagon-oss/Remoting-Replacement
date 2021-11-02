@@ -69,7 +69,6 @@ namespace SampleServerClasses
 		public virtual void RegisterCallback(ICallbackInterface cb)
 		{
 			_cb = cb;
-			DoCallback();
 		}
 
 		public virtual void DoCallback()

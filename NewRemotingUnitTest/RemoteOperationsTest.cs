@@ -305,6 +305,32 @@ namespace NewRemotingUnitTest
 			Assert.Throws<SerializationException>(() => cls.ServerError());
 		}
 
+		[Test]
+		public void TwoClientsCanConnect()
+		{
+			var client2 = new Client("localhost", Client.DefaultNetworkPort);
+			client2.Start();
+
+			var firstInstance = _client.CreateRemoteInstance<MarshallableClass>();
+			var secondInstance = client2.CreateRemoteInstance<MarshallableClass>();
+			Assert.AreNotEqual(firstInstance, secondInstance);
+
+			// Test that the callback ends on the correct client.
+			var cb1 = new CallbackImpl();
+			var cb2 = new CallbackImpl();
+			firstInstance.RegisterCallback(cb1);
+			secondInstance.RegisterCallback(cb2);
+			firstInstance.DoCallback();
+			Assert.That(cb1.HasBeenCalled);
+			Assert.False(cb2.HasBeenCalled);
+
+			client2.Disconnect();
+			client2.Dispose();
+
+			// This is still operational
+			Assert.That(firstInstance.GetSomeData() != 0);
+		}
+
 		private MarshallableClass CreateRemoteInstance()
 		{
 			return _client.CreateRemoteInstance<MarshallableClass>();

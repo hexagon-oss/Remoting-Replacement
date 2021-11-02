@@ -71,7 +71,7 @@ namespace NewRemoting
 			_messageHandler = new MessageHandler(_instanceManager, _formatter);
 
 			// A client side has only one server, so there's also only one interceptor and only one server side
-			_interceptor = new ClientSideInterceptor(string.Empty, InstanceManager.InstanceIdentifier, true, _client.GetStream(), _messageHandler, Logger);
+			_interceptor = new ClientSideInterceptor(string.Empty, _instanceManager.InstanceIdentifier, true, _client.GetStream(), _messageHandler, Logger);
 			_instanceManager.AddInterceptor(_interceptor);
 			_messageHandler.AddInterceptor(_interceptor);
 
@@ -81,7 +81,7 @@ namespace NewRemoting
 			// 1 - 4       | instance hash of this client
 			// remaining   | reserved
 			byte[] authenticationData = new byte[100];
-			int instanceHash = InstanceManager.InstanceIdentifier.GetHashCode(StringComparison.Ordinal);
+			int instanceHash = _instanceManager.InstanceIdentifier.GetHashCode(StringComparison.Ordinal);
 			Array.Copy(BitConverter.GetBytes(instanceHash), 0, authenticationData, 1, 4);
 			_writer.Write(authenticationData);
 			authenticationData[0] = 1;
@@ -143,8 +143,8 @@ namespace NewRemoting
 					var addressToUse = addresses.First(x => x.AddressFamily == AddressFamily.InterNetwork);
 					_writer.Write(addressToUse.ToString());
 					_writer.Write(_server.NetworkPort);
-					_writer.Write(InstanceManager.InstanceIdentifier);
-					_writer.Write(InstanceManager.InstanceIdentifier.GetHashCode(StringComparison.Ordinal));
+					_writer.Write(_instanceManager.InstanceIdentifier);
+					_writer.Write(_instanceManager.InstanceIdentifier.GetHashCode(StringComparison.Ordinal));
 					_connectionConfigured = true;
 				}
 			}
@@ -324,7 +324,7 @@ namespace NewRemoting
 				int sequence = _interceptor.NextSequenceNumber();
 				RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.ClientDisconnecting, sequence);
 				hd.WriteTo(_writer);
-				_writer.Write(InstanceManager.InstanceIdentifier);
+				_writer.Write(_instanceManager.InstanceIdentifier);
 				_disconnected = true;
 			}
 		}

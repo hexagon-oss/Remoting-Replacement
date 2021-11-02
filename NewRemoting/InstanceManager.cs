@@ -17,14 +17,10 @@ namespace NewRemoting
 {
 	internal class InstanceManager
 	{
+		private static int _numberOfInstancesUsed = 1;
 		private readonly ILogger _logger;
 		private readonly Dictionary<string, ClientSideInterceptor> _interceptors;
 		private ConcurrentDictionary<string, InstanceInfo> _objects;
-
-		static InstanceManager()
-		{
-			InstanceIdentifier = Environment.MachineName + ":" + Environment.ProcessId.ToString(CultureInfo.CurrentCulture);
-		}
 
 		public InstanceManager(ProxyGenerator proxyGenerator, ILogger logger)
 		{
@@ -32,9 +28,10 @@ namespace NewRemoting
 			ProxyGenerator = proxyGenerator;
 			_objects = new();
 			_interceptors = new();
+			InstanceIdentifier = Environment.MachineName + ":" + Environment.ProcessId.ToString(CultureInfo.CurrentCulture) + "." + _numberOfInstancesUsed++;
 		}
 
-		public static string InstanceIdentifier
+		public string InstanceIdentifier
 		{
 			get;
 		}
@@ -42,14 +39,6 @@ namespace NewRemoting
 		public ProxyGenerator ProxyGenerator
 		{
 			get;
-		}
-
-		/// <summary>
-		/// This has a setter, because of the initialization sequence
-		/// </summary>
-		public static bool IsLocalInstanceId(string objectId)
-		{
-			return objectId.StartsWith(InstanceIdentifier);
 		}
 
 		public static ClientSideInterceptor GetInterceptor(Dictionary<string, ClientSideInterceptor> interceptors, string objectId)
@@ -64,6 +53,14 @@ namespace NewRemoting
 			// TODO: Since the list of interceptors is typically small, iterating may be faster
 			string interceptorName = objectId.Substring(0, objectId.IndexOf("/", StringComparison.Ordinal));
 			return interceptors[interceptorName];
+		}
+
+		/// <summary>
+		/// This has a setter, because of the initialization sequence
+		/// </summary>
+		public bool IsLocalInstanceId(string objectId)
+		{
+			return objectId.StartsWith(InstanceIdentifier);
 		}
 
 		public string GetIdForObject(object instance)
@@ -95,7 +92,7 @@ namespace NewRemoting
 				throw new ArgumentNullException(nameof(instance));
 			}
 
-			_objects.AddOrUpdate(objectId, s => new InstanceInfo(instance, objectId), (s, info) => new InstanceInfo(instance, objectId));
+			_objects.AddOrUpdate(objectId, s => new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId)), (s, info) => new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId)));
 		}
 
 		/// <summary>
@@ -189,13 +186,13 @@ namespace NewRemoting
 			private readonly object _instanceHardReference;
 			private readonly WeakReference _instanceWeakReference;
 
-			public InstanceInfo(object obj, string identifier)
+			public InstanceInfo(object obj, string identifier, bool isLocal)
 			{
 				// If the actual instance lives in our process, we need to keep the hard reference, because
 				// there are clients that may keep a reference to this object.
 				// If it is a remote reference, we can use a weak reference. It will be gone, once there are no
 				// other references to it within our process - meaning no one has a reference to the proxy any more.
-				if (IsLocalInstanceId(identifier))
+				if (isLocal)
 				{
 					_instanceHardReference = obj;
 				}

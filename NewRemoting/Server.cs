@@ -297,8 +297,16 @@ namespace NewRemoting
 						throw new RemotingException("Incorrect data stream - sync lost", RemotingExceptionKind.ProtocolError);
 					}
 
-					if (ExecuteCommand(hd, r))
+					if (ExecuteCommand(hd, r, out bool clientDisconnecting))
 					{
+						if (clientDisconnecting)
+						{
+							Logger.Log(LogLevel.Error, $"Server handler disconnecting upon request.");
+							// Just close the stream and return. Do NOT throw an exception.
+							stream.Dispose();
+							return;
+						}
+
 						continue;
 					}
 
@@ -589,8 +597,9 @@ namespace NewRemoting
 			}
 		}
 
-		private bool ExecuteCommand(RemotingCallHeader hd, BinaryReader r)
+		private bool ExecuteCommand(RemotingCallHeader hd, BinaryReader r, out bool clientDisconnecting)
 		{
+			clientDisconnecting = false;
 			if (hd.Function == RemotingFunctionType.OpenReverseChannel)
 			{
 				string clientIp = r.ReadString();
@@ -605,7 +614,7 @@ namespace NewRemoting
 					// throw new RemotingException("Server not ready for reverse connection. Startup sequence error", RemotingExceptionKind.ProtocolError);
 				}
 
-				var newInterceptor = new ClientSideInterceptor(otherSideInstanceId, InstanceManager.InstanceIdentifier, false, streamToUse, _messageHandler, Logger);
+				var newInterceptor = new ClientSideInterceptor(otherSideInstanceId, _instanceManager.InstanceIdentifier, false, streamToUse, _messageHandler, Logger);
 
 				_messageHandler.AddInterceptor(newInterceptor);
 				_instanceManager.AddInterceptor(newInterceptor);
@@ -620,6 +629,9 @@ namespace NewRemoting
 				{
 					interceptor.Dispose();
 				}
+
+				clientDisconnecting = true;
+				return true;
 			}
 
 			if (hd.Function == RemotingFunctionType.LoadClientAssemblyIntoServer)
