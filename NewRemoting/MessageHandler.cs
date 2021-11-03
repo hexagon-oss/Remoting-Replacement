@@ -435,25 +435,27 @@ namespace NewRemoting
 					}
 
 					string delegateId = instanceId + "." + methodInfoOfTarget.Name;
+					Delegate newDelegate;
 					if (callingMethod != null && callingMethod.IsSpecialName && callingMethod.Name.StartsWith("add_", StringComparison.Ordinal))
 					{
-						var newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
+						newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
 						_instanceManager.AddInstance(newDelegate, delegateId);
 						return newDelegate;
 					}
 					else if (callingMethod != null && callingMethod.IsSpecialName && callingMethod.Name.StartsWith("remove_", StringComparison.Ordinal))
 					{
-						var existingDelegate = _instanceManager.GetObjectFromId(delegateId);
-						// Remove delegate (and forget about it), it is not used here any more.
-						_instanceManager.Remove(delegateId);
-						return existingDelegate;
+						// This may fail if the delegate was already removed. In this case, we just return a new instance, it will be GCed soon after
+						if (_instanceManager.TryGetObjectFromId(delegateId, out var obj))
+						{
+							// Remove delegate (and forget about it), it is not used here any more.
+							_instanceManager.Remove(delegateId);
+							return obj;
+						}
 					}
-					else
-					{
-						// No need to register - this is a delegate used as method argument in an "ordinary" call
-						var newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
-						return newDelegate;
-					}
+
+					// No need to register - this is a delegate used as method argument in an "ordinary" call
+					newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
+					return newDelegate;
 				}
 
 				default:

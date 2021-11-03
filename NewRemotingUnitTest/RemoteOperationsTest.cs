@@ -367,6 +367,27 @@ namespace NewRemotingUnitTest
 			Assert.IsNotNull(_dataReceived);
 		}
 
+		[Test]
+		public void RemovingAnAlreadyRemovedDelegateDoesNothing()
+		{
+			IMarshallInterface instance = _client.CreateRemoteInstance<MarshallableClass>();
+
+			_dataReceived = null;
+			instance.DoCallbackOnEvent("Test string");
+
+			Assert.IsNull(_dataReceived);
+			instance.AnEvent += CallbackMethod;
+			instance.DoCallbackOnEvent("Another test string");
+			Assert.False(string.IsNullOrWhiteSpace(_dataReceived));
+			_dataReceived = null;
+			instance.AnEvent -= CallbackMethod;
+			instance.DoCallbackOnEvent("A third test string");
+			Assert.IsNull(_dataReceived);
+			instance.AnEvent -= CallbackMethod;
+			instance.DoCallbackOnEvent("Test string 4");
+			Assert.IsNull(_dataReceived);
+		}
+
 		private MarshallableClass CreateRemoteInstance()
 		{
 			return _client.CreateRemoteInstance<MarshallableClass>();
