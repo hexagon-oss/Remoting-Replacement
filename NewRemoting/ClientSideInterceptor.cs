@@ -113,7 +113,16 @@ namespace NewRemoting
 					// a virtual member function is called. So we can execute the call locally (the object should be in an useful state, since its default ctor
 					// has been called)
 					_logger.Log(LogLevel.Debug, "Not a valid remoting proxy. Assuming within ctor of class proxy");
-					invocation.Proceed();
+					try
+					{
+						invocation.Proceed();
+					}
+					catch (NotImplementedException x)
+					{
+						_logger.LogError(x, "Unable to proceed on suspected class ctor. Assuming disconnected interface instead");
+						throw new RemotingException("Unable to call method on remote object. Instance not found.", RemotingExceptionKind.ProxyManagementError);
+					}
+
 					_pendingInvocations.TryRemove(thisSeq, out _);
 					return;
 				}
