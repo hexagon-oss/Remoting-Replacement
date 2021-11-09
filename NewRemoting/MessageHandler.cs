@@ -104,11 +104,6 @@ namespace NewRemoting
 			}
 			else if (data is Delegate del)
 			{
-				if (!del.Method.IsPublic)
-				{
-					throw new RemotingException("Delegate target methods that are used in remoting must be public", RemotingExceptionKind.UnsupportedOperation);
-				}
-
 				if (del.Method.IsStatic)
 				{
 					throw new RemotingException("Can only register instance methods as delegate targets", RemotingExceptionKind.UnsupportedOperation);
@@ -402,7 +397,7 @@ namespace NewRemoting
 					int tokenOfTargetMethod = r.ReadInt32();
 					Type typeOfTarget = Server.GetTypeFromAnyAssembly(typeOfTargetName);
 
-					var methods = typeOfTarget.GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public);
+					var methods = typeOfTarget.GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
 					MethodInfo methodInfoOfTarget = methods.First(x => x.MetadataToken == tokenOfTargetMethod);
 
 					// TODO: This copying of arrays here is not really performance-friendly
