@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net5.0</TargetFramework>
     <SignAssembly>true</SignAssembly>
-    <AssemblyOriginatorKeyFile>../NewRemoting.snk</AssemblyOriginatorKeyFile>
+    <AssemblyOriginatorKeyFile>../../NewRemoting.snk</AssemblyOriginatorKeyFile>
     <DelaySign>false</DelaySign>
     <PackageId>LeicaGeosystemsAG.NewRemoting</PackageId>
     <NeutralLanguage>en</NeutralLanguage>

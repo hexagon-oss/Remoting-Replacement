@@ -3,8 +3,11 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net5.0-windows</TargetFramework>
-	  <UseWpf>True</UseWpf>
-	  <UseWindowsForms>True</UseWindowsForms>
+    <UseWpf>True</UseWpf>
+	<!-- The project doesn't actualy use these, but this allows loading WPF or Winforms dlls into the process' appdomain -->
+    <UseWindowsForms>True</UseWindowsForms>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>../../NewRemoting.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
 
   <ItemGroup>
