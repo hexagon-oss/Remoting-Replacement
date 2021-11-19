@@ -26,6 +26,26 @@ namespace NewRemoting
 
 		public static void AddService(Type typeOfService, object instance)
 		{
+			if (typeOfService == null)
+			{
+				throw new ArgumentNullException(nameof(typeOfService));
+			}
+
+			if (instance == null)
+			{
+				throw new ArgumentNullException(nameof(instance));
+			}
+
+			if (!Client.IsRemotingCapable(instance))
+			{
+				throw new InvalidOperationException($"Service {instance.GetType()} must derive from MarshalByRefObject");
+			}
+
+			if (!instance.GetType().IsAssignableTo(typeOfService))
+			{
+				throw new InvalidOperationException($"The service of type {instance.GetType()} does not implement {typeOfService}");
+			}
+
 			_serviceDictionary.Add(typeOfService, instance);
 		}
 

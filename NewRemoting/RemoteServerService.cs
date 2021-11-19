@@ -167,5 +167,25 @@ namespace NewRemoting
 		{
 			_server.Terminate(false);
 		}
+
+		public void RegisterServiceOnServer(Type typeToRegister, object instance)
+		{
+			ServiceContainer.AddService(typeToRegister, instance);
+		}
+
+		public void RemoveServiceFromServer(Type typeToUnregister)
+		{
+			ServiceContainer.RemoveService(typeToUnregister);
+		}
+
+		public object QueryServiceFromServer(Type typeToQuery)
+		{
+			return ServiceContainer.GetService(typeToQuery);
+		}
+
+		public T QueryServiceFromServer<T>()
+		{
+			return ServiceContainer.GetService<T>();
+		}
 	}
 }
