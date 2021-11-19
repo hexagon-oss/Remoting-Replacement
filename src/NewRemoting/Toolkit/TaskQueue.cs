@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace NewRemoting.Collections
+namespace NewRemoting.Toolkit
 {
 	/// <summary>
 	/// This class ensures, that all tasks passed to the queue are executed in sequential order

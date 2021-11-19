@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
 
-namespace NewRemoting.Collections
+namespace NewRemoting.Toolkit
 {
 	public interface ITaskQueue
 	{
