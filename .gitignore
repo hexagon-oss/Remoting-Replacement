@@ -1,6 +1,7 @@
 /.vs
+/src/.vs
 bin
 obj
-/*.user
-/RemotingServer/Properties/launchSettings.json
-/RemotingClient/Properties/launchSettings.json
+*.user
+src/RemotingServer/Properties/launchSettings.json
+src/RemotingClient/Properties/launchSettings.json
