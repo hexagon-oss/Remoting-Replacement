@@ -31,4 +31,10 @@
     <ProjectReference Include="..\NewRemoting\NewRemoting.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="paexec.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
