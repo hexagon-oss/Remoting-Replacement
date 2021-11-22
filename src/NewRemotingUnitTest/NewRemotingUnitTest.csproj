@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\NewRemoting\NewRemoting.csproj" />
+    <ProjectReference Include="..\RemotingServer\RemotingServer.csproj" />
     <ProjectReference Include="..\SampleServerClasses\SampleServerClasses.csproj" />
   </ItemGroup>
 

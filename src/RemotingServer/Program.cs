@@ -21,30 +21,35 @@ namespace RemotingServer
 		{
 			var parsed = Parser.Default.ParseArguments<CommandLineOptions>(args);
 			int port = Client.DefaultNetworkPort;
-			if (parsed.Value.Port.HasValue)
+			CommandLineOptions options = null;
+			parsed.WithParsed(r => options = r);
+			if (options != null)
 			{
-				port = parsed.Value.Port.Value;
-			}
+				if (options.Port.HasValue)
+				{
+					port = options.Port.Value;
+				}
 
-			ILogger logger = null;
-			if (parsed.Value.Verbose)
-			{
-				logger = new ConsoleAndDebugLogger("RemotingServer");
-			}
+				ILogger logger = null;
+				if (options.Verbose)
+				{
+					logger = new ConsoleAndDebugLogger("RemotingServer");
+				}
 
-			var server = new Server(port, logger);
-			if (parsed.Value.KillSelf)
-			{
+				var server = new Server(port, logger);
+				if (options.KillSelf)
+				{
+					server.KillProcessWhenChannelDisconnected = true;
+				}
+
+				// Temporary (Need to move the server creation logic to the library)
 				server.KillProcessWhenChannelDisconnected = true;
+
+				server.StartListening();
+				server.WaitForTermination();
+				server.Terminate(false);
+				GC.KeepAlive(server);
 			}
-
-			// Temporary (Need to move the server creation logic to the library)
-			server.KillProcessWhenChannelDisconnected = true;
-
-			server.StartListening();
-			server.WaitForTermination();
-			server.Terminate(false);
-			GC.KeepAlive(server);
 		}
 	}
 }

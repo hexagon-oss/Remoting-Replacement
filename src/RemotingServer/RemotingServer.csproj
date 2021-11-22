@@ -2,18 +2,30 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net5.0-windows</TargetFramework>
-    <UseWpf>True</UseWpf>
-	<!-- The project doesn't actualy use these, but this allows loading WPF or Winforms dlls into the process' appdomain -->
-    <UseWindowsForms>True</UseWindowsForms>
+    <TargetFrameworks>net5.0;net5.0-windows</TargetFrameworks>
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>../../NewRemoting.snk</AssemblyOriginatorKeyFile>
+    <Authors>Leica Geosystems AG</Authors>
+    <Product>NewRemoting</Product>
+    <Description>Standalone remote server exeutable for NewRemoting. Use this package if you want to start RPC servers remotely.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/hexagon-oss/Remoting-Replacement</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/hexagon-oss/Remoting-Replacement</RepositoryUrl>
+    <PackageTags>Remoting; RPC</PackageTags>
+    <NeutralLanguage>en</NeutralLanguage>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+	  <NuspecFile>RemotingServer.nuspec</NuspecFile>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Castle.Core" Version="4.4.1" />
-    <PackageReference Include="CommandLineParser" Version="2.9.0-preview1" />
+    <PackageReference Include="CommandLineParser" Version="2.8.0" />
   </ItemGroup>
+	<PropertyGroup Condition="$(TargetFramework.Contains('windows'))">
+		<!-- The project doesn't actualy use these, but this allows loading WPF or Winforms dlls into the process' appdomain -->
+		<UseWpf>True</UseWpf>
+		<UseWindowsForms>True</UseWindowsForms>
+	</PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\NewRemoting\NewRemoting.csproj" />

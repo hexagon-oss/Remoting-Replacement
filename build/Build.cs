@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Nuke.Common;
 using Nuke.Common.CI;
@@ -10,6 +11,7 @@ using Nuke.Common.ProjectModel;
 using Nuke.Common.Tooling;
 using Nuke.Common.Tools.DotNet;
 using Nuke.Common.Tools.GitVersion;
+using Nuke.Common.Tools.NuGet;
 using Nuke.Common.Tools.OpenCover;
 using Nuke.Common.Tools.ReportGenerator;
 using Nuke.Common.Utilities.Collections;
@@ -17,6 +19,7 @@ using static Nuke.Common.EnvironmentInfo;
 using static Nuke.Common.IO.FileSystemTasks;
 using static Nuke.Common.IO.PathConstruction;
 using static Nuke.Common.Tools.DotNet.DotNetTasks;
+using static Nuke.Common.Tools.NuGet.NuGetTasks;
 
 [CheckBuildProjectConfigurations]
 [ShutdownDotNetAfterServerBuild]
@@ -109,4 +112,53 @@ class Build : NukeBuild
 			    .When(doPublishCoverageResultToTeamCity, x => x.AddReportTypes(ReportTypes.TeamCitySummary))
 			    .SetTargetDirectory(BinDirectory / "CoverageReport"));
         });
+
+    Target PublishExecutable => _ => _
+	    .DependsOn(Compile)
+	    .Executes(() =>
+	    {
+		    DotNetPublish(s => s
+			    .SetNoBuild(true)
+			    .SetProject(SourceDirectory / "RemotingServer" / "RemotingServer.csproj")
+			    .SetFramework("net5.0-windows")
+		    );
+	    });
+
+    Target Pack => _ => _
+	    .DependsOn(UnitTest)
+	    .DependsOn(PublishExecutable)
+	    .Executes(() =>
+	    {
+		    DotNetPack(s => s
+			    .SetNoBuild(true)
+			    .SetNoRestore(true)
+			    .SetProject(SourceDirectory / "NewRemoting" / "NewRemoting.csproj")
+			    .SetConfiguration(Configuration)
+			    .SetAssemblyVersion(GitVersion.AssemblySemVer)
+			    .SetFileVersion(GitVersion.AssemblySemFileVer)
+			    .SetVersion(GitVersion.SemVer)
+			    .SetInformationalVersion(GitVersion.InformationalVersion));
+
+		    var publishDir = SourceDirectory / "RemotingServer" / "bin" / Configuration / "net5.0-windows" / "publish";
+
+		    NuGetPack(s => s
+				    .SetBasePath(publishDir)
+				    .SetBuild(false)
+				    .SetVersion(GitVersion.SemVer)
+				    .SetConfiguration(Configuration)
+				    .SetTargetPath(SourceDirectory / "RemotingServer" / "RemotingServer.nuspec")
+				    .SetOutputDirectory(ArtifactsDirectory)
+			    );
+
+			//DotNetPack(s => s
+			//    .SetNoBuild(true)
+			//	.SetAssemblyVersion(GitVersion.AssemblySemVer)
+			//    .SetFileVersion(GitVersion.AssemblySemFileVer)
+			//    .SetVersion(GitVersion.SemVer)
+			//	.SetProject(SourceDirectory / "RemotingServer" / "RemotingServer.csproj")
+			//    .SetConfiguration(Configuration)
+			//    .SetProperty("NuspecBasePath", publishDir)
+			//    .SetProperty("PackageVersion", GitVersion.SemVer)
+		    // );
+	    });
 }

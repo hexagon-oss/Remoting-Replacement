@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+    <metadata>
+        <!-- Required elements-->
+        <id>LeicaGeosystemsAG.NewRemoting.RemotingServer</id>
+        <version>$Version$</version>
+        <description>Standalone remote server executable for NewRemoting. Use this package if you want to start RPC servers remotely.</description>
+        <authors>Leica Geosystems AG</authors>
+
+        <!-- Optional elements -->
+        <license type="expression">MIT</license>
+        <dependencies>
+            <dependency id="LeicaGeosystemsAG.NewRemoting" version="$Version$"/>
+        </dependencies>
+    </metadata>
+    <!-- Optional 'files' node -->
+    <files>
+        <file src="RemotingServer.*" target="tools" />
+    </files>
+</package>
