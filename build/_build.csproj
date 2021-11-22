@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <PackageDownload Include="OpenCover" Version="[4.7.1221]" />
+    <PackageDownload Include="ReportGenerator" Version="[5.0.0]" />
     <PackageReference Include="Nuke.Common" Version="5.3.0" />
     <PackageDownload Include="GitVersion.Tool" Version="[5.6.7]" />
   </ItemGroup>

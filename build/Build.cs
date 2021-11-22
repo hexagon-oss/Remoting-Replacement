@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using Nuke.Common;
 using Nuke.Common.CI;
+using Nuke.Common.CI.TeamCity;
 using Nuke.Common.Execution;
 using Nuke.Common.Git;
 using Nuke.Common.IO;
@@ -10,6 +11,7 @@ using Nuke.Common.Tooling;
 using Nuke.Common.Tools.DotNet;
 using Nuke.Common.Tools.GitVersion;
 using Nuke.Common.Tools.OpenCover;
+using Nuke.Common.Tools.ReportGenerator;
 using Nuke.Common.Utilities.Collections;
 using static Nuke.Common.EnvironmentInfo;
 using static Nuke.Common.IO.FileSystemTasks;
@@ -91,12 +93,20 @@ class Build : NukeBuild
 			    .AddExcludeByAttributes(typeof(System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverageAttribute).FullName)
 			    .AddExcludeByAttributes(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute).FullName)
 			    .AddExcludeByAttributes(typeof(System.CodeDom.Compiler.GeneratedCodeAttribute).FullName)
-			    // .AddFilters("+[*]* -[*.UnitTest]* -[nunit.*]* -[NUnit3.*]* -[xunit.*]* -[Moq]* -[Rhino.Mocks]*")
+			    .AddFilters("+[*]* -[*.UnitTest]* -[nunit.*]* -[NUnit3.*]* -[xunit.*]* -[Moq]* -[Rhino.Mocks]*")
 			    .SetRegistration(RegistrationType.User)
 			    .SetMaximumVisitCount(100)
 			    .SetTargetExitCodeOffset(0)
 			    .SetOutput(coverageResult)
 			    .SetProcessWorkingDirectory(BinDirectory)
 			    .CombineWith(settings, (oc, ts) => oc.SetTargetSettings(ts)));
+
+		    var doPublishCoverageResultToTeamCity = TeamCity.Instance != null && Configuration == Configuration.Debug;
+		    ReportGeneratorTasks.ReportGenerator(r => r
+			    .SetFramework("net5.0")
+			    .AddReports(coverageResult)
+			    .AddReportTypes(ReportTypes.XmlSummary, ReportTypes.Html)
+			    .When(doPublishCoverageResultToTeamCity, x => x.AddReportTypes(ReportTypes.TeamCitySummary))
+			    .SetTargetDirectory(BinDirectory / "CoverageReport"));
         });
 }
