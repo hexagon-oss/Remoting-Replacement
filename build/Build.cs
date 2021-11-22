@@ -39,7 +39,7 @@ class Build : NukeBuild
     AbsolutePath SourceDirectory => RootDirectory / "src";
     AbsolutePath ArtifactsDirectory => RootDirectory / "artifacts";
 
-    AbsolutePath BinDirectory => RootDirectory / "bin";
+    AbsolutePath BinDirectory => RootDirectory / "bin" / "AnyCPU"  / Configuration ;
 
     Target Clean => _ => _
         .Before(Restore)
@@ -91,7 +91,7 @@ class Build : NukeBuild
 			    .AddExcludeByAttributes(typeof(System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverageAttribute).FullName)
 			    .AddExcludeByAttributes(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute).FullName)
 			    .AddExcludeByAttributes(typeof(System.CodeDom.Compiler.GeneratedCodeAttribute).FullName)
-			    .AddFilters("+[*]* -[*.UnitTest]* -[nunit.*]* -[NUnit3.*]* -[xunit.*]* -[Moq]* -[Rhino.Mocks]*")
+			    // .AddFilters("+[*]* -[*.UnitTest]* -[nunit.*]* -[NUnit3.*]* -[xunit.*]* -[Moq]* -[Rhino.Mocks]*")
 			    .SetRegistration(RegistrationType.User)
 			    .SetMaximumVisitCount(100)
 			    .SetTargetExitCodeOffset(0)

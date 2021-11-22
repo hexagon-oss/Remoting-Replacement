@@ -6,3 +6,4 @@ obj
 src/RemotingServer/Properties/launchSettings.json
 src/RemotingClient/Properties/launchSettings.json
 /.nuke/temp
+/*.xml
