@@ -15,6 +15,7 @@
     <NeutralLanguage>en</NeutralLanguage>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
 	  <NuspecFile>RemotingServer.nuspec</NuspecFile>
+	  <ApplicationIcon>RemoteServiceBinding.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

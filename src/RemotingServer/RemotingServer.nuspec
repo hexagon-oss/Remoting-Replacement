@@ -9,6 +9,7 @@
 
         <!-- Optional elements -->
         <license type="expression">MIT</license>
+        <icon>images\RemotingServer.png</icon>
         <dependencies>
             <dependency id="LeicaGeosystemsAG.NewRemoting" version="$Version$"/>
         </dependencies>
@@ -18,5 +19,6 @@
         <file src="RemotingServer.*" target="tools" />
         <file src="..\paexec.exe" target="tools" />
         <file src="..\..\..\..\LeicaGeosystemsAG.NewRemoting.RemotingServer.targets" target="build" />
+        <file src="..\..\..\..\RemotingServer.png" target="images" />
     </files>
 </package>
