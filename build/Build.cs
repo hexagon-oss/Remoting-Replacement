@@ -9,6 +9,7 @@ using Nuke.Common.ProjectModel;
 using Nuke.Common.Tooling;
 using Nuke.Common.Tools.DotNet;
 using Nuke.Common.Tools.GitVersion;
+using Nuke.Common.Tools.OpenCover;
 using Nuke.Common.Utilities.Collections;
 using static Nuke.Common.EnvironmentInfo;
 using static Nuke.Common.IO.FileSystemTasks;
@@ -32,10 +33,13 @@ class Build : NukeBuild
 
     [Solution] readonly Solution Solution;
     [GitRepository] readonly GitRepository GitRepository;
-    [GitVersion] readonly GitVersion GitVersion;
+    [GitVersion(Framework = "net5.0", NoFetch = true)]
+    public GitVersion GitVersion;
 
     AbsolutePath SourceDirectory => RootDirectory / "src";
     AbsolutePath ArtifactsDirectory => RootDirectory / "artifacts";
+
+    AbsolutePath BinDirectory => RootDirectory / "bin";
 
     Target Clean => _ => _
         .Before(Restore)
@@ -65,4 +69,34 @@ class Build : NukeBuild
                 .EnableNoRestore());
         });
 
+    Target UnitTest => _ => _
+	    .DependsOn(Compile)
+	    .Executes(() =>
+	    {
+		    var projectsToCheck = Solution.GetProjects("*UnitTest").OrderBy(x => x.Name).ToList();
+            ToolSettings[] settings = null;
+		    {
+			    settings = new DotNetTestSettings()
+				    .SetConfiguration(Configuration)
+				    .EnableNoBuild()
+				    .EnableNoRestore()
+				    .SetResultsDirectory(RootDirectory / string.Concat("TestResult.UnitTest.", Platform, ".", Configuration, ".", "net5.0"))
+				    .SetOutput(BinDirectory)
+				    .SetProcessWorkingDirectory(BinDirectory)
+				    .CombineWith(projectsToCheck, (cs, v) => cs.SetProjectFile(v));
+		    }
+
+		    var coverageResult = RootDirectory / string.Concat("Coverage.", Platform, ".", Configuration, ".", "net5.0", ".xml");
+		    OpenCoverTasks.OpenCover(c => c
+			    .AddExcludeByAttributes(typeof(System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverageAttribute).FullName)
+			    .AddExcludeByAttributes(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute).FullName)
+			    .AddExcludeByAttributes(typeof(System.CodeDom.Compiler.GeneratedCodeAttribute).FullName)
+			    .AddFilters("+[*]* -[*.UnitTest]* -[nunit.*]* -[NUnit3.*]* -[xunit.*]* -[Moq]* -[Rhino.Mocks]*")
+			    .SetRegistration(RegistrationType.User)
+			    .SetMaximumVisitCount(100)
+			    .SetTargetExitCodeOffset(0)
+			    .SetOutput(coverageResult)
+			    .SetProcessWorkingDirectory(BinDirectory)
+			    .CombineWith(settings, (oc, ts) => oc.SetTargetSettings(ts)));
+        });
 }

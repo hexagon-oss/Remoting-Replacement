@@ -1,0 +1,35 @@
+# current development version which is first version of next release branched away from master
+next-version: 1.0.0
+
+# configuration for all branches
+assembly-versioning-scheme: MajorMinorPatchTag
+assembly-file-versioning-scheme: MajorMinorPatchTag
+mode: ContinuousDeployment
+legacy-semver-padding: 5
+build-metadata-padding: 5
+commits-since-version-source-padding: 5
+commit-message-incrementing: Disabled
+
+branches:
+  master:
+    regex: main
+    tag: alpha
+
+  pull-request:
+    regex: (pull|pull\-requests|pr)[/-]
+    tag: -pr
+    source-branches: ['main']
+
+  # Official product releases
+  release:
+    regex: releases/[Vv]
+    tag: beta
+    # Increment patch version after a release
+    increment: Patch
+    source-branches: ['main']
+    
+  feature:
+    regex: ^features?[/-]
+    tag: --w.{BranchName}
+    source-branches: ['main']
+
