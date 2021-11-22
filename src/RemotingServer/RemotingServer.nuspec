@@ -16,5 +16,6 @@
     <!-- Optional 'files' node -->
     <files>
         <file src="RemotingServer.*" target="tools" />
+        <file src="..\..\..\..\LeicaGeosystemsAG.NewRemoting.RemotingServer.targets" target="build" />
     </files>
 </package>

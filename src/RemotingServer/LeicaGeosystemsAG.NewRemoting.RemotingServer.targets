@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Target Name="CopyFilesToTargetDirectory_LeicaGeosystemsAG_NewRemoting_RemotingServer" BeforeTargets="Build">
+    <ItemGroup>
+			<FilesForTargetDirectory_LeicaGeosystemsAG_NewRemoting_RemotingServer Include="$(MSBuildThisFileDirectory)\..\tools\**\*.*" />
+    </ItemGroup>
+    <PropertyGroup>
+			<TargetDirectory_LeicaGeosystemsAG_NewRemoting_RemotingServer Condition="'$(TargetDirectory_LeicaGeosystemsAG_NewRemoting_RemotingServer)' == ''">$(TargetDir)</TargetDirectory_LeicaGeosystemsAG_NewRemoting_RemotingServer>
+    </PropertyGroup>
+    <Copy SourceFiles="@(FilesForTargetDirectory_LeicaGeosystemsAG_NewRemoting_RemotingServer)" 
+          DestinationFolder="$(TargetDirectory_LeicaGeosystemsAG_NewRemoting_RemotingServer)\%(RecursiveDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
+</Project>
