@@ -145,12 +145,12 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
-		public void ThrowsExceptionIfAttemptingToRegisterPrivateMethodAsEventSink()
+		public void DoesNotThrowExceptionIfAttemptingToRegisterPrivateMethodAsEventSink()
 		{
 			var server = CreateRemoteInstance();
 			var objectWithEvent = server.GetInterface<IMyComponentInterface>();
 			_dataReceived = null;
-			Assert.Throws<RemotingException>(() => objectWithEvent.TimeChanged += ObjectWithEventOnTimeChangedPrivate);
+			Assert.DoesNotThrow(() => objectWithEvent.TimeChanged += ObjectWithEventOnTimeChangedPrivate);
 		}
 
 		[Test]
