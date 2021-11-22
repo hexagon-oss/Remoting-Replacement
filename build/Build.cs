@@ -43,9 +43,7 @@ class Build : NukeBuild
 
     AbsolutePath SourceDirectory => RootDirectory / "src";
     AbsolutePath ArtifactsDirectory => RootDirectory / "artifacts";
-
-    AbsolutePath BinDirectory => RootDirectory / "bin" / "AnyCPU"  / Configuration ;
-
+	
     Target Clean => _ => _
         .Before(Restore)
         .Executes(() =>
@@ -86,8 +84,6 @@ class Build : NukeBuild
 				    .EnableNoBuild()
 				    .EnableNoRestore()
 				    .SetResultsDirectory(RootDirectory / string.Concat("TestResult.UnitTest.", Platform, ".", Configuration, ".", "net5.0"))
-				    .SetOutput(BinDirectory)
-				    .SetProcessWorkingDirectory(BinDirectory)
 				    .CombineWith(projectsToCheck, (cs, v) => cs.SetProjectFile(v));
 		    }
 
@@ -101,7 +97,6 @@ class Build : NukeBuild
 			    .SetMaximumVisitCount(100)
 			    .SetTargetExitCodeOffset(0)
 			    .SetOutput(coverageResult)
-			    .SetProcessWorkingDirectory(BinDirectory)
 			    .CombineWith(settings, (oc, ts) => oc.SetTargetSettings(ts)));
 
 		    var doPublishCoverageResultToTeamCity = TeamCity.Instance != null && Configuration == Configuration.Debug;
@@ -110,7 +105,7 @@ class Build : NukeBuild
 			    .AddReports(coverageResult)
 			    .AddReportTypes(ReportTypes.XmlSummary, ReportTypes.Html)
 			    .When(doPublishCoverageResultToTeamCity, x => x.AddReportTypes(ReportTypes.TeamCitySummary))
-			    .SetTargetDirectory(BinDirectory / "CoverageReport"));
+			    .SetTargetDirectory(ArtifactsDirectory / "CoverageReport"));
         });
 
     Target PublishExecutable => _ => _
