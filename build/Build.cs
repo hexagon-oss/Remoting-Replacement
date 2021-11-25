@@ -68,8 +68,7 @@ class Build : NukeBuild
                 .SetConfiguration(Configuration)
                 .SetAssemblyVersion(GitVersion.AssemblySemVer)
                 .SetFileVersion(GitVersion.AssemblySemFileVer)
-                .SetInformationalVersion(GitVersion.InformationalVersion)
-                .EnableNoRestore());
+                .SetInformationalVersion(GitVersion.InformationalVersion));
         });
 
     Target UnitTest => _ => _
@@ -113,7 +112,6 @@ class Build : NukeBuild
 	    .Executes(() =>
 	    {
 		    DotNetPublish(s => s
-			    .SetNoBuild(true)
 			    .SetProject(SourceDirectory / "RemotingServer" / "RemotingServer.csproj")
 			    .SetFramework("net5.0-windows")
 		    );
