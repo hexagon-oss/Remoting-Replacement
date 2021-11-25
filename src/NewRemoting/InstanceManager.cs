@@ -214,11 +214,6 @@ namespace NewRemoting
 					}
 
 					var ret = _instanceWeakReference?.Target;
-					//// Enable when TryGetObjectId is no more relying on this.
-					////if (ret == null)
-					////{
-					////	throw new RemotingException($"Unable to recover instance of object id {Identifier}", RemotingExceptionKind.ProxyManagementError);
-					////}
 
 					return ret;
 				}
@@ -257,7 +252,7 @@ namespace NewRemoting
 						return instance;
 					}
 
-					throw new RemotingException("Unknown type found in argument stream", RemotingExceptionKind.ProxyManagementError);
+					throw new RemotingException("Unknown type found in argument stream");
 			}
 
 			if (TryGetObjectFromId(objectId, out instance))

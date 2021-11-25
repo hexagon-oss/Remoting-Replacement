@@ -104,7 +104,7 @@ namespace NewRemoting
 
 				if (me.IsStatic)
 				{
-					throw new RemotingException("Remote-calling a static method? No.", RemotingExceptionKind.UnsupportedOperation);
+					throw new RemotingException("Remote-calling a static method? No.");
 				}
 
 				if (!_messageHandler.InstanceManager.TryGetObjectId(invocation.Proxy, out var remoteInstanceId))
@@ -120,7 +120,7 @@ namespace NewRemoting
 					catch (NotImplementedException x)
 					{
 						_logger.LogError(x, "Unable to proceed on suspected class ctor. Assuming disconnected interface instead");
-						throw new RemotingException("Unable to call method on remote object. Instance not found.", RemotingExceptionKind.ProxyManagementError);
+						throw new RemotingException("Unable to call method on remote object. Instance not found.");
 					}
 
 					_pendingInvocations.TryRemove(thisSeq, out _);
@@ -143,7 +143,7 @@ namespace NewRemoting
 				if (me.ContainsGenericParameters)
 				{
 					// This should never happen (or the compiler has done something wrong)
-					throw new RemotingException("Cannot call methods with open generic arguments", RemotingExceptionKind.UnsupportedOperation);
+					throw new RemotingException("Cannot call methods with open generic arguments");
 				}
 
 				var genericArgs = me.GetGenericArguments();
@@ -153,7 +153,7 @@ namespace NewRemoting
 					string arg = genericType.AssemblyQualifiedName;
 					if (arg == null)
 					{
-						throw new RemotingException("Unresolved generic type or some other undefined case", RemotingExceptionKind.UnsupportedOperation);
+						throw new RemotingException("Unresolved generic type or some other undefined case");
 					}
 
 					writer.Write(arg);
@@ -182,8 +182,7 @@ namespace NewRemoting
 			}
 			catch (IOException x)
 			{
-				throw new RemotingException("Error sending data to server. Link down?",
-					RemotingExceptionKind.CommunicationError, x);
+				throw new RemotingException("Error sending data to server. Link down?", x);
 			}
 		}
 
@@ -241,7 +240,7 @@ namespace NewRemoting
 					// This read is blocking
 					if (!hdReturnValue.ReadFrom(_reader))
 					{
-						throw new RemotingException("Unexpected reply or stream out of sync", RemotingExceptionKind.ProtocolError);
+						throw new RemotingException("Unexpected reply or stream out of sync");
 					}
 
 					_logger.Log(LogLevel.Debug, $"{ThisSideInstanceId}: Decoding message {hdReturnValue.Sequence} of type {hdReturnValue.Function}");
@@ -251,8 +250,7 @@ namespace NewRemoting
 						// Quit here.
 						foreach (var inv in _pendingInvocations)
 						{
-							inv.Value.Exception = new RemotingException("Server terminated itself. Call aborted",
-								RemotingExceptionKind.CommunicationError);
+							inv.Value.Exception = new RemotingException("Server terminated itself. Call aborted");
 							inv.Value.Set();
 						}
 
@@ -263,7 +261,7 @@ namespace NewRemoting
 
 					if (hdReturnValue.Function != RemotingFunctionType.MethodReply && hdReturnValue.Function != RemotingFunctionType.ExceptionReturn)
 					{
-						throw new RemotingException("Only replies or exceptions should end here", RemotingExceptionKind.ProtocolError);
+						throw new RemotingException("Only replies or exceptions should end here");
 					}
 
 					if (_pendingInvocations.TryRemove(hdReturnValue.Sequence, out var ctx))
@@ -287,7 +285,7 @@ namespace NewRemoting
 					}
 					else
 					{
-						throw new RemotingException($"There's no pending call for sequence id {hdReturnValue.Sequence}", RemotingExceptionKind.ProtocolError);
+						throw new RemotingException($"There's no pending call for sequence id {hdReturnValue.Sequence}");
 					}
 				}
 			}
@@ -368,15 +366,13 @@ namespace NewRemoting
 				if (IsInTerminationMethod())
 				{
 					// Report, but don't throw (special handling by parent)
-					Exception = new RemotingException("Error executing remote call: Link is going down",
-						RemotingExceptionKind.CommunicationError);
+					Exception = new RemotingException("Error executing remote call: Link is going down");
 					return;
 				}
 
 				if (_externalTerminator.IsCancellationRequested)
 				{
-					throw new RemotingException("Error executing remote call: Link is going down",
-						RemotingExceptionKind.CommunicationError);
+					throw new RemotingException("Error executing remote call: Link is going down");
 				}
 			}
 

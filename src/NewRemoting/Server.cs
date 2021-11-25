@@ -112,6 +112,9 @@ namespace NewRemoting
 			_formatter = _formatterFactory.CreateFormatter();
 			_proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
 			_serverInterceptorForCallbacks = new Dictionary<string, ClientSideInterceptor>() { { localInterceptor.OtherSideInstanceId, localInterceptor } };
+
+			// We need the resolver also on the client side, since the server might request the client to load an assembly
+			AppDomain.CurrentDomain.AssemblyResolve += AssemblyResolver;
 		}
 
 		/// <summary>
@@ -282,7 +285,7 @@ namespace NewRemoting
 						var task = openTasks[index];
 						if (task.Exception != null)
 						{
-							throw new RemotingException("Unhandled task exception in remote server", RemotingExceptionKind.UnsupportedOperation);
+							throw new RemotingException("Unhandled task exception in remote server");
 						}
 
 						if (task.IsCompleted)
@@ -295,7 +298,7 @@ namespace NewRemoting
 					RemotingCallHeader hd = default;
 					if (!hd.ReadFrom(r))
 					{
-						throw new RemotingException("Incorrect data stream - sync lost", RemotingExceptionKind.ProtocolError);
+						throw new RemotingException("Incorrect data stream - sync lost");
 					}
 
 					if (ExecuteCommand(hd, r, out bool clientDisconnecting))
@@ -330,7 +333,7 @@ namespace NewRemoting
 						// CreateInstance call, instance is just a type in this case
 						if (methodGenericArgs != 0)
 						{
-							throw new RemotingException("Constructors cannot have generic arguments", RemotingExceptionKind.UnsupportedOperation);
+							throw new RemotingException("Constructors cannot have generic arguments");
 						}
 
 						Type t = null;
@@ -361,7 +364,7 @@ namespace NewRemoting
 						// CreateInstance call, instance is just a type in this case
 						if (methodGenericArgs != 0)
 						{
-							throw new RemotingException("Constructors cannot have generic arguments", RemotingExceptionKind.UnsupportedOperation);
+							throw new RemotingException("Constructors cannot have generic arguments");
 						}
 
 						int numArguments = r.ReadInt32();
@@ -433,7 +436,7 @@ namespace NewRemoting
 
 					if (me == null)
 					{
-						throw new RemotingException($"No such method: {methodNo}", RemotingExceptionKind.ProxyManagementError);
+						throw new RemotingException($"No such method: {methodNo}");
 					}
 
 					if (methodGenericArgs > 0)

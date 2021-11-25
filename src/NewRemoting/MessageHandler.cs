@@ -106,7 +106,7 @@ namespace NewRemoting
 			{
 				if (del.Method.IsStatic)
 				{
-					throw new RemotingException("Can only register instance methods as delegate targets", RemotingExceptionKind.UnsupportedOperation);
+					throw new RemotingException("Can only register instance methods as delegate targets");
 				}
 
 				// The argument is a function pointer (typically the argument to a add_ or remove_ event)
@@ -132,7 +132,7 @@ namespace NewRemoting
 				// Proxies are never serializable
 				if (!_instanceManager.TryGetObjectId(data, out string objectId))
 				{
-					throw new RemotingException("A proxy has no existing reference", RemotingExceptionKind.ProxyManagementError);
+					throw new RemotingException("A proxy has no existing reference");
 				}
 
 				w.Write((int)RemotingReferenceType.RemoteReference);
@@ -182,7 +182,7 @@ namespace NewRemoting
 #pragma warning disable 618
 					_formatter.Serialize(ms, data);
 #pragma warning restore 618
-					throw new RemotingException("Should not have serialized a dynamic proxy with its internal name", RemotingExceptionKind.UnsupportedOperation);
+					throw new RemotingException("Should not have serialized a dynamic proxy with its internal name");
 				}
 			}
 
@@ -454,7 +454,7 @@ namespace NewRemoting
 				}
 
 				default:
-					throw new RemotingException("Unknown argument type", RemotingExceptionKind.UnsupportedOperation);
+					throw new RemotingException("Unknown argument type");
 			}
 		}
 

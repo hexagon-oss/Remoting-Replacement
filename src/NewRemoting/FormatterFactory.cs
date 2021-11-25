@@ -69,7 +69,7 @@ namespace NewRemoting
 					// This should have an unit test, but I have not yet found out what test code causes this situation
 					if (!_instanceManager.TryGetObjectId(obj, out objectId))
 					{
-						throw new RemotingException("Couldn't find matching objectId, although should be there", RemotingExceptionKind.ProxyManagementError);
+						throw new RemotingException("Couldn't find matching objectId, although should be there");
 					}
 
 					var originalType = ProxyUtil.GetUnproxiedType(obj);

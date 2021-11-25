@@ -209,8 +209,7 @@ namespace NewRemoting
 
 			if (!typeOfInstance.IsAssignableTo(typeof(MarshalByRefObject)))
 			{
-				throw new RemotingException("Can only create instances of type MarshalByRefObject remotely",
-					RemotingExceptionKind.UnsupportedOperation);
+				throw new RemotingException("Can only create instances of type MarshalByRefObject remotely");
 			}
 
 			Start();
@@ -225,7 +224,7 @@ namespace NewRemoting
 
 			if (ctorType == null)
 			{
-				throw new RemotingException($"No public default constructor found on type {typeOfInstance}.", RemotingExceptionKind.UnsupportedOperation);
+				throw new RemotingException($"No public default constructor found on type {typeOfInstance}.");
 			}
 
 			ManualInvocation dummyInvocation = new ManualInvocation(ctorType, args);

@@ -459,7 +459,7 @@ namespace NewRemotingUnitTest
 			// ReSharper disable once MemberCanBeMadeStatic.Local
 			public void ThrowsRemotingException(string message)
 			{
-				throw new RemotingException(message, RemotingExceptionKind.CommunicationError);
+				throw new RemotingException(message);
 			}
 		}
 
