@@ -225,7 +225,7 @@ namespace NewRemoting
 
 			if (exitCode != 0 || string.IsNullOrEmpty(workingDirectory))
 			{
-				throw new RemoteAccessException(FormattableString.Invariant($"Could not create or read working directory. ErrorCode: {exitCode}, WorkingDir: '{workingDirectory}'"));
+				throw new RemotingException(FormattableString.Invariant($"Could not create or read working directory. ErrorCode: {exitCode}, WorkingDir: '{workingDirectory}'"));
 			}
 
 			// Launch remote loader
@@ -327,7 +327,7 @@ namespace NewRemoting
 							Logger.LogError(errorMsg);
 
 							process.Kill(); // if process is still running, we didn't receive the process exit event - this should never happen but just in case we terminate the remote process
-							throw new RemoteAccessException(errorMsg);
+							throw new RemotingException(errorMsg);
 						}
 
 						int errorCode = process.ExitCode;
@@ -339,7 +339,7 @@ namespace NewRemoting
 						{
 							var errorMsg = string.Format(CultureInfo.InvariantCulture, "Could not launch remote loader on machine {0} Error Code: {1} Arguments {2}", RemoteHost, errorCode, arguments);
 							Logger.LogError(errorMsg);
-							throw new RemoteAccessException(errorMsg);
+							throw new RemotingException(errorMsg);
 						}
 					}
 					finally

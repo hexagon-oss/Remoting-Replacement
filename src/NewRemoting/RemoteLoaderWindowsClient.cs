@@ -143,7 +143,7 @@ namespace NewRemoting
 			Thread.Sleep(1000);
 			if (process.HasExited)
 			{
-				throw new IOException($"Process died during startup. Exit code {process.ExitCode}");
+				throw new RemotingException($"Process died during startup. Exit code {process.ExitCode}");
 			}
 
 			return true;
@@ -163,7 +163,7 @@ namespace NewRemoting
 			Logger.LogInformation("Got interface to {0}", _remoteLoader.GetType().Name);
 			if (_remoteLoader == null)
 			{
-				throw new RemoteAccessException("Could not connect to remote loader interface");
+				throw new RemotingException("Could not connect to remote loader interface");
 			}
 
 			Stopwatch sw = Stopwatch.StartNew();
