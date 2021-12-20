@@ -165,8 +165,12 @@ namespace NewRemoting
 #pragma warning restore 618
 			w.Write((int)RemotingReferenceType.SerializedItem);
 			w.Write((int)ms.Length);
-			// The following is for testing purposes only (slow!)
 			var array = ms.ToArray();
+
+			/*
+			// The following is for testing purposes only (slow!)
+			// It tests that the serialized code doesn't contain any serialized proxies. This has false positives when
+			// copying files from/to a remote endpoint, because dlls may contain the requested string.
 			byte[] compare = Encoding.ASCII.GetBytes("DynamicProxyGenAss");
 			for (int i = 0; i < array.Length; i++)
 			{
@@ -185,6 +189,7 @@ namespace NewRemoting
 					throw new RemotingException("Should not have serialized a dynamic proxy with its internal name");
 				}
 			}
+			*/
 
 			w.Write(array, 0, (int)ms.Length);
 		}
