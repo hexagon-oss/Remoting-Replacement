@@ -1,0 +1,8 @@
+RemotingServer.exe
+Castle.Core.dll
+CommandLine.dll
+Microsoft.Extensions.Logging.Abstractions.dll
+NewRemoting.dll
+RemotingServer.deps.json
+RemotingServer.dll
+RemotingServer.runtimeconfig.json
