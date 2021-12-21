@@ -280,8 +280,10 @@ namespace NewRemoting
 				// We can attempt to create a class proxy if we have ctor arguments and the type is not sealed
 				instance = ProxyGenerator.CreateClassProxy(type, interfaces, ProxyGenerationOptions.Default, invocation.Arguments, interceptor);
 			}
-			else if ((type.IsSealed || !MessageHandler.HasDefaultCtor(type)) && interfaces.Length > 0)
+			else if ((type.IsSealed || !MessageHandler.HasDefaultCtor(type) || typeOfArgument == typeof(object)) && interfaces.Length > 0)
 			{
+				// If the type is sealed or has no default ctor, we need to create an interface proxy, even if the target type is not an interface and may therefore not match.
+				// If the target type is object, we also try an interface proxy instead, since everything should be convertible to object.
 				_logger.Log(LogLevel.Debug, $"Create interface proxy as backup for main type {type} with {interfaces[0]}");
 				if (type.IsAssignableTo(typeof(Stream)))
 				{
