@@ -91,7 +91,7 @@ namespace NewRemoting
 		/// <param name="content">The payload</param>
 		public virtual void UploadFile(string relativePath, byte[] hash, Stream content)
 		{
-			// Create desination path for this system. We use current assembly path as root
+			// Create destination path for this system. We use current assembly path as root
 			var dest = Path.Combine(_root.FullName, relativePath);
 			var dir = new DirectoryInfo(Path.GetDirectoryName(dest));
 

@@ -14,6 +14,10 @@ using Castle.DynamicProxy;
 
 namespace NewRemoting
 {
+	/// <summary>
+	/// This class is responsible for encoding and decoding remote calls.
+	/// It encodes the arguments when invoking a remote method and decodes them again on the server side.
+	/// </summary>
 	internal class MessageHandler
 	{
 		private readonly InstanceManager _instanceManager;
@@ -44,6 +48,13 @@ namespace NewRemoting
 			return ctor != null;
 		}
 
+		/// <summary>
+		/// Write the given object to the target stream.
+		/// When it is a type that shall be transferred by value, it is serialized, otherwise a reference is added to the stream.
+		/// That reference is then converted to a proxy instance on the other side.
+		/// </summary>
+		/// <param name="w">The data sink</param>
+		/// <param name="data">The object to write</param>
 		public void WriteArgumentToStream(BinaryWriter w, object data)
 		{
 			if (!_initialized)
@@ -60,13 +71,14 @@ namespace NewRemoting
 			Type t = data.GetType();
 			if (data is Type type)
 			{
+				// System.Type (and arrays of that, see below) need special handling, because it is not serializable nor Marshal-By-Ref, but still
+				// has an exact match on the remote side.
 				w.Write((int)RemotingReferenceType.InstanceOfSystemType);
 				w.Write(type.AssemblyQualifiedName);
 			}
-
-			// IPAddress is not serializable, even though it is actually trivially-serializable
 			else if (data is IPAddress address)
 			{
+				// IPAddress is not serializable, even though it is actually trivially-serializable
 				w.Write((int)RemotingReferenceType.IpAddress);
 				string s = address.ToString();
 				w.Write(s);
