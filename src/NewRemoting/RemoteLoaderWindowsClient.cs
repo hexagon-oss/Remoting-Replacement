@@ -12,7 +12,7 @@ namespace NewRemoting
 	public class RemoteLoaderWindowsClient : PaExecClient, IRemoteLoaderClient
 	{
 		public const string REMOTELOADER_EXECUTABLE = "RemotingServer.exe";
-		private const string REMOTELOADER_DIRECTORY = @"%temp%\RemoteLoader";
+		private const string REMOTELOADER_DIRECTORY = @"%temp%\RemotingServer";
 		private const string REMOTELOADER_DEPENDENCIES_FILENAME = REMOTELOADER_EXECUTABLE + ".dependencies.txt";
 
 		private readonly Func<FileInfo, bool> _shouldFileBeUploadedFunc;
@@ -152,7 +152,7 @@ namespace NewRemoting
 		/// <exception cref="RemoteAccessException">Thrown if connection to remote loader fails</exception>
 		public void Connect(CancellationToken externalToken)
 		{
-			Logger.LogInformation("Connecting RemoteLoader");
+			Logger.LogInformation("Connecting to RemotingServer");
 
 			var isRemoteHostOnLocalMachine = NetworkUtil.IsLocalIpAddress(RemoteHost);
 
