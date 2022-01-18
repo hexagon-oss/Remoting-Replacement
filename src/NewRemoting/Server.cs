@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -13,6 +14,7 @@ using System.Runtime.Loader;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Castle.Components.DictionaryAdapter;
@@ -34,6 +36,7 @@ namespace NewRemoting
 	public sealed class Server : IDisposable
 	{
 		public const string ServerExecutableName = "RemotingServer.exe";
+		private const string RuntimeVersionRegex = "(\\d+\\.\\d)";
 
 		private readonly IFormatter _formatter;
 		private readonly List<ThreadData> _threads;
@@ -224,20 +227,46 @@ namespace NewRemoting
 			if (Directory.Exists(startDirectory))
 			{
 				var potentialEntries = Directory.EnumerateFileSystemEntries(startDirectory, dllOnly, SearchOption.AllDirectories).ToArray();
-				if (potentialEntries.Length == 1)
+				if (potentialEntries.Length > 0)
 				{
-					path = potentialEntries[0];
-				}
-				else if (potentialEntries.Length > 1)
-				{
-					Logger.Log(LogLevel.Error, $"Found multiple potential implementations for {args.Name}.");
-					throw new NotImplementedException("Fix this");
+					GetBestRuntimeDll(potentialEntries, ref path);
 				}
 			}
 
 			var assembly = Assembly.LoadFile(path);
 			_knownAssemblies.AddOrUpdate(args.Name, assembly, (s, assembly1) => assembly);
 			return assembly;
+		}
+
+		internal static void GetBestRuntimeDll(string[] potentialEntries, ref string path)
+		{
+			if (potentialEntries.Length == 1)
+			{
+				path = potentialEntries[0];
+			}
+			else if (potentialEntries.Length > 1)
+			{
+				// Multiple files with this name exist in runtimes. Take the newest.
+				float bestVersion = -1;
+				int bestIndex = 0;
+				for (var index = 0; index < potentialEntries.Length; index++)
+				{
+					var entry = potentialEntries[index];
+					var matches = Regex.Matches(entry, RuntimeVersionRegex);
+					if (matches.Any())
+					{
+						string version = matches[0].Value;
+						if (float.TryParse(version, NumberStyles.Any, CultureInfo.InvariantCulture, out float thisVersion) && thisVersion > bestVersion)
+						{
+							bestIndex = index;
+							bestVersion = thisVersion;
+						}
+					}
+				}
+
+				// This will in either case return an entry, let's hope it's the right one if the above fails
+				path = potentialEntries[bestIndex];
+			}
 		}
 
 		public void StartListening()
