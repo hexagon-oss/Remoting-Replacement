@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Management;
 using System.Reflection;
@@ -386,6 +387,19 @@ namespace NewRemotingUnitTest
 			instance.AnEvent -= CallbackMethod;
 			instance.DoCallbackOnEvent("Test string 4");
 			Assert.IsNull(_dataReceived);
+		}
+
+		[Test]
+		public void CopyStreamToServer()
+		{
+			MemoryStream ms = new MemoryStream();
+			byte[] data = new byte[10 * 1024 * 1024];
+			data[1] = 2;
+			ms.Write(data);
+			var server = CreateRemoteInstance();
+			Stopwatch sw = Stopwatch.StartNew();
+			Assert.True(server.StreamDataContains(ms, 2));
+			Assert.Inconclusive($"Stream of size {ms.Length} took {sw.Elapsed} to send");
 		}
 
 		private MarshallableClass CreateRemoteInstance()

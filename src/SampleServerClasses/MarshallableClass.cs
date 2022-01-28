@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -135,6 +136,23 @@ namespace SampleServerClasses
 		public virtual UnserializableObject ServerError()
 		{
 			return new UnserializableObject();
+		}
+
+		public virtual bool StreamDataContains(Stream stream, byte b)
+		{
+			stream.Position = 0;
+			int data = stream.ReadByte();
+			while (data != -1)
+			{
+				if (data == b)
+				{
+					return true;
+				}
+
+				data = stream.ReadByte();
+			}
+
+			return false;
 		}
 	}
 }
