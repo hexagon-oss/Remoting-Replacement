@@ -42,7 +42,7 @@ namespace NewRemoting
 			var interactionArgument = enableUserInterfaceInteraction ? "-i " : string.Empty;
 			var copyArgments = string.IsNullOrEmpty(fileListPath) ? string.Empty : FormattableString.Invariant($"-c -f -clist {fileListPath} ");
 			var workingDirAgruments = string.IsNullOrEmpty(workingDirectory) ? string.Empty : FormattableString.Invariant($"-w \"{workingDirectory}\" ");
-			startInfo.Arguments = FormattableString.Invariant($@"\\{_remoteHost} -u {_remoteCredentials.DomainQualifiedUsername} -p {_remoteCredentials.Password} -dfr {interactionArgument}{workingDirAgruments}{copyArgments}{commandLine}");
+			startInfo.Arguments = FormattableString.Invariant($@"\\{_remoteHost} -u {_remoteCredentials.DomainQualifiedUsername} -p {_remoteCredentials.Password} -dfr -cnodel {interactionArgument}{workingDirAgruments}{copyArgments}{commandLine}");
 
 			var unstartedProcess = new Process();
 			unstartedProcess.StartInfo = startInfo;
@@ -51,7 +51,7 @@ namespace NewRemoting
 
 		public Process LaunchProcess(string commandLine, bool enableUserInterfaceInteraction = false)
 		{
-			var process = ((IRemoteConsole)this).CreateProcess(commandLine, enableUserInterfaceInteraction, null, null, false, false, false);
+			var process = CreateProcess(commandLine, enableUserInterfaceInteraction, null, null, false, false, false);
 			process.Start();
 			return process;
 		}
