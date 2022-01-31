@@ -194,7 +194,6 @@ namespace NewRemotingUnitTest
 			string roundTrippedAnswer = service.DoSomething();
 
 			Assert.AreEqual("Wrapped by Server: ClientUnderTest", roundTrippedAnswer);
-
 		}
 
 		[Test]
@@ -238,7 +237,8 @@ namespace NewRemotingUnitTest
 		public void ReflectionLoadSystemManagement()
 		{
 			// var name = new AssemblyName("System.Management");
-			var name = new AssemblyName("System.Management, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a");
+			var name = new AssemblyName(
+				"System.Management, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a");
 			var assembly = Assembly.Load(name);
 			Type t = assembly.GetType("System.Management.ManagementObjectSearcher", true);
 			var instance = Activator.CreateInstance(t, "SELECT * FROM Win32_BIOS");
@@ -399,7 +399,22 @@ namespace NewRemotingUnitTest
 			var server = CreateRemoteInstance();
 			Stopwatch sw = Stopwatch.StartNew();
 			Assert.True(server.StreamDataContains(ms, 2));
-			Assert.Inconclusive($"Stream of size {ms.Length} took {sw.Elapsed} to send");
+			Debug.WriteLine($"Stream of size {ms.Length} took {sw.Elapsed} to send");
+		}
+
+		[Test]
+		public void CreateFileStreamOnRemoteServer()
+		{
+			var server = CreateRemoteInstance();
+			string fileToOpen = Assembly.GetExecutingAssembly().Location;
+			using var stream = server.GetFileStream(fileToOpen);
+			Assert.NotNull(stream);
+			Assert.True(stream is FileStream);
+			FileStream fs = (FileStream)stream;
+			Assert.True(fs.Length > 0);
+			Assert.IsNotNull(fs.Name);
+			Assert.AreEqual('M', fs.ReadByte()); // This is a dll file. It starts with the letters "MZ".
+			server.CloseStream(stream);
 		}
 
 		private MarshallableClass CreateRemoteInstance()
@@ -419,11 +434,7 @@ namespace NewRemotingUnitTest
 				HasBeenCalled = false;
 			}
 
-			public bool HasBeenCalled
-			{
-				get;
-				set;
-			}
+			public bool HasBeenCalled { get; set; }
 
 			public void FireSomeAction(string nameOfAction)
 			{

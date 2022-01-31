@@ -6,12 +6,14 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Castle.DynamicProxy;
 using Microsoft.Extensions.Logging;
+using Microsoft.Win32.SafeHandles;
 
 namespace NewRemoting
 {
@@ -268,16 +270,18 @@ namespace NewRemoting
 			var interceptor = GetInterceptor(_interceptors, objectId);
 			// Create a class proxy with all interfaces proxied as well.
 			var interfaces = type.GetInterfaces();
+			ManualInvocation mi = invocation as ManualInvocation;
 			if (typeOfArgument != null && typeOfArgument.IsInterface)
 			{
 				_logger.Log(LogLevel.Debug, $"Create interface proxy for main type {typeOfArgument}");
 				// If the call returns an interface, only create an interface proxy, because we might not be able to instantiate the actual class (because it's not public, it's sealed, has no public ctors, etc)
 				instance = ProxyGenerator.CreateInterfaceProxyWithoutTarget(typeOfArgument, interfaces, interceptor);
 			}
-			else if (canAttemptToInstantiate && (!type.IsSealed) && (MessageHandler.HasDefaultCtor(type) || (invocation != null && invocation.Arguments.Length > 0)))
+			else if (canAttemptToInstantiate && (!type.IsSealed) && (MessageHandler.HasDefaultCtor(type) || (mi != null && invocation.Arguments.Length > 0 && mi.Constructor != null)))
 			{
 				_logger.Log(LogLevel.Debug, $"Create class proxy for main type {type}");
-				// We can attempt to create a class proxy if we have ctor arguments and the type is not sealed
+				// We can attempt to create a class proxy if we have ctor arguments and the type is not sealed. But only if we are really calling into a ctor, otherwise the invocation
+				// arguments are the method arguments that created this instance as return value and then obviously the arguments are different.
 				instance = ProxyGenerator.CreateClassProxy(type, interfaces, ProxyGenerationOptions.Default, invocation.Arguments, interceptor);
 			}
 			else if ((type.IsSealed || !MessageHandler.HasDefaultCtor(type) || typeOfArgument == typeof(object)) && interfaces.Length > 0)
@@ -285,7 +289,14 @@ namespace NewRemoting
 				// If the type is sealed or has no default ctor, we need to create an interface proxy, even if the target type is not an interface and may therefore not match.
 				// If the target type is object, we also try an interface proxy instead, since everything should be convertible to object.
 				_logger.Log(LogLevel.Debug, $"Create interface proxy as backup for main type {type} with {interfaces[0]}");
-				if (type.IsAssignableTo(typeof(Stream)))
+				if (type == typeof(FileStream))
+				{
+					// Special case of the Stream case below. This is not a general solution, but for this type, we can then create the correct type, so when
+					// it is casted or marshalled again, it gets the correct proxy type.
+					instance = ProxyGenerator.CreateClassProxy(typeof(FileStream), interfaces, ProxyGenerationOptions.Default,
+						new object[] { new SafeFileHandle(new IntPtr(1), true), FileAccess.Read, 1024 }, interceptor);
+				}
+				else if (type.IsAssignableTo(typeof(Stream)))
 				{
 					// This is a bit of a special case, not sure yet for what other classes we should use this (otherwise, this gets an interface proxy for IDisposable, which is
 					// not castable to Stream, which is most likely required)

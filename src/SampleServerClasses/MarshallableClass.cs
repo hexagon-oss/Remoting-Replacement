@@ -154,5 +154,19 @@ namespace SampleServerClasses
 
 			return false;
 		}
+
+		public virtual Stream GetFileStream(string fileName)
+		{
+			return new FileStream(fileName, FileMode.Open, FileAccess.Read);
+		}
+
+		public void CloseStream(Stream stream)
+		{
+			if (stream != null)
+			{
+				stream.Close();
+				stream.Dispose();
+			}
+		}
 	}
 }
