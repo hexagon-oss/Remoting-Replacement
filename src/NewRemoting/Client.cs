@@ -25,7 +25,7 @@ namespace NewRemoting
 	/// </summary>
 	public sealed class Client : IDisposable
 	{
-		public const int DefaultNetworkPort = 23456;
+		public const int DefaultNetworkPort = 4600;
 
 		private readonly ClientSideInterceptor _interceptor;
 		private readonly MessageHandler _messageHandler;
