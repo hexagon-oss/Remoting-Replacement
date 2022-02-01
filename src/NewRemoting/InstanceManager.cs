@@ -293,8 +293,10 @@ namespace NewRemoting
 				{
 					// Special case of the Stream case below. This is not a general solution, but for this type, we can then create the correct type, so when
 					// it is casted or marshalled again, it gets the correct proxy type.
+					SafeFileHandle handle = new SafeFileHandle(new IntPtr(1), true);
 					instance = ProxyGenerator.CreateClassProxy(typeof(FileStream), interfaces, ProxyGenerationOptions.Default,
-						new object[] { new SafeFileHandle(new IntPtr(1), true), FileAccess.Read, 1024 }, interceptor);
+						new object[] { handle, FileAccess.Read, 1024 }, interceptor);
+					handle.SetHandleAsInvalid(); // Do not attempt to later free this handle
 				}
 				else if (type.IsAssignableTo(typeof(Stream)))
 				{

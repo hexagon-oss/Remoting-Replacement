@@ -37,6 +37,8 @@ namespace NewRemotingUnitTest
 		[OneTimeTearDown]
 		public void OneTimeTearDown()
 		{
+			GC.Collect();
+			GC.WaitForPendingFinalizers();
 			if (_client != null)
 			{
 				_client.ShutdownServer();
@@ -415,6 +417,7 @@ namespace NewRemotingUnitTest
 			Assert.IsNotNull(fs.Name);
 			Assert.AreEqual('M', fs.ReadByte()); // This is a dll file. It starts with the letters "MZ".
 			server.CloseStream(stream);
+			fs.Dispose();
 		}
 
 		private MarshallableClass CreateRemoteInstance()

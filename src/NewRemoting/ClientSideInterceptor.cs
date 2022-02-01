@@ -112,6 +112,9 @@ namespace NewRemoting
 					// One valid case when we may get here is when the proxy is just being created (as a class proxy) and within that ctor,
 					// a virtual member function is called. So we can execute the call locally (the object should be in an useful state, since its default ctor
 					// has been called)
+					// Another possible reason to end here is when a class proxy gets its Dispose(false) method called by the local finalizer thread.
+					// The remote reference is long gone and the local destructor may not work as expected, because the object is not
+					// in a valid state.
 					_logger.Log(LogLevel.Debug, "Not a valid remoting proxy. Assuming within ctor of class proxy");
 					try
 					{
