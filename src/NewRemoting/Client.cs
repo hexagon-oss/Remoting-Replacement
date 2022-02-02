@@ -117,6 +117,16 @@ namespace NewRemoting
 		}
 
 		/// <summary>
+		/// Returns the non-proxy type of the instance
+		/// </summary>
+		/// <param name="instance">A proxy instance</param>
+		/// <returns>The type of the underlying real object</returns>
+		public static Type GetUnproxiedType(object instance)
+		{
+			return ProxyUtil.GetUnproxiedType(instance);
+		}
+
+		/// <summary>
 		/// Checks whether the given object can be used for remoting calls.
 		/// </summary>
 		/// <param name="obj">The object to query</param>

@@ -281,6 +281,7 @@ namespace NewRemotingUnitTest
 			catch (DivideByZeroException x)
 			{
 				Assert.IsNotNull(x);
+				Assert.That(x.StackTrace.Contains("DoIntegerDivide")); // The private method on the remote side that actually throws
 				Console.WriteLine(x);
 			}
 

@@ -113,7 +113,12 @@ namespace SampleServerClasses
 
 		public virtual int MaybeThrowException(int mustBeZero)
 		{
-			return 10 / mustBeZero;
+			return DoIntegerDivide(10, mustBeZero);
+		}
+
+		private int DoIntegerDivide(int a, int b)
+		{
+			return a / b;
 		}
 
 		public virtual int UseMixedArgument(SerializableClassWithMarshallableMembers sc)
