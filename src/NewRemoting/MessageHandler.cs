@@ -149,7 +149,7 @@ namespace NewRemoting
 
 				w.Write((int)RemotingReferenceType.RemoteReference);
 				w.Write(objectId);
-				w.Write(string.Empty);
+				w.Write(Client.GetUnproxiedType(data).AssemblyQualifiedName);
 			}
 			else if (t.IsSerializable)
 			{

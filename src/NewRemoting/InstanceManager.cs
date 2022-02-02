@@ -19,16 +19,21 @@ namespace NewRemoting
 {
 	internal class InstanceManager
 	{
+		private static ConcurrentDictionary<string, InstanceInfo> s_objects;
+
 		private static int _numberOfInstancesUsed = 1;
 		private readonly ILogger _logger;
 		private readonly Dictionary<string, ClientSideInterceptor> _interceptors;
-		private ConcurrentDictionary<string, InstanceInfo> _objects;
+
+		static InstanceManager()
+		{
+			s_objects = new ConcurrentDictionary<string, InstanceInfo>();
+		}
 
 		public InstanceManager(ProxyGenerator proxyGenerator, ILogger logger)
 		{
 			_logger = logger;
 			ProxyGenerator = proxyGenerator;
-			_objects = new();
 			_interceptors = new();
 			InstanceIdentifier = Environment.MachineName + ":" + Environment.ProcessId.ToString(CultureInfo.CurrentCulture) + "." + _numberOfInstancesUsed++;
 		}
@@ -74,7 +79,7 @@ namespace NewRemoting
 
 		public bool TryGetObjectFromId(string id, [NotNullWhen(true)]out object instance)
 		{
-			if (_objects.TryGetValue(id, out InstanceInfo value))
+			if (s_objects.TryGetValue(id, out InstanceInfo value))
 			{
 				if (value.Instance != null)
 				{
@@ -94,7 +99,7 @@ namespace NewRemoting
 				throw new ArgumentNullException(nameof(instance));
 			}
 
-			_objects.AddOrUpdate(objectId, s => new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId)), (s, info) => new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId)));
+			s_objects.AddOrUpdate(objectId, s => new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), this), (s, info) => new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), this));
 		}
 
 		/// <summary>
@@ -108,7 +113,7 @@ namespace NewRemoting
 				throw new ArgumentNullException(nameof(instance));
 			}
 
-			var values = _objects.Values.ToList();
+			var values = s_objects.Values.ToList();
 			foreach (var v in values)
 			{
 				if (ReferenceEquals(v.Instance, instance))
@@ -140,7 +145,13 @@ namespace NewRemoting
 
 		public void Clear()
 		{
-			_objects.Clear();
+			foreach (var o in s_objects)
+			{
+				if (o.Value.Owner == this)
+				{
+					s_objects.TryRemove(o);
+				}
+			}
 		}
 
 		public void PerformGc(BinaryWriter w)
@@ -158,13 +169,13 @@ namespace NewRemoting
 			// Would be good if we could synchronize our updates with the GC, but that appears to be a bit fuzzy and fails if the
 			// GC is in concurrent mode.
 			List<InstanceInfo> instancesToClear = new();
-			foreach (var e in _objects)
+			foreach (var e in s_objects)
 			{
 				// Iterating over a ConcurrentDictionary should be thread safe
 				if (e.Value.IsReleased || dropAll)
 				{
 					instancesToClear.Add(e.Value);
-					_objects.TryRemove(e);
+					s_objects.TryRemove(e);
 				}
 			}
 
@@ -187,8 +198,9 @@ namespace NewRemoting
 		{
 			private readonly object _instanceHardReference;
 			private readonly WeakReference _instanceWeakReference;
+			private readonly InstanceManager _owningInstanceManager;
 
-			public InstanceInfo(object obj, string identifier, bool isLocal)
+			public InstanceInfo(object obj, string identifier, bool isLocal, InstanceManager owner)
 			{
 				// If the actual instance lives in our process, we need to keep the hard reference, because
 				// there are clients that may keep a reference to this object.
@@ -204,6 +216,7 @@ namespace NewRemoting
 				}
 
 				Identifier = identifier;
+				_owningInstanceManager = owner;
 			}
 
 			public object Instance
@@ -233,6 +246,8 @@ namespace NewRemoting
 					return _instanceHardReference == null && !_instanceWeakReference.IsAlive;
 				}
 			}
+
+			public InstanceManager Owner => _owningInstanceManager;
 		}
 
 		public object CreateOrGetReferenceInstance(IInvocation invocation, bool canAttemptToInstantiate, Type typeOfArgument, string typeName, string objectId)
@@ -328,7 +343,7 @@ namespace NewRemoting
 		public void Remove(string objectId)
 		{
 			// Just forget about this object - the server GC will care for the rest.
-			_objects.TryRemove(objectId, out _);
+			s_objects.TryRemove(objectId, out _);
 		}
 
 		public void AddInterceptor(ClientSideInterceptor interceptor)
