@@ -123,7 +123,25 @@ namespace NewRemoting
 		/// <returns>The type of the underlying real object</returns>
 		public static Type GetUnproxiedType(object instance)
 		{
-			return ProxyUtil.GetUnproxiedType(instance);
+			Type t = ProxyUtil.GetUnproxiedType(instance);
+			if (IsProxyType(t))
+			{
+				// Still a proxy? Need to resolve this manually
+				foreach (var interf in t.GetInterfaces())
+				{
+					if (interf.FullName == null)
+					{
+						continue;
+					}
+
+					if (!interf.FullName.StartsWith("Castle", StringComparison.Ordinal) && (interf.Name + "Proxy" == t.Name))
+					{
+						return interf;
+					}
+				}
+			}
+
+			return t;
 		}
 
 		/// <summary>
@@ -134,6 +152,15 @@ namespace NewRemoting
 		public static bool IsRemotingCapable(object obj)
 		{
 			return IsRemoteProxy(obj) || obj is MarshalByRefObject;
+		}
+
+		/// <summary>
+		/// Returns the instance identifiers of this connection. The first
+		/// return value is the local identifier, the second argument the remote identifier.
+		/// </summary>
+		public (string Local, string Remote) InstanceIdentifiers()
+		{
+			return (_instanceManager.InstanceIdentifier, _interceptor.OtherSideInstanceId);
 		}
 
 		/// <summary>
@@ -364,6 +391,16 @@ namespace NewRemoting
 				_instanceManager.Clear();
 
 				_client = null;
+			}
+		}
+
+		public void ForceGc()
+		{
+			GC.Collect();
+			GC.WaitForPendingFinalizers();
+			lock (_accessLock)
+			{
+				_instanceManager.PerformGc(_writer, false);
 			}
 		}
 	}

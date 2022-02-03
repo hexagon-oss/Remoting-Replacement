@@ -138,6 +138,19 @@ namespace NewRemoting
 				w.Write(targetId);
 				w.Write(del.Method.DeclaringType.AssemblyQualifiedName);
 				w.Write(del.Method.MetadataToken);
+				var generics = del.Method.GetGenericArguments();
+				// If the type of the delegate method is generic, we need to provide its type arguments
+				w.Write(generics.Length);
+				foreach (var genericType in generics)
+				{
+					string arg = genericType.AssemblyQualifiedName;
+					if (arg == null)
+					{
+						throw new RemotingException("Unresolved generic type or some other undefined case");
+					}
+
+					w.Write(arg);
+				}
 			}
 			else if (Client.IsRemoteProxy(data))
 			{
@@ -149,7 +162,8 @@ namespace NewRemoting
 
 				w.Write((int)RemotingReferenceType.RemoteReference);
 				w.Write(objectId);
-				w.Write(Client.GetUnproxiedType(data).AssemblyQualifiedName);
+				string originalName = Client.GetUnproxiedType(data).AssemblyQualifiedName ?? String.Empty;
+				w.Write(originalName);
 			}
 			else if (t.IsSerializable)
 			{
@@ -412,10 +426,23 @@ namespace NewRemoting
 					string targetId = r.ReadString();
 					string typeOfTargetName = r.ReadString();
 					int tokenOfTargetMethod = r.ReadInt32();
+					int methodGenericArgs = r.ReadInt32();
+					Type[] typeOfGenericArguments = new Type[methodGenericArgs];
+					for (int i = 0; i < methodGenericArgs; i++)
+					{
+						var typeName = r.ReadString();
+						var t = Server.GetTypeFromAnyAssembly(typeName);
+						typeOfGenericArguments[i] = t;
+					}
+
 					Type typeOfTarget = Server.GetTypeFromAnyAssembly(typeOfTargetName);
 
 					var methods = typeOfTarget.GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
 					MethodInfo methodInfoOfTarget = methods.First(x => x.MetadataToken == tokenOfTargetMethod);
+					if (methodGenericArgs > 0)
+					{
+						methodInfoOfTarget = methodInfoOfTarget.MakeGenericMethod(typeOfGenericArguments);
+					}
 
 					// TODO: This copying of arrays here is not really performance-friendly
 					var argumentsOfTarget = methodInfoOfTarget.GetParameters().Select(x => x.ParameterType).ToList();

@@ -16,7 +16,8 @@ namespace NewRemotingUnitTest
 	{
 		private Process _serverProcess;
 		private Client _client;
-		private ITransientServer _firstServer;
+		private string _dataReceived;
+		private ITransientServer _transientServer;
 
 		[OneTimeSetUp]
 		public void OneTimeSetUp()
@@ -49,22 +50,29 @@ namespace NewRemotingUnitTest
 			}
 		}
 
+		[SetUp]
+		public void SetUp()
+		{
+			_dataReceived = null;
+		}
+
 		[TearDown]
 		public void TearDown()
 		{
-			if (_firstServer != null)
+			if (_transientServer != null)
 			{
-				_firstServer.Dispose();
-				_firstServer = null;
+				_client.ForceGc();
+				_transientServer.Dispose();
+				_transientServer = null;
 			}
 		}
 
 		[Test]
 		public void SimpleTestCase()
 		{
-			_firstServer = GetTransientServer();
+			var firstServer = GetTransientServer();
 			var firstImpl = _client.CreateRemoteInstance<MarshallableClass>();
-			var secondImpl = _firstServer.CreateTransientClass<MarshallableClass>();
+			var secondImpl = firstServer.CreateTransientClass<MarshallableClass>();
 			Assert.AreNotEqual(Environment.ProcessId, firstImpl.GetCurrentProcessId());
 			Assert.AreNotEqual(Environment.ProcessId, secondImpl.GetCurrentProcessId());
 			Assert.AreNotEqual(firstImpl.GetCurrentProcessId(), secondImpl.GetCurrentProcessId());
@@ -73,8 +81,8 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void SendArguments()
 		{
-			_firstServer = GetTransientServer();
-			var secondImpl = _firstServer.CreateTransientClass<MarshallableClass>();
+			var firstServer = GetTransientServer();
+			var secondImpl = firstServer.CreateTransientClass<MarshallableClass>();
 			Assert.AreEqual(30, secondImpl.AddValues(10, 20));
 
 			MemoryStream ms = new MemoryStream();
@@ -85,11 +93,71 @@ namespace NewRemotingUnitTest
 			Assert.True(secondImpl.StreamDataContains(ms, 2));
 		}
 
+		[Test]
+		public void RegisterCallback()
+		{
+			var firstServer = GetTransientServer();
+			var secondImpl = firstServer.CreateTransientClass<MarshallableClass>();
+			var cb = new TransientCallbackImpl();
+			secondImpl.RegisterCallback(cb);
+			secondImpl.DoCallback();
+			Assert.True(cb.HasCallbackOccurred);
+			secondImpl.RegisterCallback(null);
+		}
+
+		public void CallbackMethod(string argument)
+		{
+			_dataReceived = argument;
+		}
+
+		[Test]
+		public void RegisterEvent()
+		{
+			var server = GetTransientServer();
+			IMarshallInterface instance = server.CreateTransientClass<MarshallableClass>();
+
+			_dataReceived = null;
+			instance.DoCallbackOnEvent("Test string");
+
+			Assert.IsNull(_dataReceived);
+			instance.AnEvent += CallbackMethod;
+			instance.DoCallbackOnEvent("Another test string");
+			Assert.False(string.IsNullOrWhiteSpace(_dataReceived));
+			_dataReceived = null;
+			instance.AnEvent -= CallbackMethod;
+			instance.DoCallbackOnEvent("A third test string");
+			Assert.IsNull(_dataReceived);
+			instance.AnEvent -= CallbackMethod;
+			instance.DoCallbackOnEvent("Test string 4");
+			Assert.IsNull(_dataReceived);
+		}
+
 		private ITransientServer GetTransientServer()
 		{
-			ITransientServer server = _client.CreateRemoteInstance<TransientServer>();
-			server.Init(Client.DefaultNetworkPort + 2);
-			return server;
+			_transientServer = _client.CreateRemoteInstance<TransientServer>();
+			_transientServer.Init(Client.DefaultNetworkPort + 2);
+			var ids = _client.InstanceIdentifiers();
+			Debug.WriteLine($"Local instance id is {ids.Local}. Remote instance id is {ids.Remote}");
+			return _transientServer;
+		}
+
+		internal sealed class TransientCallbackImpl : MarshalByRefObject, ICallbackInterface
+		{
+			public TransientCallbackImpl()
+			{
+				HasCallbackOccurred = false;
+			}
+
+			public bool HasCallbackOccurred
+			{
+				get;
+				private set;
+			}
+
+			public void FireSomeAction(string nameOfAction)
+			{
+				HasCallbackOccurred = true;
+			}
 		}
 	}
 }
