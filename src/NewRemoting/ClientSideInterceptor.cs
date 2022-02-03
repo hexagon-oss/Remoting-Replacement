@@ -130,6 +130,12 @@ namespace NewRemoting
 					return;
 				}
 
+				if (invocation.Proxy is DelegateInternalSink di)
+				{
+					// Need the source reference for this one. There's something fishy here, as this sometimes is ok, sometimes not.
+					remoteInstanceId = di.RemoteObjectReference;
+				}
+
 				hd.WriteTo(writer);
 				writer.Write(remoteInstanceId);
 				// Also transmit the type of the calling object (if the method is called on an interface, this is different from the actual object)

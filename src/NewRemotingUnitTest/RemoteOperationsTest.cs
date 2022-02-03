@@ -346,7 +346,7 @@ namespace NewRemotingUnitTest
 			Assert.IsNull(_dataReceived);
 			instance.AnEvent += CallbackMethod;
 			instance.DoCallbackOnEvent("Another test string");
-			Assert.False(string.IsNullOrWhiteSpace(_dataReceived));
+			Assert.AreEqual("Another test string", _dataReceived);
 			_dataReceived = null;
 			instance.AnEvent -= CallbackMethod;
 			instance.DoCallbackOnEvent("A final test string");

@@ -25,6 +25,8 @@ namespace NewRemoting
 			_remoteMethodTarget = remoteMethodTarget;
 		}
 
+		internal string RemoteObjectReference => _remoteObjectReference;
+
 		public void ActionSink()
 		{
 			DoCallback();

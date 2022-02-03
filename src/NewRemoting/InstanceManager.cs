@@ -59,7 +59,18 @@ namespace NewRemoting
 
 			// TODO: Since the list of interceptors is typically small, iterating may be faster
 			string interceptorName = objectId.Substring(0, objectId.IndexOf("/", StringComparison.Ordinal));
-			return interceptors[interceptorName];
+			if (interceptors.TryGetValue(interceptorName, out var ic))
+			{
+				return ic;
+			}
+			else if (interceptors.Count >= 1)
+			{
+				// If the above fails, we assume the instance lives on a third system.
+				// Here, we assume the first (or only) remote connection is the master one and the only one that can lead to further connections
+				return interceptors.First().Value;
+			}
+
+			throw new InvalidOperationException("No interceptors available");
 		}
 
 		/// <summary>
@@ -131,7 +142,7 @@ namespace NewRemoting
 		{
 			if (!TryGetObjectFromId(id, out object instance))
 			{
-				throw new InvalidOperationException($"Could not locate instance with ID {id} or it is not local");
+				throw new InvalidOperationException($"Could not locate instance with ID {id} or it is not local. Local identifier: {InstanceIdentifier}");
 			}
 
 			return instance;
