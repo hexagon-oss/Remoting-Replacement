@@ -132,6 +132,23 @@ namespace NewRemotingUnitTest
 			Assert.IsNull(_dataReceived);
 		}
 
+		[Test]
+		public void GetWithManyInterfaces()
+		{
+			_transientServer = _client.CreateRemoteInstance<TransientServer>();
+			_transientServer.Init(Client.DefaultNetworkPort + 2);
+			IDisposable ds = _transientServer.CreateTransientClass<WithManyInterfaces>();
+			Assert.IsNotNull(ds);
+			Assert.That(ds is IMarshallInterface);
+			ds.Dispose();
+
+			IMarshallInterface im = _transientServer.CreateTransientClass<WithManyInterfaces>();
+			Assert.IsNotNull(im);
+			Assert.IsNotNull(im.StringProcessId());
+			ds = (IDisposable)im;
+			ds.Dispose();
+		}
+
 		private ITransientServer GetTransientServer()
 		{
 			_transientServer = _client.CreateRemoteInstance<TransientServer>();
