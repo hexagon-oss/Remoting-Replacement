@@ -19,6 +19,11 @@ namespace NewRemoting
 {
 	internal class InstanceManager
 	{
+		/// <summary>
+		/// The global(!) object registry. Contains references to all objects involved in remoting.
+		/// The instances can be local, in which case we use it to look up their ids, or remote, in
+		/// which case we use it to look up the correct proxy.
+		/// </summary>
 		private static ConcurrentDictionary<string, InstanceInfo> s_objects;
 
 		private static int _numberOfInstancesUsed = 1;
@@ -36,6 +41,14 @@ namespace NewRemoting
 			ProxyGenerator = proxyGenerator;
 			_interceptors = new();
 			InstanceIdentifier = Environment.MachineName + ":" + Environment.ProcessId.ToString(CultureInfo.CurrentCulture) + "." + _numberOfInstancesUsed++;
+		}
+
+		/// <summary>
+		/// A Destructor, to make sure the static list is properly cleaned up
+		/// </summary>
+		~InstanceManager()
+		{
+			Dispose(false);
 		}
 
 		public string InstanceIdentifier
@@ -163,6 +176,17 @@ namespace NewRemoting
 					s_objects.TryRemove(o);
 				}
 			}
+		}
+
+		protected virtual void Dispose(bool disposing)
+		{
+			Clear(); // Call whether disposing is true or not!
+		}
+
+		public void Dispose()
+		{
+			Dispose(true);
+			GC.SuppressFinalize(this);
 		}
 
 		public void PerformGc(BinaryWriter w)

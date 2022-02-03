@@ -421,6 +421,16 @@ namespace NewRemotingUnitTest
 			fs.Dispose();
 		}
 
+		[Test]
+		public void CanUseAnArgumentThatIsGeneric()
+		{
+			var server = CreateRemoteInstance();
+			var list = new List<int>();
+			list.Add(1);
+			list.Add(2);
+			Assert.AreEqual(2, server.ListCount(list));
+		}
+
 		private MarshallableClass CreateRemoteInstance()
 		{
 			return _client.CreateRemoteInstance<MarshallableClass>();
