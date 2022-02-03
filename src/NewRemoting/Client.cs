@@ -134,7 +134,7 @@ namespace NewRemoting
 						continue;
 					}
 
-					if (!interf.FullName.StartsWith("Castle", StringComparison.Ordinal) && (interf.Name + "Proxy" == t.Name))
+					if (!interf.FullName.StartsWith("Castle.", StringComparison.Ordinal) && (t.Name.StartsWith(interf.Name + "Proxy", StringComparison.Ordinal)))
 					{
 						return interf;
 					}

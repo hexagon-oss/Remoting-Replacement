@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -172,6 +173,11 @@ namespace SampleServerClasses
 				stream.Close();
 				stream.Dispose();
 			}
+		}
+
+		public int ListCount<T>(IEnumerable<T> intList)
+		{
+			return intList.Count();
 		}
 	}
 }
