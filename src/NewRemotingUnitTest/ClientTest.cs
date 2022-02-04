@@ -53,7 +53,7 @@ namespace NewRemotingUnitTest
 			Assert.That(proxy.GetType().Name.Contains("Proxy"));
 
 			var notAproxy = Client.GetUnproxiedType(proxy);
-			Assert.That(notAproxy == typeof(IMarshallInterface));
+			Assert.AreEqual(typeof(IMarshallInterface), notAproxy);
 		}
 
 		[Test]
@@ -63,7 +63,37 @@ namespace NewRemotingUnitTest
 			Assert.That(proxy.GetType().Name.Contains("Proxy"));
 
 			var notAproxy = Client.GetUnproxiedType(proxy);
-			Assert.That(notAproxy == typeof(List<int>));
+			Assert.AreEqual(typeof(List<int>), notAproxy);
+		}
+
+		[Test]
+		public void CanQueryUnproxiedTypeManually1()
+		{
+			var proxy = _instanceManager.ProxyGenerator.CreateInterfaceProxyWithoutTarget<IMarshallInterface>();
+			Assert.That(proxy.GetType().Name.Contains("Proxy"));
+
+			var notAproxy = Client.ManualGetUnproxiedType(proxy.GetType());
+			Assert.AreEqual(typeof(IMarshallInterface), notAproxy);
+		}
+
+		[Test]
+		public void CanQueryUnproxiedTypeManually2()
+		{
+			var proxy = _instanceManager.ProxyGenerator.CreateClassProxy(typeof(WithManyInterfaces), new Type[] { typeof(IDisposable), typeof(IMarshallInterface) }, ProxyGenerationOptions.Default);
+			Assert.That(proxy.GetType().Name.Contains("Proxy"));
+
+			var notAproxy = Client.ManualGetUnproxiedType(proxy.GetType());
+			Assert.AreEqual(typeof(WithManyInterfaces), notAproxy);
+		}
+
+		[Test]
+		public void CanQueryUnproxiedTypeOfGenericClassManually()
+		{
+			var proxy = _instanceManager.ProxyGenerator.CreateClassProxy(typeof(List<int>));
+			Assert.That(proxy.GetType().Name.Contains("Proxy"));
+
+			var notAproxy = Client.ManualGetUnproxiedType(proxy.GetType());
+			Assert.AreEqual(typeof(List<int>), notAproxy);
 		}
 	}
 }

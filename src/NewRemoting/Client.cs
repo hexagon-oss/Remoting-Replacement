@@ -25,6 +25,7 @@ namespace NewRemoting
 	/// </summary>
 	public sealed class Client : IDisposable
 	{
+		private const string ProxyNamespace = "Castle.Proxies";
 		public const int DefaultNetworkPort = 4600;
 
 		private readonly ClientSideInterceptor _interceptor;
@@ -127,17 +128,42 @@ namespace NewRemoting
 			if (IsProxyType(t))
 			{
 				// Still a proxy? Need to resolve this manually
-				foreach (var interf in t.GetInterfaces())
-				{
-					if (interf.FullName == null)
-					{
-						continue;
-					}
+				return ManualGetUnproxiedType(t);
+			}
 
-					if (!interf.FullName.StartsWith("Castle.", StringComparison.Ordinal) && (t.Name.StartsWith(interf.Name + "Proxy", StringComparison.Ordinal)))
-					{
-						return interf;
-					}
+			return t;
+		}
+
+		internal static Type ManualGetUnproxiedType(Type t)
+		{
+			if (!IsProxyType(t))
+			{
+				return t;
+			}
+
+			// If t is an interface, this would just return "Object", which is not what we want
+			// But we can't test that directly, since a proxy type is never an interface, even if it is constructed from one.
+			Type tBase = t.BaseType;
+			while (tBase != null && tBase != typeof(object))
+			{
+				if (!IsProxyType(tBase) && !tBase.FullName.StartsWith(ProxyNamespace, StringComparison.Ordinal))
+				{
+					return tBase;
+				}
+
+				tBase = tBase.BaseType;
+			}
+
+			foreach (var interf in t.GetInterfaces())
+			{
+				if (interf.FullName == null)
+				{
+					continue;
+				}
+
+				if (!interf.FullName.StartsWith(ProxyNamespace, StringComparison.Ordinal) && (t.Name.StartsWith(interf.Name + "Proxy", StringComparison.Ordinal)))
+				{
+					return interf;
 				}
 			}
 
