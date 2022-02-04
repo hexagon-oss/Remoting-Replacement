@@ -174,7 +174,7 @@ namespace NewRemoting
 				string objectId = _instanceManager.GetIdForObject(data);
 				w.Write((int)RemotingReferenceType.RemoteReference);
 				w.Write(objectId);
-				var assemblyQualitfiedName = data.GetType().AssemblyQualifiedName;
+				var assemblyQualitfiedName = Client.GetUnproxiedType(data).AssemblyQualifiedName ?? String.Empty;
 				w.Write(assemblyQualitfiedName);
 			}
 			else
