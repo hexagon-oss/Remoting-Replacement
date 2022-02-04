@@ -55,7 +55,8 @@ namespace NewRemoting
 		/// </summary>
 		/// <param name="w">The data sink</param>
 		/// <param name="data">The object to write</param>
-		public void WriteArgumentToStream(BinaryWriter w, object data)
+		/// <param name="willBeSentTo">Destination identifier (used to keep track of the reference)</param>
+		public void WriteArgumentToStream(BinaryWriter w, object data, string willBeSentTo)
 		{
 			if (!_initialized)
 			{
@@ -109,7 +110,7 @@ namespace NewRemoting
 				{
 					// Recursively write the arguments
 					w.Write(true);
-					WriteArgumentToStream(w, obj);
+					WriteArgumentToStream(w, obj, willBeSentTo);
 				}
 
 				w.Write(false); // Terminate the array
@@ -125,7 +126,7 @@ namespace NewRemoting
 				w.Write((int)RemotingReferenceType.MethodPointer);
 				if (del.Target != null)
 				{
-					string instanceId = _instanceManager.GetIdForObject(del.Target);
+					string instanceId = _instanceManager.GetIdForObject(del.Target, willBeSentTo);
 					w.Write(instanceId);
 				}
 				else
@@ -134,7 +135,7 @@ namespace NewRemoting
 					w.Write(string.Empty);
 				}
 
-				string targetId = _instanceManager.GetIdForObject(del);
+				string targetId = _instanceManager.GetIdForObject(del, willBeSentTo);
 				w.Write(targetId);
 				w.Write(del.Method.DeclaringType.AssemblyQualifiedName);
 				w.Write(del.Method.MetadataToken);
@@ -172,7 +173,7 @@ namespace NewRemoting
 			}
 			else if (t.IsAssignableTo(typeof(MarshalByRefObject)))
 			{
-				string objectId = _instanceManager.GetIdForObject(data);
+				string objectId = _instanceManager.GetIdForObject(data, willBeSentTo);
 				w.Write((int)RemotingReferenceType.RemoteReference);
 				w.Write(objectId);
 
@@ -285,7 +286,7 @@ namespace NewRemoting
 			return false;
 		}
 
-		public void ProcessCallResponse(IInvocation invocation, BinaryReader reader)
+		public void ProcessCallResponse(IInvocation invocation, BinaryReader reader, string otherSideInstanceId)
 		{
 			if (!_initialized)
 			{
@@ -298,14 +299,14 @@ namespace NewRemoting
 			{
 				methodBase = mi.Constructor;
 
-				object returnValue = ReadArgumentFromStream(reader, methodBase, invocation, true, methodBase.DeclaringType);
+				object returnValue = ReadArgumentFromStream(reader, methodBase, invocation, true, methodBase.DeclaringType, otherSideInstanceId);
 				invocation.ReturnValue = returnValue;
 				// out or ref arguments on ctors are rare, but not generally forbidden, so we continue here
 			}
 			else if (invocation is ManualInvocation mi2 && mi2.TargetType != null)
 			{
 				// This happens if we request a remote instance directly (by interface type)
-				object returnValue = ReadArgumentFromStream(reader, mi2.Method, invocation, true, mi2.TargetType);
+				object returnValue = ReadArgumentFromStream(reader, mi2.Method, invocation, true, mi2.TargetType, otherSideInstanceId);
 				invocation.ReturnValue = returnValue;
 				return;
 			}
@@ -315,7 +316,7 @@ namespace NewRemoting
 				methodBase = me;
 				if (me.ReturnType != typeof(void))
 				{
-					object returnValue = ReadArgumentFromStream(reader, methodBase, invocation, true, me.ReturnType);
+					object returnValue = ReadArgumentFromStream(reader, methodBase, invocation, true, me.ReturnType, otherSideInstanceId);
 					invocation.ReturnValue = returnValue;
 				}
 			}
@@ -325,7 +326,7 @@ namespace NewRemoting
 			{
 				if (byRefArguments.ParameterType.IsByRef)
 				{
-					object byRefValue = ReadArgumentFromStream(reader, methodBase, invocation, false, byRefArguments.ParameterType);
+					object byRefValue = ReadArgumentFromStream(reader, methodBase, invocation, false, byRefArguments.ParameterType, otherSideInstanceId);
 					invocation.Arguments[index] = byRefValue;
 				}
 
@@ -340,7 +341,7 @@ namespace NewRemoting
 			SendSerializedObject(w, exception);
 		}
 
-		public object ReadArgumentFromStream(BinaryReader r, MethodBase callingMethod, IInvocation invocation, bool canAttemptToInstantiate, Type typeOfArgument)
+		public object ReadArgumentFromStream(BinaryReader r, MethodBase callingMethod, IInvocation invocation, bool canAttemptToInstantiate, Type typeOfArgument, string otherSideInstanceId)
 		{
 			if (!_initialized)
 			{
@@ -369,7 +370,7 @@ namespace NewRemoting
 					string objectId = r.ReadString();
 					string typeName = r.ReadString();
 					object instance = null;
-					instance = InstanceManager.CreateOrGetReferenceInstance(invocation, canAttemptToInstantiate, typeOfArgument, typeName, objectId);
+					instance = InstanceManager.CreateOrGetProxyForObjectId(invocation, canAttemptToInstantiate, typeOfArgument, typeName, objectId);
 					return instance;
 				}
 
@@ -410,7 +411,7 @@ namespace NewRemoting
 					bool cont = r.ReadBoolean();
 					while (cont)
 					{
-						var nextElem = ReadArgumentFromStream(r, callingMethod, invocation, canAttemptToInstantiate, contentType);
+						var nextElem = ReadArgumentFromStream(r, callingMethod, invocation, canAttemptToInstantiate, contentType, otherSideInstanceId);
 						list.Add(nextElem);
 						cont = r.ReadBoolean();
 					}
@@ -455,7 +456,7 @@ namespace NewRemoting
 					// This creates an instance of the DelegateInternalSink class, which acts as a proxy for delegate callbacks. Instead of the actual delegate
 					// target, we register a method from this class as a delegate target
 					var internalSink = new DelegateInternalSink(interceptor, targetId, methodInfoOfTarget);
-					_instanceManager.AddInstance(internalSink, targetId, internalSink.GetType());
+					_instanceManager.AddInstance(internalSink, targetId, interceptor.OtherSideInstanceId, internalSink.GetType());
 
 					IEnumerable<MethodInfo> possibleSinks = null;
 
@@ -482,7 +483,7 @@ namespace NewRemoting
 					if (callingMethod != null && callingMethod.IsSpecialName && callingMethod.Name.StartsWith("add_", StringComparison.Ordinal))
 					{
 						newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
-						_instanceManager.AddInstance(newDelegate, delegateId, newDelegate.GetType());
+						_instanceManager.AddInstance(newDelegate, delegateId, otherSideInstanceId, newDelegate.GetType());
 						return newDelegate;
 					}
 					else if (callingMethod != null && callingMethod.IsSpecialName && callingMethod.Name.StartsWith("remove_", StringComparison.Ordinal))
@@ -491,7 +492,7 @@ namespace NewRemoting
 						if (_instanceManager.TryGetObjectFromId(delegateId, out var obj))
 						{
 							// Remove delegate (and forget about it), it is not used here any more.
-							_instanceManager.Remove(delegateId);
+							_instanceManager.Remove(delegateId, otherSideInstanceId);
 							return obj;
 						}
 					}

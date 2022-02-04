@@ -53,7 +53,6 @@ namespace NewRemoting
 			_receiverThread = new Thread(ReceiverThread);
 			_receiverThread.Name = "ClientSideInterceptor - " + thisSideInstanceId;
 			_receiving = true;
-			_receiverThread.Start();
 		}
 
 		public DebuggerToStringBehavior DebuggerToStringBehavior
@@ -62,12 +61,22 @@ namespace NewRemoting
 			set;
 		}
 
-		public string OtherSideInstanceId { get; }
+		public string OtherSideInstanceId
+		{
+			get;
+			set;
+		}
+
 		public string ThisSideInstanceId { get; }
 
 		internal int NextSequenceNumber()
 		{
 			return Interlocked.Increment(ref _sequence);
+		}
+
+		internal void Start()
+		{
+			_receiverThread.Start();
 		}
 
 		public void Intercept(IInvocation invocation)
@@ -172,7 +181,7 @@ namespace NewRemoting
 
 				foreach (var argument in invocation.Arguments)
 				{
-					_messageHandler.WriteArgumentToStream(writer, argument);
+					_messageHandler.WriteArgumentToStream(writer, argument, ThisSideInstanceId);
 				}
 
 				// now finally write the stream to the network. That way, we don't send incomplete messages if an exception happens encoding a parameter.
@@ -288,7 +297,7 @@ namespace NewRemoting
 						else
 						{
 							_logger.Log(LogLevel.Debug, $"{ThisSideInstanceId}: Receiving reply for {ctx.Invocation.Method}");
-							_messageHandler.ProcessCallResponse(ctx.Invocation, _reader);
+							_messageHandler.ProcessCallResponse(ctx.Invocation, _reader, ThisSideInstanceId);
 							ctx.Set();
 						}
 					}

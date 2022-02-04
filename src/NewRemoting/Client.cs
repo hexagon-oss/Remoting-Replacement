@@ -76,20 +76,70 @@ namespace NewRemoting
 			_instanceManager.AddInterceptor(_interceptor);
 			_messageHandler.AddInterceptor(_interceptor);
 
-			// Current use of this connection header:
-			// bytes       | Function
-			// 0           | 0 = forwarding stream, 1 = callback stream
-			// 1 - 4       | instance hash of this client
-			// remaining   | reserved
-			byte[] authenticationData = new byte[100];
-			int instanceHash = _instanceManager.InstanceIdentifier.GetHashCode(StringComparison.Ordinal);
-			Array.Copy(BitConverter.GetBytes(instanceHash), 0, authenticationData, 1, 4);
-			_writer.Write(authenticationData);
-			authenticationData[0] = 1;
-			_serverLink.GetStream().Write(authenticationData, 0, 100);
+			Stream s = _serverLink.GetStream();
+			WriteAuthenticationHeader(s, true);
+			WriteAuthenticationHeader(_client.GetStream(), false);
+
+			WaitForConnectionReply(s);
+			WaitForConnectionReply(_client.GetStream());
+			_interceptor.Start();
 
 			// This is used as return channel
-			_server = new Server(_serverLink.GetStream(), _messageHandler, _interceptor);
+			_server = new Server(s, _messageHandler, _interceptor);
+		}
+
+		private void WriteAuthenticationHeader(Stream destination, bool callbackStream)
+		{
+			// Current use of this connection header:
+			// byte        | Function
+			// 0           | 0 = forwarding stream, 1 = callback stream
+			// 1 - 4       | instance hash of this client
+			// 5 - 99      | reserved
+			// 100 - 103   | length of identifier
+			// 103 -       | our instance identifier in unicode
+			byte[] authenticationData = new byte[100];
+			authenticationData[0] = (byte)(callbackStream ? 1 : 0);
+
+			int instanceHash = _instanceManager.InstanceIdentifier.GetHashCode(StringComparison.Ordinal);
+			Array.Copy(BitConverter.GetBytes(instanceHash), 0, authenticationData, 1, 4);
+			destination.Write(authenticationData, 0, 100);
+
+			var instanceIdentifier = Encoding.Unicode.GetBytes(_instanceManager.InstanceIdentifier);
+			var lenBytes = BitConverter.GetBytes(instanceIdentifier.Length);
+
+			destination.Write(lenBytes);
+			destination.Write(instanceIdentifier);
+		}
+
+		private bool WaitForConnectionReply(Stream destination)
+		{
+			byte[] authenticationSucceededToken = new byte[4];
+			if (destination.Read(authenticationSucceededToken, 0, 4) != 4)
+			{
+				return false;
+			}
+
+			int token = BitConverter.ToInt32(authenticationSucceededToken);
+			if (token != Server.AuthenticationSucceededToken)
+			{
+				return false;
+			}
+
+			if (destination.Read(authenticationSucceededToken, 0, 4) != 4)
+			{
+				return false;
+			}
+
+			int length = BitConverter.ToInt32(authenticationSucceededToken);
+
+			byte[] data = new byte[length];
+			if (destination.Read(data, 0, length) != length)
+			{
+				return false;
+			}
+
+			_interceptor.OtherSideInstanceId = Encoding.Unicode.GetString(data);
+			return true;
 		}
 
 		/// <summary>
@@ -198,7 +248,7 @@ namespace NewRemoting
 			{
 				if (!_connectionConfigured)
 				{
-					_server.StartProcessing();
+					_server.StartProcessing(_interceptor.OtherSideInstanceId);
 					RemotingCallHeader openReturnChannel =
 						new RemotingCallHeader(RemotingFunctionType.OpenReverseChannel, 0);
 					openReturnChannel.WriteTo(_writer);
@@ -318,7 +368,7 @@ namespace NewRemoting
 					_writer.Write(args.Length); // but we need to provide the number of arguments that follow
 					foreach (var a in args)
 					{
-						_messageHandler.WriteArgumentToStream(_writer, a);
+						_messageHandler.WriteArgumentToStream(_writer, a, _instanceManager.InstanceIdentifier);
 					}
 				}
 			}

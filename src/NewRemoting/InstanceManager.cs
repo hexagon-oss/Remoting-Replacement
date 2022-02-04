@@ -26,6 +26,14 @@ namespace NewRemoting
 		/// </summary>
 		private static ConcurrentDictionary<string, InstanceInfo> s_objects;
 
+		/// <summary>
+		/// The list of known remote identifiers we have given references to.
+		/// Key: Identifier, Value: Index
+		/// </summary>
+		private static ConcurrentDictionary<string, int> s_knownRemoteInstances;
+
+		private static int s_nextIndex;
+
 		private static int _numberOfInstancesUsed = 1;
 		private readonly ILogger _logger;
 		private readonly Dictionary<string, ClientSideInterceptor> _interceptors;
@@ -33,6 +41,8 @@ namespace NewRemoting
 		static InstanceManager()
 		{
 			s_objects = new ConcurrentDictionary<string, InstanceInfo>();
+			s_knownRemoteInstances = new ConcurrentDictionary<string, int>();
+			s_nextIndex = -1;
 		}
 
 		public InstanceManager(ProxyGenerator proxyGenerator, ILogger logger)
@@ -94,13 +104,20 @@ namespace NewRemoting
 			return objectId.StartsWith(InstanceIdentifier);
 		}
 
-		public string GetIdForObject(object instance)
+		public string GetIdForObject(object instance, string willBeSentTo)
 		{
 			string id = CreateObjectInstanceId(instance);
-			AddInstance(instance, id, instance.GetType());
+			AddInstance(instance, id, willBeSentTo, instance.GetType());
 			return id;
 		}
 
+		/// <summary>
+		/// Get an actual instance from an object Id
+		/// </summary>
+		/// <param name="id">The object id</param>
+		/// <param name="instance">Returns the object instance (this is normally a real instance and not a proxy, but this is not always true
+		/// when transient servers exist)</param>
+		/// <returns>True when an object with the given id was found, false otherwise</returns>
 		public bool TryGetObjectFromId(string id, [NotNullWhen(true)]out object instance)
 		{
 			if (s_objects.TryGetValue(id, out InstanceInfo value))
@@ -116,7 +133,7 @@ namespace NewRemoting
 			return false;
 		}
 
-		public void AddInstance(object instance, string objectId, Type originalType)
+		public void AddInstance(object instance, string objectId, string willBeSentTo, Type originalType)
 		{
 			if (instance == null)
 			{
@@ -128,8 +145,9 @@ namespace NewRemoting
 				throw new ArgumentException("The original type cannot be a proxy", nameof(originalType));
 			}
 
-			s_objects.AddOrUpdate(objectId, s => new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), originalType, this),
-				(s, info) => new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), originalType, this));
+			var ii = new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), originalType, this);
+			MarkInstanceAsInUseBy(willBeSentTo, ii);
+			s_objects.AddOrUpdate(objectId, s => ii, (s, info) => ii);
 		}
 
 		/// <summary>
@@ -237,66 +255,7 @@ namespace NewRemoting
 			}
 		}
 
-		private class InstanceInfo
-		{
-			private readonly object _instanceHardReference;
-			private readonly WeakReference _instanceWeakReference;
-			private readonly InstanceManager _owningInstanceManager;
-
-			public InstanceInfo(object obj, string identifier, bool isLocal, Type originalType, InstanceManager owner)
-			{
-				// If the actual instance lives in our process, we need to keep the hard reference, because
-				// there are clients that may keep a reference to this object.
-				// If it is a remote reference, we can use a weak reference. It will be gone, once there are no
-				// other references to it within our process - meaning no one has a reference to the proxy any more.
-				if (isLocal)
-				{
-					_instanceHardReference = obj;
-				}
-				else
-				{
-					_instanceWeakReference = new WeakReference(obj, false);
-				}
-
-				Identifier = identifier;
-				OriginalType = originalType ?? throw new ArgumentNullException(nameof(originalType));
-				_owningInstanceManager = owner;
-			}
-
-			public object Instance
-			{
-				get
-				{
-					if (_instanceHardReference != null)
-					{
-						return _instanceHardReference;
-					}
-
-					var ret = _instanceWeakReference?.Target;
-
-					return ret;
-				}
-			}
-
-			public string Identifier
-			{
-				get;
-			}
-
-			public Type OriginalType { get; }
-
-			public bool IsReleased
-			{
-				get
-				{
-					return _instanceHardReference == null && !_instanceWeakReference.IsAlive;
-				}
-			}
-
-			public InstanceManager Owner => _owningInstanceManager;
-		}
-
-		public object CreateOrGetReferenceInstance(IInvocation invocation, bool canAttemptToInstantiate, Type typeOfArgument, string typeName, string objectId)
+		public object CreateOrGetProxyForObjectId(IInvocation invocation, bool canAttemptToInstantiate, Type typeOfArgument, string typeName, string objectId)
 		{
 			if (!_interceptors.Any())
 			{
@@ -305,22 +264,23 @@ namespace NewRemoting
 
 			object instance;
 			Type type = string.IsNullOrEmpty(typeName) ? null : Server.GetTypeFromAnyAssembly(typeName);
-			switch (type)
+			if (type == null)
 			{
-				case null:
-					// The type name may be omitted if the client knows that this instance must exist
-					// (i.e. because it is sending a reference to a proxy back)
-					if (TryGetObjectFromId(objectId, out instance))
-					{
-						return instance;
-					}
+				// The type name may be omitted if the client knows that this instance must exist
+				// (i.e. because it is sending a reference to a proxy back)
+				if (TryGetObjectFromId(objectId, out instance))
+				{
+					return instance;
+				}
 
-					throw new RemotingException("Unknown type found in argument stream");
+				throw new RemotingException("Unknown type found in argument stream");
 			}
-
-			if (TryGetObjectFromId(objectId, out instance))
+			else
 			{
-				return instance;
+				if (TryGetObjectFromId(objectId, out instance))
+				{
+					return instance;
+				}
 			}
 
 			if (IsLocalInstanceId(objectId))
@@ -381,20 +341,146 @@ namespace NewRemoting
 				instance = ProxyGenerator.CreateClassProxy(type, interfaces, interceptor);
 			}
 
-			AddInstance(instance, objectId, type);
+			AddInstance(instance, objectId, null, type);
 
 			return instance;
 		}
 
-		public void Remove(string objectId)
+		public void Remove(string objectId, string remoteInstanceIdentifier)
 		{
-			// Just forget about this object - the server GC will care for the rest.
-			s_objects.TryRemove(objectId, out _);
+			if (!s_knownRemoteInstances.TryGetValue(remoteInstanceIdentifier, out int id))
+			{
+				// Not a known remote instance, cannot have any objects
+				return;
+			}
+
+			ulong bit = GetBitFromIndex(id);
+
+			if (s_objects.TryGetValue(objectId, out InstanceInfo ii))
+			{
+				ii.ReferenceBitVector &= ~bit;
+				if (ii.ReferenceBitVector == 0)
+				{
+					// If not more clients, forget about this object - the server GC will care for the rest.
+					s_objects.TryRemove(objectId, out _);
+				}
+			}
 		}
 
 		public void AddInterceptor(ClientSideInterceptor interceptor)
 		{
 			_interceptors.Add(interceptor.OtherSideInstanceId, interceptor);
+		}
+
+		private void MarkInstanceAsInUseBy(string willBeSentTo, InstanceInfo instanceInfo)
+		{
+			if (!instanceInfo.IsLocal)
+			{
+				// Only local instances need reference "counting"
+				return;
+			}
+
+			if (willBeSentTo == null)
+			{
+				throw new ArgumentNullException(nameof(willBeSentTo));
+			}
+
+			int indexOfClient = s_knownRemoteInstances.AddOrUpdate(willBeSentTo, (s) =>
+			{
+				return Interlocked.Increment(ref s_nextIndex);
+			}, (s, i) => i);
+
+			// To save memory and processing time, we use a bitvector to keep track of which client has a reference to
+			// a specific instance
+			if (s_nextIndex > 8 * sizeof(UInt64))
+			{
+				throw new InvalidOperationException("To many different instance identifiers seen - only up to 64 allowed right now");
+			}
+
+			ulong bit = GetBitFromIndex(indexOfClient);
+			instanceInfo.ReferenceBitVector |= bit;
+		}
+
+		private ulong GetBitFromIndex(int index)
+		{
+			return 1ul << index;
+		}
+
+		private class InstanceInfo
+		{
+			private readonly object _instanceHardReference;
+			private readonly WeakReference _instanceWeakReference;
+			private readonly InstanceManager _owningInstanceManager;
+
+			public InstanceInfo(object obj, string identifier, bool isLocal, Type originalType, InstanceManager owner)
+			{
+				// If the actual instance lives in our process, we need to keep the hard reference, because
+				// there are clients that may keep a reference to this object.
+				// If it is a remote reference, we can use a weak reference. It will be gone, once there are no
+				// other references to it within our process - meaning no one has a reference to the proxy any more.
+				if (isLocal)
+				{
+					_instanceHardReference = obj;
+				}
+				else
+				{
+					_instanceWeakReference = new WeakReference(obj, false);
+				}
+
+				Identifier = identifier;
+				IsLocal = isLocal;
+				OriginalType = originalType ?? throw new ArgumentNullException(nameof(originalType));
+				_owningInstanceManager = owner;
+				ReferenceBitVector = 0;
+			}
+
+			public object Instance
+			{
+				get
+				{
+					if (_instanceHardReference != null)
+					{
+						return _instanceHardReference;
+					}
+
+					var ret = _instanceWeakReference?.Target;
+
+					return ret;
+				}
+			}
+
+			public string Identifier
+			{
+				get;
+			}
+
+			public bool IsLocal { get; }
+
+			public Type OriginalType
+			{
+				get;
+			}
+
+			public bool IsReleased
+			{
+				get
+				{
+					return _instanceHardReference == null && !_instanceWeakReference.IsAlive;
+				}
+			}
+
+			public InstanceManager Owner => _owningInstanceManager;
+
+			/// <summary>
+			/// Contains a binary 1 for each remote instance from the <see cref="InstanceManager.s_knownRemoteInstances"/> that has
+			/// references to this instance. If this is 0, the object is eligible for garbage collection from the view of the
+			/// remoting infrastructure.
+			/// </summary>
+			public UInt64 ReferenceBitVector
+			{
+				get;
+				set;
+			}
 		}
 	}
 }

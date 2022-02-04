@@ -37,6 +37,7 @@ namespace NewRemoting
 	{
 		public const string ServerExecutableName = "RemotingServer.exe";
 		private const string RuntimeVersionRegex = "(\\d+\\.\\d)";
+		internal const int AuthenticationSucceededToken = 567223;
 
 		private readonly IFormatter _formatter;
 		private readonly List<ThreadData> _threads;
@@ -281,7 +282,7 @@ namespace NewRemoting
 		/// <summary>
 		/// Starts the server stream handler directly
 		/// </summary>
-		internal void StartProcessing()
+		internal void StartProcessing(string otherSideInstanceId)
 		{
 			if (_preopenedStream == null)
 			{
@@ -291,7 +292,7 @@ namespace NewRemoting
 			_threadRunning = true;
 			Thread ts = new Thread(ServerStreamHandler);
 			ts.Name = "Server stream handler for client side";
-			var td = new ThreadData(ts, _preopenedStream, new BinaryReader(_preopenedStream, Encoding.Unicode));
+			var td = new ThreadData(ts, _preopenedStream, new BinaryReader(_preopenedStream, Encoding.Unicode), otherSideInstanceId);
 			_threads.Add(td);
 			ts.Start(td);
 		}
@@ -330,7 +331,7 @@ namespace NewRemoting
 						throw new RemotingException("Incorrect data stream - sync lost");
 					}
 
-					if (ExecuteCommand(hd, r, out bool clientDisconnecting))
+					if (ExecuteCommand(hd, r, td.OtherSideInstanceId, out bool clientDisconnecting))
 					{
 						if (clientDisconnecting)
 						{
@@ -381,7 +382,7 @@ namespace NewRemoting
 						RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
 						hdReturnValue1.WriteTo(answerWriter);
 						// Can this fail? Typically, this is a reference type, so it shouldn't.
-						_messageHandler.WriteArgumentToStream(answerWriter, newInstance);
+						_messageHandler.WriteArgumentToStream(answerWriter, newInstance, td.OtherSideInstanceId);
 
 						SendAnswer(td, ms);
 
@@ -402,7 +403,7 @@ namespace NewRemoting
 						{
 							// Constructors are selected dynamically on the server side (below), therefore we can't pass the argument type here.
 							// This may disallow calling a constructor with a client-side reference. It is yet to clarify whether that's a problem or not.
-							ctorArgs[i] = _messageHandler.ReadArgumentFromStream(r, null, null, false, null);
+							ctorArgs[i] = _messageHandler.ReadArgumentFromStream(r, null, null, false, null, td.OtherSideInstanceId);
 						}
 
 						Type t = null;
@@ -421,7 +422,7 @@ namespace NewRemoting
 
 						RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
 						hdReturnValue1.WriteTo(answerWriter);
-						_messageHandler.WriteArgumentToStream(answerWriter, newInstance);
+						_messageHandler.WriteArgumentToStream(answerWriter, newInstance, td.OtherSideInstanceId);
 
 						SendAnswer(td, ms);
 						continue;
@@ -439,7 +440,7 @@ namespace NewRemoting
 						object newInstance = ServiceContainer.GetService(t);
 						RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
 						hdReturnValue1.WriteTo(answerWriter);
-						_messageHandler.WriteArgumentToStream(answerWriter, newInstance);
+						_messageHandler.WriteArgumentToStream(answerWriter, newInstance, td.OtherSideInstanceId);
 
 						SendAnswer(td, ms);
 						continue;
@@ -477,7 +478,7 @@ namespace NewRemoting
 					object[] args = new object[numArgs];
 					for (int i = 0; i < numArgs; i++)
 					{
-						var decodedArg = _messageHandler.ReadArgumentFromStream(r, me, null, false, me.GetParameters()[i].ParameterType);
+						var decodedArg = _messageHandler.ReadArgumentFromStream(r, me, null, false, me.GetParameters()[i].ParameterType, td.OtherSideInstanceId);
 						args[i] = decodedArg;
 					}
 
@@ -485,7 +486,7 @@ namespace NewRemoting
 					{
 						try
 						{
-							InvokeRealInstance(me, realInstance, args, hd, answerWriter);
+							InvokeRealInstance(me, realInstance, args, hd, answerWriter, td.OtherSideInstanceId);
 						}
 						catch (SerializationException x)
 						{
@@ -560,7 +561,7 @@ namespace NewRemoting
 			return true;
 		}
 
-		private void InvokeRealInstance(MethodInfo me, object realInstance, object[] args, RemotingCallHeader hd, BinaryWriter w)
+		private void InvokeRealInstance(MethodInfo me, object realInstance, object[] args, RemotingCallHeader hd, BinaryWriter w, string otherSideInstanceId)
 		{
 			// Here, the actual target method of the proxied call is invoked.
 			Logger.Log(LogLevel.Debug, $"MainServer: Invoking {me}, sequence {hd.Sequence}");
@@ -614,7 +615,7 @@ namespace NewRemoting
 						Logger.Log(LogLevel.Debug, $"MainServer: {hd.Sequence} reply is of type {returnValue.GetType()}");
 					}
 
-					_messageHandler.WriteArgumentToStream(w, returnValue);
+					_messageHandler.WriteArgumentToStream(w, returnValue, otherSideInstanceId);
 				}
 
 				int index = 0;
@@ -622,7 +623,7 @@ namespace NewRemoting
 				{
 					if (byRefArguments.ParameterType.IsByRef)
 					{
-						_messageHandler.WriteArgumentToStream(w, args[index]);
+						_messageHandler.WriteArgumentToStream(w, args[index], otherSideInstanceId);
 					}
 
 					index++;
@@ -630,14 +631,14 @@ namespace NewRemoting
 			}
 		}
 
-		private bool ExecuteCommand(RemotingCallHeader hd, BinaryReader r, out bool clientDisconnecting)
+		private bool ExecuteCommand(RemotingCallHeader hd, BinaryReader r, string otherSideInstanceId, out bool clientDisconnecting)
 		{
 			clientDisconnecting = false;
 			if (hd.Function == RemotingFunctionType.OpenReverseChannel)
 			{
 				string clientIp = r.ReadString();
 				int clientPort = r.ReadInt32();
-				string otherSideInstanceId = r.ReadString();
+				string otherSideInstanceId1 = r.ReadString();
 				int connectionIdentifier = r.ReadInt32();
 				Stream streamToUse;
 				while (!_clientStreamsExpectingUse.TryGetValue(connectionIdentifier, out streamToUse))
@@ -647,11 +648,12 @@ namespace NewRemoting
 					// throw new RemotingException("Server not ready for reverse connection. Startup sequence error", RemotingExceptionKind.ProtocolError);
 				}
 
-				var newInterceptor = new ClientSideInterceptor(otherSideInstanceId, _instanceManager.InstanceIdentifier, false, streamToUse, _messageHandler, Logger);
+				var newInterceptor = new ClientSideInterceptor(otherSideInstanceId1, _instanceManager.InstanceIdentifier, false, streamToUse, _messageHandler, Logger);
 
+				newInterceptor.Start();
 				_messageHandler.AddInterceptor(newInterceptor);
 				_instanceManager.AddInterceptor(newInterceptor);
-				_serverInterceptorForCallbacks.Add(otherSideInstanceId, newInterceptor);
+				_serverInterceptorForCallbacks.Add(otherSideInstanceId1, newInterceptor);
 				return true;
 			}
 
@@ -690,7 +692,7 @@ namespace NewRemoting
 				for (int i = 0; i < cnt; i++)
 				{
 					string objectId = r.ReadString();
-					_instanceManager.Remove(objectId);
+					_instanceManager.Remove(objectId, otherSideInstanceId);
 				}
 
 				return true;
@@ -751,6 +753,9 @@ namespace NewRemoting
 			throw new TypeLoadException($"Type {assemblyQualifiedName} not found. No assembly specified");
 		}
 
+		/// <summary>
+		/// This controls the master Socket.Accept thread.
+		/// </summary>
 		private void ReceiverThread()
 		{
 			while (_threadRunning)
@@ -769,7 +774,26 @@ namespace NewRemoting
 						continue;
 					}
 
+					byte[] length = new byte[4];
+					if (stream.Read(length, 0, 4) != 4)
+					{
+						tcpClient.Dispose();
+						continue;
+					}
+
+					byte[] data = new byte[BitConverter.ToInt32(length)];
+
+					if (stream.Read(data, 0, data.Length) != data.Length)
+					{
+						tcpClient.Dispose();
+						continue;
+					}
+
+					string otherSideInstanceId = Encoding.Unicode.GetString(data);
+
 					int instanceHash = BitConverter.ToInt32(authenticationToken, 1);
+
+					SendAuthenticationReply(stream);
 
 					if (authenticationToken[0] == 1)
 					{
@@ -779,7 +803,7 @@ namespace NewRemoting
 
 					Thread ts = new Thread(ServerStreamHandler);
 					ts.Name = $"Remote server client {tcpClient.Client.RemoteEndPoint}";
-					var td = new ThreadData(ts, stream, new BinaryReader(stream, Encoding.Unicode));
+					var td = new ThreadData(ts, stream, new BinaryReader(stream, Encoding.Unicode), otherSideInstanceId);
 					_threads.Add(td);
 					ts.Start(td);
 				}
@@ -788,6 +812,17 @@ namespace NewRemoting
 					Console.WriteLine($"Server terminating? Got {x}");
 				}
 			}
+		}
+
+		private void SendAuthenticationReply(Stream stream)
+		{
+			byte[] successToken = BitConverter.GetBytes(AuthenticationSucceededToken);
+			stream.Write(successToken);
+
+			var instanceIdentifier = Encoding.Unicode.GetBytes(_instanceManager.InstanceIdentifier);
+			var lenBytes = BitConverter.GetBytes(instanceIdentifier.Length);
+			stream.Write(lenBytes);
+			stream.Write(instanceIdentifier);
 		}
 
 		/// <summary>
@@ -851,16 +886,19 @@ namespace NewRemoting
 
 		private sealed class ThreadData
 		{
-			public ThreadData(Thread thread, Stream stream, BinaryReader binaryReader)
+			public ThreadData(Thread thread, Stream stream, BinaryReader binaryReader, string otherSideInstanceId)
 			{
 				Thread = thread;
 				Stream = stream;
 				BinaryReader = binaryReader;
+				OtherSideInstanceId = otherSideInstanceId;
 			}
 
 			public Thread Thread { get; }
 			public Stream Stream { get; }
 			public BinaryReader BinaryReader { get; }
+
+			public string OtherSideInstanceId { get; }
 		}
 	}
 }

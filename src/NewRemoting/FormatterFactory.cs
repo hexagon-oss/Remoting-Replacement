@@ -82,7 +82,7 @@ namespace NewRemoting
 				}
 				else
 				{
-					objectId = _instanceManager.GetIdForObject(obj);
+					objectId = _instanceManager.GetIdForObject(obj, null);
 					info.AddValue("ObjectId", objectId);
 					info.AddValue("AssemblyQualifiedName", obj.GetType().AssemblyQualifiedName);
 				}
@@ -97,11 +97,11 @@ namespace NewRemoting
 				if (!string.IsNullOrEmpty(typeName))
 				{
 					Type targetType = Server.GetTypeFromAnyAssembly(typeName);
-					newProxy = _instanceManager.CreateOrGetReferenceInstance(null, false, targetType, typeName, objectId);
+					newProxy = _instanceManager.CreateOrGetProxyForObjectId(null, false, targetType, typeName, objectId);
 				}
 				else
 				{
-					newProxy = _instanceManager.CreateOrGetReferenceInstance(null, false, null, typeName, objectId);
+					newProxy = _instanceManager.CreateOrGetProxyForObjectId(null, false, null, typeName, objectId);
 				}
 
 				return newProxy;
