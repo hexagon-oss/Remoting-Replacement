@@ -21,15 +21,15 @@ namespace NewRemoting
 	internal class MessageHandler
 	{
 		private readonly InstanceManager _instanceManager;
-		private readonly IFormatter _formatter;
+		private readonly FormatterFactory _formatterFactory;
 		private readonly object _communicationLock;
 		private readonly Dictionary<string, ClientSideInterceptor> _interceptors;
 		private bool _initialized;
 
-		public MessageHandler(InstanceManager instanceManager, IFormatter formatter)
+		public MessageHandler(InstanceManager instanceManager, FormatterFactory formatterFactory)
 		{
 			_instanceManager = instanceManager;
-			_formatter = formatter;
+			_formatterFactory = formatterFactory;
 			_communicationLock = new object();
 			_initialized = false;
 			_interceptors = new();
@@ -169,7 +169,7 @@ namespace NewRemoting
 			}
 			else if (t.IsSerializable)
 			{
-				SendSerializedObject(w, data);
+				SendSerializedObject(w, data, willBeSentTo);
 			}
 			else if (t.IsAssignableTo(typeof(MarshalByRefObject)))
 			{
@@ -187,12 +187,13 @@ namespace NewRemoting
 			}
 		}
 
-		private void SendSerializedObject(BinaryWriter w, object data)
+		private void SendSerializedObject(BinaryWriter w, object data, string otherSideInstanceId)
 		{
 			MemoryStream ms = new MemoryStream();
 
 #pragma warning disable 618
-			_formatter.Serialize(ms, data);
+			var formatter = _formatterFactory.CreateOrGetFormatter(otherSideInstanceId);
+			formatter.Serialize(ms, data);
 #pragma warning restore 618
 			w.Write((int)RemotingReferenceType.SerializedItem);
 			w.Write((int)ms.Length);
@@ -334,11 +335,11 @@ namespace NewRemoting
 			}
 		}
 
-		public void SendExceptionReply(Exception exception, BinaryWriter w, int sequence)
+		public void SendExceptionReply(Exception exception, BinaryWriter w, int sequence, string otherSideInstanceId)
 		{
 			RemotingCallHeader hdReturnValue = new RemotingCallHeader(RemotingFunctionType.ExceptionReturn, sequence);
 			hdReturnValue.WriteTo(w);
-			SendSerializedObject(w, exception);
+			SendSerializedObject(w, exception, otherSideInstanceId);
 		}
 
 		public object ReadArgumentFromStream(BinaryReader r, MethodBase callingMethod, IInvocation invocation, bool canAttemptToInstantiate, Type typeOfArgument, string otherSideInstanceId)
@@ -359,7 +360,8 @@ namespace NewRemoting
 					byte[] argumentData = r.ReadBytes(argumentLen);
 					MemoryStream ms = new MemoryStream(argumentData, false);
 #pragma warning disable 618
-					object decodedArg = _formatter.Deserialize(ms);
+					var formatter = _formatterFactory.CreateOrGetFormatter(otherSideInstanceId);
+					object decodedArg = formatter.Deserialize(ms);
 #pragma warning restore 618
 					return decodedArg;
 				}
@@ -507,14 +509,15 @@ namespace NewRemoting
 			}
 		}
 
-		public Exception DecodeException(BinaryReader reader)
+		public Exception DecodeException(BinaryReader reader, string otherSideInstanceId)
 		{
 			reader.ReadInt32(); // RemotingReferenceType.SerializedItem
 			int argumentLen = reader.ReadInt32();
 			byte[] argumentData = reader.ReadBytes(argumentLen);
 			MemoryStream ms = new MemoryStream(argumentData, false);
 #pragma warning disable 618
-			object decodedArg = _formatter.Deserialize(ms);
+			var formatter = _formatterFactory.CreateOrGetFormatter(otherSideInstanceId);
+			object decodedArg = formatter.Deserialize(ms);
 #pragma warning restore 618
 			return (Exception)decodedArg;
 		}

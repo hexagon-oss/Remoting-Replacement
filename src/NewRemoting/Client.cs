@@ -67,9 +67,8 @@ namespace NewRemoting
 			_proxy = new ProxyGenerator(_builder);
 			_instanceManager = new InstanceManager(_proxy, Logger);
 			_formatterFactory = new FormatterFactory(_instanceManager);
-			_formatter = _formatterFactory.CreateFormatter();
 
-			_messageHandler = new MessageHandler(_instanceManager, _formatter);
+			_messageHandler = new MessageHandler(_instanceManager, _formatterFactory);
 
 			// A client side has only one server, so there's also only one interceptor and only one server side
 			_interceptor = new ClientSideInterceptor(string.Empty, _instanceManager.InstanceIdentifier, true, _client.GetStream(), _messageHandler, Logger);
@@ -82,6 +81,8 @@ namespace NewRemoting
 
 			WaitForConnectionReply(s);
 			WaitForConnectionReply(_client.GetStream());
+
+			_formatter = _formatterFactory.CreateOrGetFormatter(_interceptor.OtherSideInstanceId);
 			_interceptor.Start();
 
 			// This is used as return channel

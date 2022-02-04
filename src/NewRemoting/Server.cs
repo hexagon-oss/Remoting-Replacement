@@ -39,7 +39,6 @@ namespace NewRemoting
 		private const string RuntimeVersionRegex = "(\\d+\\.\\d)";
 		internal const int AuthenticationSucceededToken = 567223;
 
-		private readonly IFormatter _formatter;
 		private readonly List<ThreadData> _threads;
 		private readonly ProxyGenerator _proxyGenerator;
 		private readonly CancellationTokenSource _terminatingSource = new CancellationTokenSource();
@@ -90,11 +89,10 @@ namespace NewRemoting
 
 			_instanceManager = new InstanceManager(_proxyGenerator, Logger);
 			_formatterFactory = new FormatterFactory(_instanceManager);
-			_formatter = _formatterFactory.CreateFormatter();
 			KillProcessWhenChannelDisconnected = false;
 
 			// This instance will only be finally initialized once the return channel is opened
-			_messageHandler = new MessageHandler(_instanceManager, _formatter);
+			_messageHandler = new MessageHandler(_instanceManager, _formatterFactory);
 			AppDomain.CurrentDomain.AssemblyResolve += AssemblyResolver;
 			RegisterStandardServices();
 		}
@@ -113,7 +111,6 @@ namespace NewRemoting
 
 			_threads = new();
 			_formatterFactory = new FormatterFactory(_instanceManager);
-			_formatter = _formatterFactory.CreateFormatter();
 			_proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
 			_serverInterceptorForCallbacks = new Dictionary<string, ClientSideInterceptor>() { { localInterceptor.OtherSideInstanceId, localInterceptor } };
 
@@ -367,14 +364,14 @@ namespace NewRemoting
 						}
 
 						Type t = null;
-						if (!TryReflectionMethod(() => GetTypeFromAnyAssembly(instance), answerWriter, hd.Sequence, out t))
+						if (!TryReflectionMethod(() => GetTypeFromAnyAssembly(instance), answerWriter, hd.Sequence, td.OtherSideInstanceId, out t))
 						{
 							SendAnswer(td, ms);
 							continue;
 						}
 
 						object newInstance = null;
-						if (!TryReflectionMethod(() => Activator.CreateInstance(t, false), answerWriter, hd.Sequence, out newInstance))
+						if (!TryReflectionMethod(() => Activator.CreateInstance(t, false), answerWriter, hd.Sequence, td.OtherSideInstanceId, out newInstance))
 						{
 							continue;
 						}
@@ -407,14 +404,14 @@ namespace NewRemoting
 						}
 
 						Type t = null;
-						if (!TryReflectionMethod(() => GetTypeFromAnyAssembly(instance), answerWriter, hd.Sequence, out t))
+						if (!TryReflectionMethod(() => GetTypeFromAnyAssembly(instance), answerWriter, hd.Sequence, td.OtherSideInstanceId, out t))
 						{
 							SendAnswer(td, ms);
 							continue;
 						}
 
 						object newInstance = null;
-						if (!TryReflectionMethod(() => Activator.CreateInstance(t, ctorArgs), answerWriter, hd.Sequence, out newInstance))
+						if (!TryReflectionMethod(() => Activator.CreateInstance(t, ctorArgs), answerWriter, hd.Sequence, td.OtherSideInstanceId, out newInstance))
 						{
 							SendAnswer(td, ms);
 							continue;
@@ -431,7 +428,7 @@ namespace NewRemoting
 					if (hd.Function == RemotingFunctionType.RequestServiceReference)
 					{
 						Type t = null;
-						if (!TryReflectionMethod(() => GetTypeFromAnyAssembly(instance), answerWriter, hd.Sequence, out t))
+						if (!TryReflectionMethod(() => GetTypeFromAnyAssembly(instance), answerWriter, hd.Sequence, td.OtherSideInstanceId, out t))
 						{
 							SendAnswer(td, ms);
 							continue;
@@ -494,7 +491,7 @@ namespace NewRemoting
 							// Clear the stream, we must only send the exception
 							ms.Position = 0;
 							ms.SetLength(0);
-							_messageHandler.SendExceptionReply(x, answerWriter, hd.Sequence);
+							_messageHandler.SendExceptionReply(x, answerWriter, hd.Sequence, td.OtherSideInstanceId);
 						}
 
 						SendAnswer(td, ms);
@@ -543,7 +540,7 @@ namespace NewRemoting
 		/// <param name="sequenceId">Sequence Id of the call</param>
 		/// <param name="result">[Out] Result of the operation</param>
 		/// <returns>True on success, false if an exception occurred</returns>
-		private bool TryReflectionMethod<T>(Func<T> operation, BinaryWriter writer, int sequenceId, out T result)
+		private bool TryReflectionMethod<T>(Func<T> operation, BinaryWriter writer, int sequenceId, string otherSideInstanceId, out T result)
 		{
 			T ret = default;
 			try
@@ -552,7 +549,7 @@ namespace NewRemoting
 			}
 			catch (Exception x) when (x is TypeLoadException || x is FileNotFoundException || x is TargetInvocationException)
 			{
-				_messageHandler.SendExceptionReply(x, writer, sequenceId);
+				_messageHandler.SendExceptionReply(x, writer, sequenceId, otherSideInstanceId);
 				result = default;
 				return false;
 			}
@@ -593,7 +590,7 @@ namespace NewRemoting
 						x = x.InnerException;
 					}
 
-					_messageHandler.SendExceptionReply(x, w, hd.Sequence);
+					_messageHandler.SendExceptionReply(x, w, hd.Sequence, otherSideInstanceId);
 				}
 
 				return;

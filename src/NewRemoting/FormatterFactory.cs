@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization;
@@ -14,17 +15,26 @@ namespace NewRemoting
 		private readonly InstanceManager _instanceManager;
 		private readonly ProxySurrogate _serializationSurrogate;
 		private readonly CustomSerializerSurrogate _customSerializer;
+		private readonly ConcurrentDictionary<string, BinaryFormatter> _cusBinaryFormatters;
 
 		public FormatterFactory(InstanceManager instanceManager)
 		{
 			_instanceManager = instanceManager;
 			_serializationSurrogate = new ProxySurrogate(_instanceManager);
 			_customSerializer = new CustomSerializerSurrogate();
+			_cusBinaryFormatters = new ConcurrentDictionary<string, BinaryFormatter>();
 		}
 
-		public IFormatter CreateFormatter()
+		public IFormatter CreateOrGetFormatter(string otherSideInstanceId)
 		{
-			var bf = new BinaryFormatter(this, new StreamingContext(StreamingContextStates.All));
+			if (_cusBinaryFormatters.TryGetValue(otherSideInstanceId, out var formatter))
+			{
+				return formatter;
+			}
+
+			// Doing this twice doesn't hurt (except for a very minor performance penalty)
+			var bf = new BinaryFormatter(this, new StreamingContext(StreamingContextStates.All, otherSideInstanceId));
+			_cusBinaryFormatters.TryAdd(otherSideInstanceId, bf);
 			return bf;
 		}
 
@@ -82,7 +92,7 @@ namespace NewRemoting
 				}
 				else
 				{
-					objectId = _instanceManager.GetIdForObject(obj, null);
+					objectId = _instanceManager.GetIdForObject(obj, (string)context.Context);
 					info.AddValue("ObjectId", objectId);
 					info.AddValue("AssemblyQualifiedName", obj.GetType().AssemblyQualifiedName);
 				}
