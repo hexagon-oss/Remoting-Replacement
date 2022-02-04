@@ -67,12 +67,12 @@ namespace NewRemoting
 				if (Client.IsRemoteProxy(obj))
 				{
 					// This should have an unit test, but I have not yet found out what test code causes this situation
-					if (!_instanceManager.TryGetObjectId(obj, out objectId))
+					if (!_instanceManager.TryGetObjectId(obj, out objectId, out Type originalType))
 					{
 						throw new RemotingException("Couldn't find matching objectId, although should be there");
 					}
 
-					var originalType = ProxyUtil.GetUnproxiedType(obj);
+					// var originalType = ProxyUtil.GetUnproxiedType(obj);
 					// The proxy's assembly name is "DynamicProxyGenAssembly2", which does not physically exist and is certainly different on the
 					// remote side. Therefore make sure we never pass that name in the serialization stream.
 					info.AssemblyName = originalType.Assembly.FullName;
