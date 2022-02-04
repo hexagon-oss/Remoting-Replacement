@@ -97,7 +97,7 @@ namespace NewRemoting
 		public string GetIdForObject(object instance)
 		{
 			string id = CreateObjectInstanceId(instance);
-			AddInstance(instance, id);
+			AddInstance(instance, id, instance.GetType());
 			return id;
 		}
 
@@ -116,21 +116,27 @@ namespace NewRemoting
 			return false;
 		}
 
-		public void AddInstance(object instance, string objectId)
+		public void AddInstance(object instance, string objectId, Type originalType)
 		{
 			if (instance == null)
 			{
 				throw new ArgumentNullException(nameof(instance));
 			}
 
-			s_objects.AddOrUpdate(objectId, s => new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), this), (s, info) => new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), this));
+			if (Client.IsProxyType(originalType))
+			{
+				throw new ArgumentException("The original type cannot be a proxy", nameof(originalType));
+			}
+
+			s_objects.AddOrUpdate(objectId, s => new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), originalType, this),
+				(s, info) => new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), originalType, this));
 		}
 
 		/// <summary>
 		/// Gets the instance id for a given object.
 		/// This method is slow - should be improved by a reverse dictionary or similar (maybe use <see cref="ConditionalWeakTable{TKey,TValue}"/>)
 		/// </summary>
-		public bool TryGetObjectId(object instance, out string instanceId)
+		public bool TryGetObjectId(object instance, out string instanceId, out Type originalType)
 		{
 			if (ReferenceEquals(instance, null))
 			{
@@ -143,11 +149,13 @@ namespace NewRemoting
 				if (ReferenceEquals(v.Instance, instance))
 				{
 					instanceId = v.Identifier;
+					originalType = v.OriginalType;
 					return true;
 				}
 			}
 
 			instanceId = null;
+			originalType = null;
 			return false;
 		}
 
@@ -235,7 +243,7 @@ namespace NewRemoting
 			private readonly WeakReference _instanceWeakReference;
 			private readonly InstanceManager _owningInstanceManager;
 
-			public InstanceInfo(object obj, string identifier, bool isLocal, InstanceManager owner)
+			public InstanceInfo(object obj, string identifier, bool isLocal, Type originalType, InstanceManager owner)
 			{
 				// If the actual instance lives in our process, we need to keep the hard reference, because
 				// there are clients that may keep a reference to this object.
@@ -251,6 +259,7 @@ namespace NewRemoting
 				}
 
 				Identifier = identifier;
+				OriginalType = originalType ?? throw new ArgumentNullException(nameof(originalType));
 				_owningInstanceManager = owner;
 			}
 
@@ -273,6 +282,8 @@ namespace NewRemoting
 			{
 				get;
 			}
+
+			public Type OriginalType { get; }
 
 			public bool IsReleased
 			{
@@ -370,7 +381,7 @@ namespace NewRemoting
 				instance = ProxyGenerator.CreateClassProxy(type, interfaces, interceptor);
 			}
 
-			AddInstance(instance, objectId);
+			AddInstance(instance, objectId, type);
 
 			return instance;
 		}

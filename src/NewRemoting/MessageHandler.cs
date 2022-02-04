@@ -155,15 +155,16 @@ namespace NewRemoting
 			else if (Client.IsRemoteProxy(data))
 			{
 				// Proxies are never serializable
-				if (!_instanceManager.TryGetObjectId(data, out string objectId))
+				if (!_instanceManager.TryGetObjectId(data, out string objectId, out Type originalType))
 				{
 					throw new RemotingException("A proxy has no existing reference");
 				}
 
 				w.Write((int)RemotingReferenceType.RemoteReference);
 				w.Write(objectId);
-				string originalName = Client.GetUnproxiedType(data).AssemblyQualifiedName ?? String.Empty;
-				w.Write(originalName);
+				// string originalTypeName = Client.GetUnproxiedType(data).AssemblyQualifiedName ?? String.Empty;
+				string originalTypeName = originalType.AssemblyQualifiedName ?? string.Empty;
+				w.Write(originalTypeName);
 			}
 			else if (t.IsSerializable)
 			{
@@ -174,8 +175,10 @@ namespace NewRemoting
 				string objectId = _instanceManager.GetIdForObject(data);
 				w.Write((int)RemotingReferenceType.RemoteReference);
 				w.Write(objectId);
-				var assemblyQualitfiedName = Client.GetUnproxiedType(data).AssemblyQualifiedName ?? String.Empty;
-				w.Write(assemblyQualitfiedName);
+
+				// If this is not a proxy, this should always work correctly
+				var assemblyQualitfiedTypeName = Client.GetUnproxiedType(data).AssemblyQualifiedName ?? String.Empty;
+				w.Write(assemblyQualitfiedTypeName);
 			}
 			else
 			{
@@ -452,7 +455,7 @@ namespace NewRemoting
 					// This creates an instance of the DelegateInternalSink class, which acts as a proxy for delegate callbacks. Instead of the actual delegate
 					// target, we register a method from this class as a delegate target
 					var internalSink = new DelegateInternalSink(interceptor, targetId, methodInfoOfTarget);
-					_instanceManager.AddInstance(internalSink, targetId);
+					_instanceManager.AddInstance(internalSink, targetId, internalSink.GetType());
 
 					IEnumerable<MethodInfo> possibleSinks = null;
 
@@ -479,7 +482,7 @@ namespace NewRemoting
 					if (callingMethod != null && callingMethod.IsSpecialName && callingMethod.Name.StartsWith("add_", StringComparison.Ordinal))
 					{
 						newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
-						_instanceManager.AddInstance(newDelegate, delegateId);
+						_instanceManager.AddInstance(newDelegate, delegateId, newDelegate.GetType());
 						return newDelegate;
 					}
 					else if (callingMethod != null && callingMethod.IsSpecialName && callingMethod.Name.StartsWith("remove_", StringComparison.Ordinal))

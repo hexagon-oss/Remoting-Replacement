@@ -107,7 +107,7 @@ namespace NewRemoting
 					throw new RemotingException("Remote-calling a static method? No.");
 				}
 
-				if (!_messageHandler.InstanceManager.TryGetObjectId(invocation.Proxy, out var remoteInstanceId))
+				if (!_messageHandler.InstanceManager.TryGetObjectId(invocation.Proxy, out var remoteInstanceId, out _))
 				{
 					// One valid case when we may get here is when the proxy is just being created (as a class proxy) and within that ctor,
 					// a virtual member function is called. So we can execute the call locally (the object should be in an useful state, since its default ctor
