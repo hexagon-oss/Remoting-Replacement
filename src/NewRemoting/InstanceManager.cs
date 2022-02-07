@@ -249,7 +249,7 @@ namespace NewRemoting
 			foreach (var e in s_objects)
 			{
 				// Iterating over a ConcurrentDictionary should be thread safe
-				if (e.Value.IsReleased || dropAll)
+				if (e.Value.IsReleased || (dropAll && e.Value.Owner == this))
 				{
 					instancesToClear.Add(e.Value);
 					s_objects.TryRemove(e);
