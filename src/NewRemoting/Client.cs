@@ -369,7 +369,7 @@ namespace NewRemoting
 					_writer.Write(args.Length); // but we need to provide the number of arguments that follow
 					foreach (var a in args)
 					{
-						_messageHandler.WriteArgumentToStream(_writer, a, _instanceManager.InstanceIdentifier);
+						_messageHandler.WriteArgumentToStream(_writer, a, _interceptor.OtherSideInstanceId);
 					}
 				}
 			}

@@ -55,8 +55,8 @@ namespace NewRemoting
 		/// </summary>
 		/// <param name="w">The data sink</param>
 		/// <param name="data">The object to write</param>
-		/// <param name="willBeSentTo">Destination identifier (used to keep track of the reference)</param>
-		public void WriteArgumentToStream(BinaryWriter w, object data, string willBeSentTo)
+		/// <param name="referencesWillBeSentTo">Destination identifier (used to keep track of references that are eventually encoded in the stream)</param>
+		public void WriteArgumentToStream(BinaryWriter w, object data, string referencesWillBeSentTo)
 		{
 			if (!_initialized)
 			{
@@ -110,7 +110,7 @@ namespace NewRemoting
 				{
 					// Recursively write the arguments
 					w.Write(true);
-					WriteArgumentToStream(w, obj, willBeSentTo);
+					WriteArgumentToStream(w, obj, referencesWillBeSentTo);
 				}
 
 				w.Write(false); // Terminate the array
@@ -126,7 +126,7 @@ namespace NewRemoting
 				w.Write((int)RemotingReferenceType.MethodPointer);
 				if (del.Target != null)
 				{
-					string instanceId = _instanceManager.GetIdForObject(del.Target, willBeSentTo);
+					string instanceId = _instanceManager.GetIdForObject(del.Target, referencesWillBeSentTo);
 					w.Write(instanceId);
 				}
 				else
@@ -135,7 +135,7 @@ namespace NewRemoting
 					w.Write(string.Empty);
 				}
 
-				string targetId = _instanceManager.GetIdForObject(del, willBeSentTo);
+				string targetId = _instanceManager.GetIdForObject(del, referencesWillBeSentTo);
 				w.Write(targetId);
 				w.Write(del.Method.DeclaringType.AssemblyQualifiedName);
 				w.Write(del.Method.MetadataToken);
@@ -169,11 +169,11 @@ namespace NewRemoting
 			}
 			else if (t.IsSerializable)
 			{
-				SendSerializedObject(w, data, willBeSentTo);
+				SendSerializedObject(w, data, referencesWillBeSentTo);
 			}
 			else if (t.IsAssignableTo(typeof(MarshalByRefObject)))
 			{
-				string objectId = _instanceManager.GetIdForObject(data, willBeSentTo);
+				string objectId = _instanceManager.GetIdForObject(data, referencesWillBeSentTo);
 				w.Write((int)RemotingReferenceType.RemoteReference);
 				w.Write(objectId);
 

@@ -181,7 +181,7 @@ namespace NewRemoting
 
 				foreach (var argument in invocation.Arguments)
 				{
-					_messageHandler.WriteArgumentToStream(writer, argument, ThisSideInstanceId);
+					_messageHandler.WriteArgumentToStream(writer, argument, OtherSideInstanceId);
 				}
 
 				// now finally write the stream to the network. That way, we don't send incomplete messages if an exception happens encoding a parameter.
