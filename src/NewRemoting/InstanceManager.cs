@@ -24,17 +24,17 @@ namespace NewRemoting
 		/// The instances can be local, in which case we use it to look up their ids, or remote, in
 		/// which case we use it to look up the correct proxy.
 		/// </summary>
-		private static ConcurrentDictionary<string, InstanceInfo> s_objects;
+		private static readonly ConcurrentDictionary<string, InstanceInfo> s_objects;
 
 		/// <summary>
 		/// The list of known remote identifiers we have given references to.
 		/// Key: Identifier, Value: Index
 		/// </summary>
-		private static ConcurrentDictionary<string, int> s_knownRemoteInstances;
+		private static readonly ConcurrentDictionary<string, int> s_knownRemoteInstances;
 
 		private static int s_nextIndex;
+		private static int s_numberOfInstancesUsed = 1;
 
-		private static int _numberOfInstancesUsed = 1;
 		private readonly ILogger _logger;
 		private readonly Dictionary<string, ClientSideInterceptor> _interceptors;
 
@@ -50,7 +50,7 @@ namespace NewRemoting
 			_logger = logger;
 			ProxyGenerator = proxyGenerator;
 			_interceptors = new();
-			InstanceIdentifier = Environment.MachineName + ":" + Environment.ProcessId.ToString(CultureInfo.CurrentCulture) + "." + _numberOfInstancesUsed++;
+			InstanceIdentifier = Environment.MachineName + ":" + Environment.ProcessId.ToString(CultureInfo.CurrentCulture) + "." + s_numberOfInstancesUsed++;
 		}
 
 		/// <summary>
@@ -201,6 +201,22 @@ namespace NewRemoting
 				{
 					s_objects.TryRemove(o);
 				}
+			}
+		}
+
+		/// <summary>
+		/// Completely clears this instance. Only to be used for testing purposes
+		/// </summary>
+		/// <param name="fullyClear">Pass in true</param>
+		internal void Clear(bool fullyClear)
+		{
+			Clear();
+			if (fullyClear)
+			{
+				s_objects.Clear();
+				s_knownRemoteInstances.Clear();
+				s_numberOfInstancesUsed = 1;
+				s_nextIndex = -1;
 			}
 		}
 

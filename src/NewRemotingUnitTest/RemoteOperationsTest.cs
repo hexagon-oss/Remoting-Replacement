@@ -431,6 +431,21 @@ namespace NewRemotingUnitTest
 			Assert.AreEqual(2, server.ListCount(list));
 		}
 
+		[Test]
+		public void DistributedGcTest1()
+		{
+			var server = CreateRemoteInstance();
+			var component = server.GetComponent();
+			Assert.NotNull(component);
+			component = null;
+			GC.Collect();
+			GC.WaitForPendingFinalizers();
+			_client.ForceGc();
+			// This may just recreate a new remote reference, so this test is not very expressive.
+			// But we can't keep a reference to the object to check whether it is properly GC'd.
+			Assert.NotNull(server.GetComponent());
+		}
+
 		private MarshallableClass CreateRemoteInstance()
 		{
 			return _client.CreateRemoteInstance<MarshallableClass>();
