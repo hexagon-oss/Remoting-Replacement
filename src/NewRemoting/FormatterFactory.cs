@@ -42,7 +42,7 @@ namespace NewRemoting
 		{
 			// If the type being serialized is MarshalByRef and not serializable (having both is rare, but not impossible),
 			// we redirect here and store an object reference.
-			if (type.IsSubclassOf(typeof(MarshalByRefObject)) && !type.IsSerializable)
+			if ((type.IsSubclassOf(typeof(MarshalByRefObject)) || type == typeof(MarshalByRefObject)) && !type.IsSerializable)
 			{
 				selector = this;
 				return _serializationSurrogate;
