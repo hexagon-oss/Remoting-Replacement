@@ -251,8 +251,12 @@ namespace NewRemoting
 				// Iterating over a ConcurrentDictionary should be thread safe
 				if (e.Value.IsReleased || (dropAll && e.Value.Owner == this))
 				{
-					instancesToClear.Add(e.Value);
-					s_objects.TryRemove(e);
+					if (e.Value.IsLocal == false)
+					{
+						instancesToClear.Add(e.Value);
+					}
+
+					MarkInstanceAsUnusedLocally(e.Value.Identifier);
 				}
 			}
 
@@ -268,6 +272,28 @@ namespace NewRemoting
 			foreach (var x in instancesToClear)
 			{
 				w.Write(x.Identifier);
+			}
+		}
+
+		private void MarkInstanceAsUnusedLocally(string id)
+		{
+			if (s_objects.TryGetValue(id, out var ii))
+			{
+				ii.MarkAsUnusedRemotely();
+				// Instances that are managed on the server side shall not be removed,
+				// because others might just ask for them.
+				if (!ii.IsReleased)
+				{
+					return;
+				}
+			}
+
+			if (s_objects.TryRemove(id, out ii))
+			{
+				if (ii.ReferenceBitVector != 0 || ii.IsReleased == false)
+				{
+					throw new InvalidOperationException("Attempting to free a reference that is still in use");
+				}
 			}
 		}
 
@@ -378,7 +404,7 @@ namespace NewRemoting
 				if (ii.ReferenceBitVector == 0)
 				{
 					// If not more clients, forget about this object - the server GC will care for the rest.
-					s_objects.TryRemove(objectId, out _);
+					MarkInstanceAsUnusedLocally(ii.Identifier);
 				}
 			}
 		}
@@ -424,9 +450,9 @@ namespace NewRemoting
 
 		private class InstanceInfo
 		{
-			private readonly object _instanceHardReference;
-			private readonly WeakReference _instanceWeakReference;
 			private readonly InstanceManager _owningInstanceManager;
+			private object _instanceHardReference;
+			private WeakReference _instanceWeakReference;
 
 			public InstanceInfo(object obj, string identifier, bool isLocal, Type originalType, InstanceManager owner)
 			{
@@ -460,6 +486,12 @@ namespace NewRemoting
 					}
 
 					var ret = _instanceWeakReference?.Target;
+
+					if (IsLocal)
+					{
+						// If this should be a hard reference, resurrect it
+						Resurrect();
+					}
 
 					return ret;
 				}
@@ -496,6 +528,23 @@ namespace NewRemoting
 			{
 				get;
 				set;
+			}
+
+			public void MarkAsUnusedRemotely()
+			{
+				if (_instanceHardReference != null)
+				{
+					_instanceWeakReference = new WeakReference(_instanceHardReference, false);
+					_instanceHardReference = null;
+				}
+			}
+
+			public bool Resurrect()
+			{
+				object instance = _instanceWeakReference.Target;
+				_instanceHardReference = instance;
+				_instanceWeakReference.Target = null;
+				return instance != null;
 			}
 		}
 	}

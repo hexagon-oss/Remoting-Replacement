@@ -52,17 +52,6 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
-		public void InstanceIsRemovedUponRequest()
-		{
-			var myInstance = new MarshallableClass(100);
-			string name1 = _instanceManager.GetIdForObject(myInstance, "1");
-
-			_instanceManager.Remove(name1, "1");
-
-			Assert.Throws<InvalidOperationException>(() => _instanceManager.GetObjectFromId(name1));
-		}
-
-		[Test]
 		public void InstanceIsNotRemovedWhenAnotherGuyStillHasReference()
 		{
 			var myInstance = new MarshallableClass(100);
@@ -73,9 +62,6 @@ namespace NewRemotingUnitTest
 			_instanceManager.Remove(name1, "1");
 			var myInstance2 = _instanceManager.GetObjectFromId(name2);
 			Assert.True(ReferenceEquals(myInstance, myInstance2));
-
-			_instanceManager.Remove(name2, "2");
-			Assert.Throws<InvalidOperationException>(() => _instanceManager.GetObjectFromId(name1));
 		}
 	}
 }
