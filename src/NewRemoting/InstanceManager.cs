@@ -343,9 +343,16 @@ namespace NewRemoting
 			else if (canAttemptToInstantiate && (!type.IsSealed) && (MessageHandler.HasDefaultCtor(type) || (mi != null && invocation.Arguments.Length > 0 && mi.Constructor != null)))
 			{
 				_logger.Log(LogLevel.Debug, $"Create class proxy for main type {type}");
-				// We can attempt to create a class proxy if we have ctor arguments and the type is not sealed. But only if we are really calling into a ctor, otherwise the invocation
-				// arguments are the method arguments that created this instance as return value and then obviously the arguments are different.
-				instance = ProxyGenerator.CreateClassProxy(type, interfaces, ProxyGenerationOptions.Default, invocation.Arguments, interceptor);
+				if (MessageHandler.HasDefaultCtor(type))
+				{
+					instance = ProxyGenerator.CreateClassProxy(type, interfaces, ProxyGenerationOptions.Default, Array.Empty<object>(), interceptor);
+				}
+				else
+				{
+					// We can attempt to create a class proxy if we have ctor arguments and the type is not sealed. But only if we are really calling into a ctor, otherwise the invocation
+					// arguments are the method arguments that created this instance as return value and then obviously the arguments are different.
+					instance = ProxyGenerator.CreateClassProxy(type, interfaces, ProxyGenerationOptions.Default, invocation.Arguments, interceptor);
+				}
 			}
 			else if ((type.IsSealed || !MessageHandler.HasDefaultCtor(type) || typeOfArgument == typeof(object)) && interfaces.Length > 0)
 			{
