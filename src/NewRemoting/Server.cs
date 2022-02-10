@@ -43,7 +43,7 @@ namespace NewRemoting
 		private readonly ProxyGenerator _proxyGenerator;
 		private readonly CancellationTokenSource _terminatingSource = new CancellationTokenSource();
 		private readonly object _channelWriterLock = new object();
-		private readonly ConcurrentDictionary<string, Assembly> _knownAssemblies = new();
+		private readonly ConcurrentDictionary<string, Assembly?> _knownAssemblies = new();
 		private readonly InstanceManager _instanceManager;
 		private readonly MessageHandler _messageHandler;
 		private readonly FormatterFactory _formatterFactory;
@@ -54,16 +54,16 @@ namespace NewRemoting
 		/// </summary>
 		private readonly ConcurrentDictionary<int, Stream> _clientStreamsExpectingUse;
 
-		private Thread _mainThread;
+		private Thread? _mainThread;
 		private int _networkPort;
-		private TcpListener _listener;
+		private TcpListener? _listener;
 		private bool _threadRunning;
 
 		/// <summary>
 		/// This contains the stream that the client class has already opened for its own server.
 		/// If this is non-null, this server instance lives within the client.
 		/// </summary>
-		private Stream _preopenedStream;
+		private Stream? _preopenedStream;
 
 		/// <summary>
 		/// This is the interceptor list for calls from the server to the client using a server-side proxy (i.e. an interface registered for a callback)
@@ -77,7 +77,7 @@ namespace NewRemoting
 		/// </summary>
 		/// <param name="networkPort">Network port to open server on</param>
 		/// <param name="logger">Optional logger instance, for debugging purposes</param>
-		public Server(int networkPort, ILogger logger = null)
+		public Server(int networkPort, ILogger? logger = null)
 		{
 			Logger = logger ?? NullLogger.Instance;
 			_networkPort = networkPort;
@@ -100,12 +100,12 @@ namespace NewRemoting
 		/// <summary>
 		/// This ctor is used if this server runs on the client side (for the return channel). The actual data store is the local client instance.
 		/// </summary>
-		internal Server(Stream preopenedStream, MessageHandler messageHandler, ClientSideInterceptor localInterceptor, ILogger logger = null)
+		internal Server(Stream preopenedStream, MessageHandler messageHandler, ClientSideInterceptor localInterceptor, ILogger? logger = null)
 		{
 			_networkPort = 0;
 			Logger = logger ?? NullLogger.Instance;
 			_preopenedStream = preopenedStream;
-			_clientStreamsExpectingUse = null; // Shall not be used in this case
+			_clientStreamsExpectingUse = new(); // Shall not be used in this case
 			_messageHandler = messageHandler;
 			_instanceManager = messageHandler.InstanceManager;
 
@@ -153,7 +153,7 @@ namespace NewRemoting
 			}
 		}
 
-		private Assembly AssemblyResolver(object sender, ResolveEventArgs args)
+		private Assembly? AssemblyResolver(object? sender, ResolveEventArgs args)
 		{
 			Logger.Log(LogLevel.Debug, $"Attempting to resolve {args.Name} from {args.RequestingAssembly}");
 			if (args.RequestingAssembly == null)
@@ -202,7 +202,7 @@ namespace NewRemoting
 				dllOnly += ".dll";
 			}
 
-			string currentDirectory = Path.GetDirectoryName(args.RequestingAssembly.Location);
+			string currentDirectory = Path.GetDirectoryName(args.RequestingAssembly.Location) ?? string.Empty;
 			string path = Path.Combine(currentDirectory, dllOnly);
 
 			if (!File.Exists(path))
@@ -294,9 +294,9 @@ namespace NewRemoting
 			ts.Start(td);
 		}
 
-		private void ServerStreamHandler(object obj)
+		private void ServerStreamHandler(object? obj)
 		{
-			ThreadData td = (ThreadData)obj;
+			ThreadData td = obj as ThreadData ?? throw new ArgumentNullException(nameof(obj));
 			var stream = td.Stream;
 			var r = td.BinaryReader;
 
@@ -343,7 +343,7 @@ namespace NewRemoting
 
 					string instance = r.ReadString();
 					string typeOfCallerName = r.ReadString();
-					Type typeOfCaller = null;
+					Type? typeOfCaller = null;
 					if (!string.IsNullOrEmpty(typeOfCallerName))
 					{
 						typeOfCaller = GetTypeFromAnyAssembly(typeOfCallerName);
@@ -363,14 +363,14 @@ namespace NewRemoting
 							throw new RemotingException("Constructors cannot have generic arguments");
 						}
 
-						Type t = null;
-						if (!TryReflectionMethod(() => GetTypeFromAnyAssembly(instance), answerWriter, hd.Sequence, td.OtherSideInstanceId, out t))
+						Type? t;
+						if (!TryReflectionMethod(() => GetTypeFromAnyAssembly(instance), answerWriter, hd.Sequence, td.OtherSideInstanceId, out t) || t == null)
 						{
 							SendAnswer(td, ms);
 							continue;
 						}
 
-						object newInstance = null;
+						object? newInstance = null;
 						if (!TryReflectionMethod(() => Activator.CreateInstance(t, false), answerWriter, hd.Sequence, td.OtherSideInstanceId, out newInstance))
 						{
 							continue;
@@ -395,7 +395,7 @@ namespace NewRemoting
 						}
 
 						int numArguments = r.ReadInt32();
-						object[] ctorArgs = new object[numArguments];
+						object?[] ctorArgs = new object[numArguments];
 						for (int i = 0; i < ctorArgs.Length; i++)
 						{
 							// Constructors are selected dynamically on the server side (below), therefore we can't pass the argument type here.
@@ -403,14 +403,14 @@ namespace NewRemoting
 							ctorArgs[i] = _messageHandler.ReadArgumentFromStream(r, null, null, false, null, td.OtherSideInstanceId);
 						}
 
-						Type t = null;
-						if (!TryReflectionMethod(() => GetTypeFromAnyAssembly(instance), answerWriter, hd.Sequence, td.OtherSideInstanceId, out t))
+						Type? t;
+						if (!TryReflectionMethod(() => GetTypeFromAnyAssembly(instance), answerWriter, hd.Sequence, td.OtherSideInstanceId, out t) || t == null)
 						{
 							SendAnswer(td, ms);
 							continue;
 						}
 
-						object newInstance = null;
+						object? newInstance;
 						if (!TryReflectionMethod(() => Activator.CreateInstance(t, ctorArgs), answerWriter, hd.Sequence, td.OtherSideInstanceId, out newInstance))
 						{
 							SendAnswer(td, ms);
@@ -427,14 +427,19 @@ namespace NewRemoting
 
 					if (hd.Function == RemotingFunctionType.RequestServiceReference)
 					{
-						Type t = null;
+						Type? t = null;
 						if (!TryReflectionMethod(() => GetTypeFromAnyAssembly(instance), answerWriter, hd.Sequence, td.OtherSideInstanceId, out t))
 						{
 							SendAnswer(td, ms);
 							continue;
 						}
 
-						object newInstance = ServiceContainer.GetService(t);
+						object? newInstance = null;
+						if (t != null)
+						{
+							newInstance = ServiceContainer.GetService(t);
+						}
+
 						RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
 						hdReturnValue1.WriteTo(answerWriter);
 						_messageHandler.WriteArgumentToStream(answerWriter, newInstance, td.OtherSideInstanceId);
@@ -472,7 +477,7 @@ namespace NewRemoting
 					}
 
 					int numArgs = r.ReadInt32();
-					object[] args = new object[numArgs];
+					object?[] args = new object[numArgs];
 					for (int i = 0; i < numArgs; i++)
 					{
 						var decodedArg = _messageHandler.ReadArgumentFromStream(r, me, null, false, me.GetParameters()[i].ParameterType, td.OtherSideInstanceId);
@@ -540,9 +545,9 @@ namespace NewRemoting
 		/// <param name="sequenceId">Sequence Id of the call</param>
 		/// <param name="result">[Out] Result of the operation</param>
 		/// <returns>True on success, false if an exception occurred</returns>
-		private bool TryReflectionMethod<T>(Func<T> operation, BinaryWriter writer, int sequenceId, string otherSideInstanceId, out T result)
+		private bool TryReflectionMethod<T>(Func<T> operation, BinaryWriter writer, int sequenceId, string otherSideInstanceId, out T? result)
 		{
-			T ret = default;
+			T? ret = default;
 			try
 			{
 				ret = operation();
@@ -558,11 +563,11 @@ namespace NewRemoting
 			return true;
 		}
 
-		private void InvokeRealInstance(MethodInfo me, object realInstance, object[] args, RemotingCallHeader hd, BinaryWriter w, string otherSideInstanceId)
+		private void InvokeRealInstance(MethodInfo me, object realInstance, object?[] args, RemotingCallHeader hd, BinaryWriter w, string otherSideInstanceId)
 		{
 			// Here, the actual target method of the proxied call is invoked.
 			Logger.Log(LogLevel.Debug, $"MainServer: Invoking {me}, sequence {hd.Sequence}");
-			object returnValue;
+			object? returnValue;
 			try
 			{
 				if (realInstance == null && !me.IsStatic)
@@ -637,7 +642,7 @@ namespace NewRemoting
 				int clientPort = r.ReadInt32();
 				string otherSideInstanceId1 = r.ReadString();
 				int connectionIdentifier = r.ReadInt32();
-				Stream streamToUse;
+				Stream? streamToUse;
 				while (!_clientStreamsExpectingUse.TryGetValue(connectionIdentifier, out streamToUse))
 				{
 					// Wait until the matching connection is available - when several clients connect simultaneously, they may interfere here
@@ -706,7 +711,7 @@ namespace NewRemoting
 
 		public static Type GetTypeFromAnyAssembly(string assemblyQualifiedName)
 		{
-			Type t = Type.GetType(assemblyQualifiedName);
+			Type? t = Type.GetType(assemblyQualifiedName);
 			if (t != null)
 			{
 				return t;
@@ -732,18 +737,19 @@ namespace NewRemoting
 					Assembly ass = Assembly.Load(name);
 					try
 					{
-						return ass.GetType(assemblyQualifiedName, true);
+						// When the second argument is true, this never returns null
+						return ass.GetType(assemblyQualifiedName, true)!;
 					}
 					catch (ArgumentException)
 					{
-						return ass.GetType(typeName, true);
+						return ass.GetType(typeName, true)!;
 					}
 				}
 				catch (FileNotFoundException)
 				{
 					// Try the legacy way
 					Assembly ass = Assembly.LoadFrom(name.Name + ".dll");
-					return ass.GetType(typeName, true);
+					return ass.GetType(typeName, true)!;
 				}
 			}
 
@@ -759,6 +765,11 @@ namespace NewRemoting
 			{
 				try
 				{
+					if (_listener == null)
+					{
+						return;
+					}
+
 					var tcpClient = _listener.AcceptTcpClient();
 					var stream = tcpClient.GetStream();
 					byte[] authenticationToken = new byte[100];

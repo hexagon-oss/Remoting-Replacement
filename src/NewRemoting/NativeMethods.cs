@@ -15,7 +15,7 @@ namespace NewRemoting
 		public const int SECURITY_IMPERSONATION_LEVEL_IMPERSONATION = 2;
 
 		[DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-		public static extern int LogonUser(string lpszUserName, string lpszDomain, string lpszPassword, int dwLogonType,
+		public static extern int LogonUser(string? lpszUserName, string? lpszDomain, string? lpszPassword, int dwLogonType,
 			int dwLogonProvider, ref SafeAccessTokenHandle phToken);
 
 		[DllImport("advapi32.dll", SetLastError = true)]

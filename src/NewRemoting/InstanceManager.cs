@@ -118,9 +118,10 @@ namespace NewRemoting
 		/// <param name="instance">Returns the object instance (this is normally a real instance and not a proxy, but this is not always true
 		/// when transient servers exist)</param>
 		/// <returns>True when an object with the given id was found, false otherwise</returns>
-		public bool TryGetObjectFromId(string id, [NotNullWhen(true)]out object instance)
+		public bool TryGetObjectFromId(string id, [NotNullWhen(true)]
+			out object? instance)
 		{
-			if (s_objects.TryGetValue(id, out InstanceInfo value))
+			if (s_objects.TryGetValue(id, out InstanceInfo? value))
 			{
 				if (value.Instance != null)
 				{
@@ -131,6 +132,27 @@ namespace NewRemoting
 
 			instance = null;
 			return false;
+		}
+
+		public void AddProxyInstance(object instance, string objectId, Type originalType)
+		{
+			if (instance == null)
+			{
+				throw new ArgumentNullException(nameof(instance));
+			}
+
+			if (Client.IsProxyType(originalType))
+			{
+				throw new ArgumentException("The original type cannot be a proxy", nameof(originalType));
+			}
+
+			if (!Client.IsRemoteProxy(instance))
+			{
+				throw new ArgumentException("Cannot use this method to register local instances", nameof(instance));
+			}
+
+			var ii = new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), originalType, this);
+			s_objects.AddOrUpdate(objectId, s => ii, (s, info) => ii);
 		}
 
 		public void AddInstance(object instance, string objectId, string willBeSentTo, Type originalType)
@@ -154,7 +176,14 @@ namespace NewRemoting
 		/// Gets the instance id for a given object.
 		/// This method is slow - should be improved by a reverse dictionary or similar (maybe use <see cref="ConditionalWeakTable{TKey,TValue}"/>)
 		/// </summary>
-		public bool TryGetObjectId(object instance, out string instanceId, out Type originalType)
+		/// <param name="instance">The instance to search</param>
+		/// <param name="instanceId">The instance id of the instance, when successful</param>
+		/// <param name="originalType">The unproxied type of the instance</param>
+		public bool TryGetObjectId(object instance,
+			[NotNullWhen(true)]
+			out string? instanceId,
+			[NotNullWhen(true)]
+			out Type? originalType)
 		{
 			if (ReferenceEquals(instance, null))
 			{
@@ -179,7 +208,7 @@ namespace NewRemoting
 
 		public object GetObjectFromId(string id)
 		{
-			if (!TryGetObjectFromId(id, out object instance))
+			if (!TryGetObjectFromId(id, out object? instance))
 			{
 				throw new InvalidOperationException($"Could not locate instance with ID {id} or it is not local. Local identifier: {InstanceIdentifier}");
 			}
@@ -297,15 +326,15 @@ namespace NewRemoting
 			}
 		}
 
-		public object CreateOrGetProxyForObjectId(IInvocation invocation, bool canAttemptToInstantiate, Type typeOfArgument, string typeName, string objectId)
+		public object CreateOrGetProxyForObjectId(IInvocation? invocation, bool canAttemptToInstantiate, Type? typeOfArgument, string typeName, string objectId)
 		{
 			if (!_interceptors.Any())
 			{
 				throw new InvalidOperationException("Interceptor not set. Invalid initialization sequence");
 			}
 
-			object instance;
-			Type type = string.IsNullOrEmpty(typeName) ? null : Server.GetTypeFromAnyAssembly(typeName);
+			object? instance;
+			Type? type = string.IsNullOrEmpty(typeName) ? null : Server.GetTypeFromAnyAssembly(typeName);
 			if (type == null)
 			{
 				// The type name may be omitted if the client knows that this instance must exist
@@ -333,14 +362,15 @@ namespace NewRemoting
 			var interceptor = GetInterceptor(_interceptors, objectId);
 			// Create a class proxy with all interfaces proxied as well.
 			var interfaces = type.GetInterfaces();
-			ManualInvocation mi = invocation as ManualInvocation;
+			ManualInvocation? mi = invocation as ManualInvocation;
 			if (typeOfArgument != null && typeOfArgument.IsInterface)
 			{
 				_logger.Log(LogLevel.Debug, $"Create interface proxy for main type {typeOfArgument}");
 				// If the call returns an interface, only create an interface proxy, because we might not be able to instantiate the actual class (because it's not public, it's sealed, has no public ctors, etc)
 				instance = ProxyGenerator.CreateInterfaceProxyWithoutTarget(typeOfArgument, interfaces, interceptor);
 			}
-			else if (canAttemptToInstantiate && (!type.IsSealed) && (MessageHandler.HasDefaultCtor(type) || (mi != null && invocation.Arguments.Length > 0 && mi.Constructor != null)))
+			else if (canAttemptToInstantiate && (!type.IsSealed) &&
+					(MessageHandler.HasDefaultCtor(type) || (mi != null && invocation != null && invocation.Arguments.Length > 0 && mi.Constructor != null)))
 			{
 				_logger.Log(LogLevel.Debug, $"Create class proxy for main type {type}");
 				if (MessageHandler.HasDefaultCtor(type))
@@ -349,6 +379,12 @@ namespace NewRemoting
 				}
 				else
 				{
+					if (invocation == null)
+					{
+						// Is valid in some cases, but not if we get here
+						throw new ArgumentNullException(nameof(invocation));
+					}
+
 					// We can attempt to create a class proxy if we have ctor arguments and the type is not sealed. But only if we are really calling into a ctor, otherwise the invocation
 					// arguments are the method arguments that created this instance as return value and then obviously the arguments are different.
 					instance = ProxyGenerator.CreateClassProxy(type, interfaces, ProxyGenerationOptions.Default, invocation.Arguments, interceptor);
@@ -390,7 +426,7 @@ namespace NewRemoting
 				instance = ProxyGenerator.CreateClassProxy(type, interfaces, interceptor);
 			}
 
-			AddInstance(instance, objectId, null, type);
+			AddProxyInstance(instance, objectId, type);
 
 			return instance;
 		}
@@ -405,7 +441,7 @@ namespace NewRemoting
 
 			ulong bit = GetBitFromIndex(id);
 
-			if (s_objects.TryGetValue(objectId, out InstanceInfo ii))
+			if (s_objects.TryGetValue(objectId, out InstanceInfo? ii))
 			{
 				ii.ReferenceBitVector &= ~bit;
 				if (ii.ReferenceBitVector == 0)
@@ -458,7 +494,7 @@ namespace NewRemoting
 		private class InstanceInfo
 		{
 			private readonly InstanceManager _owningInstanceManager;
-			private object _instanceHardReference;
+			private object? _instanceHardReference;
 			private WeakReference _instanceWeakReference;
 
 			public InstanceInfo(object obj, string identifier, bool isLocal, Type originalType, InstanceManager owner)
@@ -470,6 +506,7 @@ namespace NewRemoting
 				if (isLocal)
 				{
 					_instanceHardReference = obj;
+					_instanceWeakReference = new WeakReference(null);
 				}
 				else
 				{
@@ -483,7 +520,7 @@ namespace NewRemoting
 				ReferenceBitVector = 0;
 			}
 
-			public object Instance
+			public object? Instance
 			{
 				get
 				{
@@ -548,7 +585,7 @@ namespace NewRemoting
 
 			public bool Resurrect()
 			{
-				object instance = _instanceWeakReference.Target;
+				object? instance = _instanceWeakReference.Target;
 				_instanceHardReference = instance;
 				_instanceWeakReference.Target = null;
 				return instance != null;

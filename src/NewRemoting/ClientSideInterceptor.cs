@@ -86,7 +86,7 @@ namespace NewRemoting
 				throw new ObjectDisposedException("Remoting infrastructure has been shut down. Remote proxies are no longer valid");
 			}
 
-			string methodName = invocation.Method.ToString();
+			string? methodName = invocation.Method.ToString();
 
 			// Todo: Check this stuff
 			if (methodName == "ToString()" && DebuggerToStringBehavior != DebuggerToStringBehavior.EvaluateRemotely)
@@ -150,7 +150,7 @@ namespace NewRemoting
 				// Also transmit the type of the calling object (if the method is called on an interface, this is different from the actual object)
 				if (me.DeclaringType != null)
 				{
-					writer.Write(me.DeclaringType.AssemblyQualifiedName);
+					writer.Write(me.DeclaringType.AssemblyQualifiedName ?? string.Empty);
 				}
 				else
 				{
@@ -168,7 +168,7 @@ namespace NewRemoting
 				writer.Write((int)genericArgs.Length);
 				foreach (var genericType in genericArgs)
 				{
-					string arg = genericType.AssemblyQualifiedName;
+					string? arg = genericType.AssemblyQualifiedName;
 					if (arg == null)
 					{
 						throw new RemotingException("Unresolved generic type or some other undefined case");
@@ -290,7 +290,7 @@ namespace NewRemoting
 							var exception = _messageHandler.DecodeException(_reader, OtherSideInstanceId);
 							ctx.Exception = exception;
 							// Hack to move the remote stack trace to the correct field.
-							var remoteField = typeof(Exception).GetField("_remoteStackTraceString", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+							var remoteField = typeof(Exception).GetField("_remoteStackTraceString", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)!;
 							remoteField.SetValue(exception, exception.StackTrace);
 							ctx.Set();
 						}
@@ -335,13 +335,13 @@ namespace NewRemoting
 			_receiving = false;
 			_reader.Dispose();
 			_receiverThread?.Join();
-			_receiverThread = null;
+			_receiverThread = null!;
 		}
 
 		internal sealed class CallContext : IDisposable
 		{
 			private static readonly MethodInfo TerminationMethod =
-				typeof(RemoteServerService).GetMethod(nameof(RemoteServerService.TerminateRemoteServerService));
+				typeof(RemoteServerService).GetMethod(nameof(RemoteServerService.TerminateRemoteServerService))!;
 
 			private readonly CancellationToken _externalTerminator;
 
@@ -367,7 +367,7 @@ namespace NewRemoting
 				set;
 			}
 
-			public Exception Exception
+			public Exception? Exception
 			{
 				get;
 				set;
@@ -407,16 +407,12 @@ namespace NewRemoting
 
 			public void Set()
 			{
-				EventToTrigger?.Set();
+				EventToTrigger.Set();
 			}
 
 			public void Dispose()
 			{
-				if (EventToTrigger != null)
-				{
-					EventToTrigger.Dispose();
-					EventToTrigger = null;
-				}
+				EventToTrigger.Dispose();
 			}
 		}
 	}

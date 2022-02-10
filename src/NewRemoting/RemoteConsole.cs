@@ -28,7 +28,7 @@ namespace NewRemoting
 			_remoteHost = remoteHost;
 		}
 
-		public Process CreateProcess(string commandLine, bool enableUserInterfaceInteraction = false, string fileListPath = null, string workingDirectory = null, bool redirectStandardOutput = false, bool redirectStandardError = false, bool redirectStandardInput = false)
+		public Process CreateProcess(string commandLine, bool enableUserInterfaceInteraction = false, string? fileListPath = null, string? workingDirectory = null, bool redirectStandardOutput = false, bool redirectStandardError = false, bool redirectStandardInput = false)
 		{
 			var startInfo = new ProcessStartInfo();
 			startInfo.CreateNoWindow = true;

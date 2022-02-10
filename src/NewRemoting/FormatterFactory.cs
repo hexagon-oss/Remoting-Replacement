@@ -38,7 +38,7 @@ namespace NewRemoting
 			return bf;
 		}
 
-		public override ISerializationSurrogate GetSurrogate(Type type, StreamingContext context, out ISurrogateSelector selector)
+		public override ISerializationSurrogate? GetSurrogate(Type type, StreamingContext context, out ISurrogateSelector selector)
 		{
 			// If the type being serialized is MarshalByRef and not serializable (having both is rare, but not impossible),
 			// we redirect here and store an object reference.
@@ -74,6 +74,11 @@ namespace NewRemoting
 			public void GetObjectData(object obj, SerializationInfo info, StreamingContext context)
 			{
 				string objectId;
+				if (context.Context == null)
+				{
+					throw new RemotingException("Invalid state: No valid StreamingContext for serialization");
+				}
+
 				if (Client.IsRemoteProxy(obj))
 				{
 					// This should have an unit test, but I have not yet found out what test code causes this situation
@@ -85,8 +90,8 @@ namespace NewRemoting
 					// var originalType = ProxyUtil.GetUnproxiedType(obj);
 					// The proxy's assembly name is "DynamicProxyGenAssembly2", which does not physically exist and is certainly different on the
 					// remote side. Therefore make sure we never pass that name in the serialization stream.
-					info.AssemblyName = originalType.Assembly.FullName;
-					info.FullTypeName = originalType.FullName;
+					info.AssemblyName = originalType.Assembly.FullName ?? throw new RemotingException("Remote proxy is not assembly-based. Cannot marshal dynamic types by reference");
+					info.FullTypeName = originalType.FullName ?? throw new RemotingException("Remote proxy has no type name.");
 					info.AddValue("ObjectId", objectId);
 					info.AddValue("AssemblyQualifiedName", string.Empty);
 				}
@@ -98,10 +103,10 @@ namespace NewRemoting
 				}
 			}
 
-			public object SetObjectData(object obj, SerializationInfo info, StreamingContext context, ISurrogateSelector selector)
+			public object SetObjectData(object obj, SerializationInfo info, StreamingContext context, ISurrogateSelector? selector)
 			{
-				string objectId = info.GetString("ObjectId");
-				string typeName = info.GetString("AssemblyQualifiedName");
+				string objectId = info.GetString("ObjectId") ?? throw new RemotingException("Invalid serialization stream: Cannot decode unknown object reference");
+				string typeName = info.GetString("AssemblyQualifiedName") ?? throw new RemotingException("Invalid serialization stream: Cannot decode unknown object reference type");
 				// We don't know better here. We do not know what the static type of the field is that will store this reference.
 				object newProxy;
 				if (!string.IsNullOrEmpty(typeName))

@@ -15,6 +15,7 @@
     <PackageProjectUrl>https://github.com/hexagon-oss/Remoting-Replacement</PackageProjectUrl>
     <RepositoryUrl>https://github.com/hexagon-oss/Remoting-Replacement</RepositoryUrl>
     <PackageTags>Remoting; RPC</PackageTags>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

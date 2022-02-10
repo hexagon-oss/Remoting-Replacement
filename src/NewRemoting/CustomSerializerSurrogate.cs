@@ -36,11 +36,11 @@ namespace NewRemoting
 			}
 		}
 
-		public object SetObjectData(object obj, SerializationInfo info, StreamingContext context, ISurrogateSelector selector)
+		public object SetObjectData(object obj, SerializationInfo info, StreamingContext context, ISurrogateSelector? selector)
 		{
 			if (obj is CultureInfo)
 			{
-				return new CultureInfo(info.GetString("Culture"));
+				return new CultureInfo(info.GetString("Culture") ?? "en-US");
 			}
 			else
 			{

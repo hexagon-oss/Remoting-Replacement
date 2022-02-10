@@ -52,7 +52,7 @@ namespace NewRemoting
 		/// <param name="server">Server name or IP</param>
 		/// <param name="port">Network port</param>
 		/// <param name="logger">Optional logging sink (for diagnostic messages)</param>
-		public Client(string server, int port, ILogger logger = null)
+		public Client(string server, int port, ILogger? logger = null)
 		{
 			Logger = logger ?? NullLogger.Instance;
 			_accessLock = new object();
@@ -194,10 +194,10 @@ namespace NewRemoting
 
 			// If t is an interface, this would just return "Object", which is not what we want
 			// But we can't test that directly, since a proxy type is never an interface, even if it is constructed from one.
-			Type tBase = t.BaseType;
+			Type? tBase = t.BaseType;
 			while (tBase != null && tBase != typeof(object))
 			{
-				if (!IsProxyType(tBase) && !tBase.FullName.StartsWith(ProxyNamespace, StringComparison.Ordinal))
+				if (!IsProxyType(tBase) && tBase.FullName != null && !tBase.FullName.StartsWith(ProxyNamespace, StringComparison.Ordinal))
 				{
 					return tBase;
 				}
@@ -333,7 +333,7 @@ namespace NewRemoting
 			Type[] argumentTypes = args.Select(x => x.GetType()).ToArray();
 
 			// The type of the constructor that will be called
-			ConstructorInfo ctorType = typeOfInstance.GetConstructor(
+			ConstructorInfo? ctorType = typeOfInstance.GetConstructor(
 				BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, argumentTypes, null);
 
 			if (ctorType == null)
@@ -344,6 +344,13 @@ namespace NewRemoting
 			ManualInvocation dummyInvocation = new ManualInvocation(ctorType, args);
 			using ClientSideInterceptor.CallContext ctx = _interceptor.CreateCallContext(dummyInvocation, sequence);
 
+			string? assemblyQualifiedName = typeOfInstance.AssemblyQualifiedName;
+			if (assemblyQualifiedName == null)
+			{
+				throw new RemotingException(
+					$"Type {typeOfInstance} has no assembly. Cannot create dynamically constructed types");
+			}
+
 			lock (_accessLock)
 			{
 				if (args == null || args.Length == 0)
@@ -351,7 +358,7 @@ namespace NewRemoting
 					RemotingCallHeader hd =
 						new RemotingCallHeader(RemotingFunctionType.CreateInstanceWithDefaultCtor, sequence);
 					hd.WriteTo(_writer);
-					_writer.Write(typeOfInstance.AssemblyQualifiedName);
+					_writer.Write(assemblyQualifiedName);
 					_writer.Write(string.Empty);
 					_writer.Write(
 						(int)0); // Currently, we do not need the correct ctor identifier, since there can only be one default ctor
@@ -361,7 +368,7 @@ namespace NewRemoting
 				{
 					RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.CreateInstance, sequence);
 					hd.WriteTo(_writer);
-					_writer.Write(typeOfInstance.AssemblyQualifiedName);
+					_writer.Write(assemblyQualifiedName);
 					_writer.Write(string.Empty);
 					_writer.Write(
 						(int)0); // we let the server resolve the correct ctor to use, based on the argument types
@@ -409,6 +416,12 @@ namespace NewRemoting
 
 			lock (_accessLock)
 			{
+				if (typeOfInstance.AssemblyQualifiedName == null)
+				{
+					throw new RemotingException(
+						$"Type {typeOfInstance} has no assembly. Cannot reference dynamically constructed types");
+				}
+
 				RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.RequestServiceReference, sequence);
 				hd.WriteTo(_writer);
 				_writer.Write(typeOfInstance.AssemblyQualifiedName);
@@ -461,13 +474,12 @@ namespace NewRemoting
 					_server.Dispose();
 				}
 
-				_server = null;
+				_server = null!;
 
 				_client?.Dispose();
 				_interceptor.Dispose();
 				_instanceManager.Clear();
-
-				_client = null;
+				_client = null!;
 			}
 		}
 

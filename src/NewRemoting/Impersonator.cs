@@ -27,7 +27,7 @@ namespace NewRemoting
 		/// <param name="password">The password of the user to act as.</param>
 		/// <param name="task">The action to execute</param>
 		/// <exception cref="Win32Exception">Something went wrong (i.e wrong password)</exception>
-		public static void RunImpersonated(string userName, string domain, string password, Action task)
+		public static void RunImpersonated(string? userName, string? domain, string? password, Action task)
 		{
 			if (!OperatingSystem.IsWindows())
 			{

@@ -37,7 +37,7 @@ namespace NewRemoting
 		/// <summary>
 		/// The username. NULL if not set.
 		/// </summary>
-		public string Username
+		public string? Username
 		{
 			get;
 			private set;
@@ -57,7 +57,7 @@ namespace NewRemoting
 		/// <summary>
 		/// The corresponding password. NULL if not set.
 		/// </summary>
-		public string Password
+		public string? Password
 		{
 			get;
 			private set;
@@ -66,7 +66,7 @@ namespace NewRemoting
 		/// <summary>
 		/// The domain / computer name of the user account.
 		/// </summary>
-		public string DomainName
+		public string? DomainName
 		{
 			get;
 			private set;
@@ -89,7 +89,7 @@ namespace NewRemoting
 			return new Credentials(username ?? string.Empty, password ?? string.Empty, domainName ?? string.Empty);
 		}
 
-		public bool Equals(Credentials other)
+		public bool Equals(Credentials? other)
 		{
 			if (other == null)
 			{
@@ -99,7 +99,7 @@ namespace NewRemoting
 			return string.Equals(Password, other.Password) && string.Equals(DomainName, other.DomainName) && string.Equals(Username, other.Username);
 		}
 
-		public override bool Equals(object obj)
+		public override bool Equals(object? obj)
 		{
 			if (ReferenceEquals(null, obj))
 			{

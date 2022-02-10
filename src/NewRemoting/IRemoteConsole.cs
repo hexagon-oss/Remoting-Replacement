@@ -15,6 +15,6 @@ namespace NewRemoting
 		/// Creates a process on the remote machine which can be launched later on.
 		/// Input, output and error streams can be redirected.
 		/// </summary>
-		Process CreateProcess(string commandLine, bool enableUserInterfaceInteraction = false, string fileListPath = null, string workingDirectory = null, bool redirectStandardOutput = false, bool redirectStandardError = false, bool redirectStandardInput = false);
+		Process CreateProcess(string commandLine, bool enableUserInterfaceInteraction = false, string? fileListPath = null, string? workingDirectory = null, bool redirectStandardOutput = false, bool redirectStandardError = false, bool redirectStandardInput = false);
 	}
 }

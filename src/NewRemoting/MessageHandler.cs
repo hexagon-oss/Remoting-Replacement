@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Dynamic;
 using System.IO;
 using System.Linq;
@@ -56,7 +57,7 @@ namespace NewRemoting
 		/// <param name="w">The data sink</param>
 		/// <param name="data">The object to write</param>
 		/// <param name="referencesWillBeSentTo">Destination identifier (used to keep track of references that are eventually encoded in the stream)</param>
-		public void WriteArgumentToStream(BinaryWriter w, object data, string referencesWillBeSentTo)
+		public void WriteArgumentToStream(BinaryWriter w, object? data, string referencesWillBeSentTo)
 		{
 			if (!_initialized)
 			{
@@ -75,7 +76,7 @@ namespace NewRemoting
 				// System.Type (and arrays of that, see below) need special handling, because it is not serializable nor Marshal-By-Ref, but still
 				// has an exact match on the remote side.
 				w.Write((int)RemotingReferenceType.InstanceOfSystemType);
-				w.Write(type.AssemblyQualifiedName);
+				w.Write(type.AssemblyQualifiedName ?? string.Empty);
 			}
 			else if (data is IPAddress address)
 			{
@@ -96,16 +97,16 @@ namespace NewRemoting
 					}
 					else
 					{
-						w.Write(typeArray[i].AssemblyQualifiedName);
+						w.Write(typeArray[i].AssemblyQualifiedName ?? string.Empty);
 					}
 				}
 			}
-			else if (TypeIsContainerWithReference(data, out Type contentType))
+			else if (TypeIsContainerWithReference(data, out Type? contentType))
 			{
-				var list = data as IEnumerable;
+				var list = (IEnumerable)data;
 				w.Write((int)RemotingReferenceType.ContainerType);
-				w.Write(data.GetType().AssemblyQualifiedName);
-				w.Write(contentType.AssemblyQualifiedName);
+				w.Write(data.GetType().AssemblyQualifiedName ?? string.Empty);
+				w.Write(contentType.AssemblyQualifiedName ?? string.Empty);
 				foreach (object obj in list)
 				{
 					// Recursively write the arguments
@@ -137,14 +138,14 @@ namespace NewRemoting
 
 				string targetId = _instanceManager.GetIdForObject(del, referencesWillBeSentTo);
 				w.Write(targetId);
-				w.Write(del.Method.DeclaringType.AssemblyQualifiedName);
+				w.Write(del.Method.DeclaringType?.AssemblyQualifiedName ?? String.Empty);
 				w.Write(del.Method.MetadataToken);
 				var generics = del.Method.GetGenericArguments();
 				// If the type of the delegate method is generic, we need to provide its type arguments
 				w.Write(generics.Length);
 				foreach (var genericType in generics)
 				{
-					string arg = genericType.AssemblyQualifiedName;
+					string? arg = genericType.AssemblyQualifiedName;
 					if (arg == null)
 					{
 						throw new RemotingException("Unresolved generic type or some other undefined case");
@@ -156,7 +157,7 @@ namespace NewRemoting
 			else if (Client.IsRemoteProxy(data))
 			{
 				// Proxies are never serializable
-				if (!_instanceManager.TryGetObjectId(data, out string objectId, out Type originalType))
+				if (!_instanceManager.TryGetObjectId(data, out string? objectId, out Type? originalType))
 				{
 					throw new RemotingException("A proxy has no existing reference");
 				}
@@ -229,7 +230,8 @@ namespace NewRemoting
 		/// <summary>
 		/// True when this type implements <see cref="IList{T}" /> with T being <see cref="MarshalByRefObject"/>.
 		/// </summary>
-		private bool TypeIsContainerWithReference(object data, out Type type)
+		private bool TypeIsContainerWithReference(object data,
+			[NotNullWhen(true)] out Type? type)
 		{
 			if (data is IList enumerable)
 			{
@@ -299,15 +301,19 @@ namespace NewRemoting
 			if (invocation is ManualInvocation mi && mi.Method == null && mi.Constructor != null)
 			{
 				methodBase = mi.Constructor;
+				if (methodBase.DeclaringType == null)
+				{
+					throw new RemotingException($"Method {mi} has no declaring type. This is not expected");
+				}
 
-				object returnValue = ReadArgumentFromStream(reader, methodBase, invocation, true, methodBase.DeclaringType, otherSideInstanceId);
+				object? returnValue = ReadArgumentFromStream(reader, methodBase, invocation, true, methodBase.DeclaringType, otherSideInstanceId);
 				invocation.ReturnValue = returnValue;
 				// out or ref arguments on ctors are rare, but not generally forbidden, so we continue here
 			}
 			else if (invocation is ManualInvocation mi2 && mi2.TargetType != null)
 			{
 				// This happens if we request a remote instance directly (by interface type)
-				object returnValue = ReadArgumentFromStream(reader, mi2.Method, invocation, true, mi2.TargetType, otherSideInstanceId);
+				object? returnValue = ReadArgumentFromStream(reader, mi2.Method, invocation, true, mi2.TargetType, otherSideInstanceId);
 				invocation.ReturnValue = returnValue;
 				return;
 			}
@@ -317,7 +323,7 @@ namespace NewRemoting
 				methodBase = me;
 				if (me.ReturnType != typeof(void))
 				{
-					object returnValue = ReadArgumentFromStream(reader, methodBase, invocation, true, me.ReturnType, otherSideInstanceId);
+					object? returnValue = ReadArgumentFromStream(reader, methodBase, invocation, true, me.ReturnType, otherSideInstanceId);
 					invocation.ReturnValue = returnValue;
 				}
 			}
@@ -327,7 +333,7 @@ namespace NewRemoting
 			{
 				if (byRefArguments.ParameterType.IsByRef)
 				{
-					object byRefValue = ReadArgumentFromStream(reader, methodBase, invocation, false, byRefArguments.ParameterType, otherSideInstanceId);
+					object? byRefValue = ReadArgumentFromStream(reader, methodBase, invocation, false, byRefArguments.ParameterType, otherSideInstanceId);
 					invocation.Arguments[index] = byRefValue;
 				}
 
@@ -342,7 +348,8 @@ namespace NewRemoting
 			SendSerializedObject(w, exception, otherSideInstanceId);
 		}
 
-		public object ReadArgumentFromStream(BinaryReader r, MethodBase callingMethod, IInvocation invocation, bool canAttemptToInstantiate, Type typeOfArgument, string otherSideInstanceId)
+		public object? ReadArgumentFromStream(BinaryReader r, MethodBase? callingMethod, IInvocation? invocation, bool canAttemptToInstantiate,
+			Type? typeOfArgument, string otherSideInstanceId)
 		{
 			if (!_initialized)
 			{
@@ -371,8 +378,7 @@ namespace NewRemoting
 					// The server sends a reference to an object that he owns
 					string objectId = r.ReadString();
 					string typeName = r.ReadString();
-					object instance = null;
-					instance = InstanceManager.CreateOrGetProxyForObjectId(invocation, canAttemptToInstantiate, typeOfArgument, typeName, objectId);
+					object instance = InstanceManager.CreateOrGetProxyForObjectId(invocation, canAttemptToInstantiate, typeOfArgument, typeName, objectId);
 					return instance;
 				}
 
@@ -386,7 +392,7 @@ namespace NewRemoting
 				case RemotingReferenceType.ArrayOfSystemType:
 				{
 					int count = r.ReadInt32();
-					Type[] ts = new Type[count];
+					Type?[] ts = new Type[count];
 					for (int i = 0; i < count; i++)
 					{
 						string typeName = r.ReadString();
@@ -409,7 +415,7 @@ namespace NewRemoting
 					string typeName = r.ReadString();
 					Type t = Server.GetTypeFromAnyAssembly(typeName);
 					Type contentType = Server.GetTypeFromAnyAssembly(r.ReadString());
-					IList list = (IList)Activator.CreateInstance(t);
+					IList list = Activator.CreateInstance(t) as IList ?? throw new RemotingException($"Unable to create an instance of {contentType}");
 					bool cont = r.ReadBoolean();
 					while (cont)
 					{
@@ -429,6 +435,11 @@ namespace NewRemoting
 
 				case RemotingReferenceType.MethodPointer:
 				{
+					if (typeOfArgument == null)
+					{
+						throw new ArgumentNullException(nameof(typeOfArgument));
+					}
+
 					string instanceId = r.ReadString();
 					string targetId = r.ReadString();
 					string typeOfTargetName = r.ReadString();
@@ -460,7 +471,7 @@ namespace NewRemoting
 					var internalSink = new DelegateInternalSink(interceptor, targetId, methodInfoOfTarget);
 					_instanceManager.AddInstance(internalSink, targetId, interceptor.OtherSideInstanceId, internalSink.GetType());
 
-					IEnumerable<MethodInfo> possibleSinks = null;
+					IEnumerable<MethodInfo> possibleSinks;
 
 					MethodInfo localSinkTarget;
 					if (methodInfoOfTarget.ReturnType == typeof(void))
