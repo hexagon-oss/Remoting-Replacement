@@ -21,15 +21,17 @@ namespace NewRemoting
 {
 	internal sealed class ClientSideInterceptor : IInterceptor, IProxyGenerationHook, IDisposable
 	{
+		private static readonly TimeSpan GcLoopTime = new TimeSpan(0, 0, 0, 20);
 		private readonly Stream _serverLink;
 		private readonly MessageHandler _messageHandler;
 		private readonly ILogger _logger;
 		private int _sequence;
 		private ConcurrentDictionary<int, CallContext> _pendingInvocations;
 		private Thread _receiverThread;
+		private Thread _memoryCollectingThread;
 		private bool _receiving;
-		private int _numberOfCallsInspected;
 		private CancellationTokenSource _terminator;
+		private AutoResetEvent _gcEvent;
 
 		/// <summary>
 		/// This is only used withhin the receiver thread, but must be global so it can be closed on dispose (to
@@ -39,12 +41,12 @@ namespace NewRemoting
 
 		public ClientSideInterceptor(string otherSideInstanceId, string thisSideInstanceId, bool clientSide, Stream serverLink, MessageHandler messageHandler, ILogger logger)
 		{
+			_receiving = true;
 			OtherSideInstanceId = otherSideInstanceId;
 			ThisSideInstanceId = thisSideInstanceId;
 			DebuggerToStringBehavior = DebuggerToStringBehavior.ReturnProxyName;
 			_sequence = clientSide ? 1 : 10000;
 			_serverLink = serverLink;
-			_numberOfCallsInspected = 0;
 			_messageHandler = messageHandler ?? throw new ArgumentNullException(nameof(messageHandler));
 			_logger = logger;
 			_pendingInvocations = new();
@@ -52,7 +54,9 @@ namespace NewRemoting
 			_reader = new BinaryReader(_serverLink, Encoding.Unicode);
 			_receiverThread = new Thread(ReceiverThread);
 			_receiverThread.Name = "ClientSideInterceptor - " + thisSideInstanceId;
-			_receiving = true;
+			_memoryCollectingThread = new Thread(MemoryCollectingThread);
+			_memoryCollectingThread.Name = "Memory collector - " + thisSideInstanceId;
+			_gcEvent = new AutoResetEvent(false);
 		}
 
 		public DebuggerToStringBehavior DebuggerToStringBehavior
@@ -77,6 +81,7 @@ namespace NewRemoting
 		internal void Start()
 		{
 			_receiverThread.Start();
+			_memoryCollectingThread.Start();
 		}
 
 		public void Intercept(IInvocation invocation)
@@ -95,7 +100,7 @@ namespace NewRemoting
 				return;
 			}
 
-			CleanStaleReferences();
+			_gcEvent.Set();
 
 			int thisSeq = NextSequenceNumber();
 
@@ -104,118 +109,148 @@ namespace NewRemoting
 
 			using CallContext ctx = CreateCallContext(invocation, thisSeq);
 
-			lock (_messageHandler.CommunicationLinkLock)
+			_logger.Log(LogLevel.Debug, $"{ThisSideInstanceId}: Intercepting {invocation.Method}, sequence {thisSeq}");
+
+			MethodInfo me = invocation.Method;
+			RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.MethodCall, thisSeq);
+
+			if (me.IsStatic)
 			{
-				_logger.Log(LogLevel.Debug, $"{ThisSideInstanceId}: Intercepting {invocation.Method}, sequence {thisSeq}");
-
-				MethodInfo me = invocation.Method;
-				RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.MethodCall, thisSeq);
-
-				if (me.IsStatic)
-				{
-					throw new RemotingException("Remote-calling a static method? No.");
-				}
-
-				if (!_messageHandler.InstanceManager.TryGetObjectId(invocation.Proxy, out var remoteInstanceId, out _))
-				{
-					// One valid case when we may get here is when the proxy is just being created (as a class proxy) and within that ctor,
-					// a virtual member function is called. So we can execute the call locally (the object should be in an useful state, since its default ctor
-					// has been called)
-					// Another possible reason to end here is when a class proxy gets its Dispose(false) method called by the local finalizer thread.
-					// The remote reference is long gone and the local destructor may not work as expected, because the object is not
-					// in a valid state.
-					_logger.Log(LogLevel.Debug, "Not a valid remoting proxy. Assuming within ctor of class proxy");
-					try
-					{
-						invocation.Proceed();
-					}
-					catch (NotImplementedException x)
-					{
-						_logger.LogError(x, "Unable to proceed on suspected class ctor. Assuming disconnected interface instead");
-						throw new RemotingException("Unable to call method on remote object. Instance not found.");
-					}
-
-					_pendingInvocations.TryRemove(thisSeq, out _);
-					return;
-				}
-
-				if (invocation.Proxy is DelegateInternalSink di)
-				{
-					// Need the source reference for this one. There's something fishy here, as this sometimes is ok, sometimes not.
-					remoteInstanceId = di.RemoteObjectReference;
-				}
-
-				hd.WriteTo(writer);
-				writer.Write(remoteInstanceId);
-				// Also transmit the type of the calling object (if the method is called on an interface, this is different from the actual object)
-				if (me.DeclaringType != null)
-				{
-					writer.Write(me.DeclaringType.AssemblyQualifiedName);
-				}
-				else
-				{
-					writer.Write(string.Empty);
-				}
-
-				writer.Write(me.MetadataToken);
-				if (me.ContainsGenericParameters)
-				{
-					// This should never happen (or the compiler has done something wrong)
-					throw new RemotingException("Cannot call methods with open generic arguments");
-				}
-
-				var genericArgs = me.GetGenericArguments();
-				writer.Write((int)genericArgs.Length);
-				foreach (var genericType in genericArgs)
-				{
-					string arg = genericType.AssemblyQualifiedName;
-					if (arg == null)
-					{
-						throw new RemotingException("Unresolved generic type or some other undefined case");
-					}
-
-					writer.Write(arg);
-				}
-
-				writer.Write(invocation.Arguments.Length);
-
-				foreach (var argument in invocation.Arguments)
-				{
-					_messageHandler.WriteArgumentToStream(writer, argument, OtherSideInstanceId);
-				}
-
-				// now finally write the stream to the network. That way, we don't send incomplete messages if an exception happens encoding a parameter.
-				SafeSendToServer(rawDataMessage);
+				throw new RemotingException("Remote-calling a static method? No.");
 			}
+
+			if (!_messageHandler.InstanceManager.TryGetObjectId(invocation.Proxy, out var remoteInstanceId, out _))
+			{
+				// One valid case when we may get here is when the proxy is just being created (as a class proxy) and within that ctor,
+				// a virtual member function is called. So we can execute the call locally (the object should be in an useful state, since its default ctor
+				// has been called)
+				// Another possible reason to end here is when a class proxy gets its Dispose(false) method called by the local finalizer thread.
+				// The remote reference is long gone and the local destructor may not work as expected, because the object is not
+				// in a valid state.
+				_logger.Log(LogLevel.Debug, "Not a valid remoting proxy. Assuming within ctor of class proxy");
+				try
+				{
+					invocation.Proceed();
+				}
+				catch (NotImplementedException x)
+				{
+					_logger.LogError(x, "Unable to proceed on suspected class ctor. Assuming disconnected interface instead");
+					throw new RemotingException("Unable to call method on remote object. Instance not found.");
+				}
+
+				_pendingInvocations.TryRemove(thisSeq, out _);
+				return;
+			}
+
+			if (invocation.Proxy is DelegateInternalSink di)
+			{
+				// Need the source reference for this one. There's something fishy here, as this sometimes is ok, sometimes not.
+				remoteInstanceId = di.RemoteObjectReference;
+			}
+
+			hd.WriteTo(writer);
+			writer.Write(remoteInstanceId);
+			// Also transmit the type of the calling object (if the method is called on an interface, this is different from the actual object)
+			if (me.DeclaringType != null)
+			{
+				writer.Write(me.DeclaringType.AssemblyQualifiedName ?? string.Empty);
+			}
+			else
+			{
+				writer.Write(string.Empty);
+			}
+
+			writer.Write(me.MetadataToken);
+			if (me.ContainsGenericParameters)
+			{
+				// This should never happen (or the compiler has done something wrong)
+				throw new RemotingException("Cannot call methods with open generic arguments");
+			}
+
+			var genericArgs = me.GetGenericArguments();
+			writer.Write(genericArgs.Length);
+			foreach (var genericType in genericArgs)
+			{
+				string arg = genericType.AssemblyQualifiedName;
+				if (arg == null)
+				{
+					throw new RemotingException("Unresolved generic type or some other undefined case");
+				}
+
+				writer.Write(arg);
+			}
+
+			writer.Write(invocation.Arguments.Length);
+
+			foreach (var argument in invocation.Arguments)
+			{
+				_messageHandler.WriteArgumentToStream(writer, argument, OtherSideInstanceId);
+			}
+
+			// now finally write the stream to the network. That way, we don't send incomplete messages if an exception happens encoding a parameter.
+			SafeSendToServer(rawDataMessage);
 
 			WaitForReply(invocation, ctx);
 		}
 
 		private void SafeSendToServer(MemoryStream rawDataMessage)
 		{
-			try
+			lock (_messageHandler.CommunicationLinkLock)
 			{
-				rawDataMessage.Position = 0;
-				rawDataMessage.CopyTo(_serverLink);
-			}
-			catch (IOException x)
-			{
-				throw new RemotingException("Error sending data to server. Link down?", x);
+				try
+				{
+					rawDataMessage.Position = 0;
+					rawDataMessage.CopyTo(_serverLink);
+				}
+				catch (IOException x)
+				{
+					throw new RemotingException("Error sending data to server. Link down?", x);
+				}
 			}
 		}
 
 		/// <summary>
 		/// Informs the server about stale object references.
-		/// This method must only be called when the connection is in idle state!
+		/// Ideally, we would listen to GC callbacks, but the documentation on <see cref="GC.RegisterForFullGCNotification"/> is ambiguous to say the least: It says this
+		/// operation is not available when using the concurrent GC, but that is the default meanwhile.
 		/// </summary>
-		private void CleanStaleReferences()
+		private void MemoryCollectingThread()
 		{
-			if (_numberOfCallsInspected++ % 100 == 0)
+			int numberOfCallsInspected = 0;
+			GCMemoryInfo lastGc = GC.GetGCMemoryInfo(GCKind.Any);
+			WaitHandle[] handles = new WaitHandle[] { _gcEvent, _terminator.Token.WaitHandle };
+			while (_receiving)
 			{
-				using MemoryStream rawDataMessage = new MemoryStream(1024);
-				using BinaryWriter writer = new BinaryWriter(rawDataMessage, Encoding.Unicode);
-				_messageHandler.InstanceManager.PerformGc(writer);
-				SafeSendToServer(rawDataMessage);
+				if (numberOfCallsInspected++ > 100)
+				{
+					using MemoryStream rawDataMessage = new MemoryStream(1024);
+					using BinaryWriter writer = new BinaryWriter(rawDataMessage, Encoding.Unicode);
+					_messageHandler.InstanceManager.PerformGc(writer, false);
+					SafeSendToServer(rawDataMessage);
+					numberOfCallsInspected = 0;
+				}
+
+				int waitEventNo = WaitHandle.WaitAny(handles, GcLoopTime);
+				if (waitEventNo == 1)
+				{
+					return;
+				}
+
+				if (waitEventNo == 0)
+				{
+					continue;
+				}
+
+				// timeout case
+				// If we run into a timeout here, we want to perform a GC a bit more aggressive
+				numberOfCallsInspected += 20;
+
+				GCMemoryInfo info = GC.GetGCMemoryInfo(GCKind.Any);
+				if (info.Index > lastGc.Index)
+				{
+					// A GC has happened
+					numberOfCallsInspected = Int32.MaxValue;
+				}
 			}
 		}
 
@@ -336,6 +371,8 @@ namespace NewRemoting
 			_reader.Dispose();
 			_receiverThread?.Join();
 			_receiverThread = null;
+			_memoryCollectingThread?.Join();
+			_memoryCollectingThread = null;
 		}
 
 		internal sealed class CallContext : IDisposable

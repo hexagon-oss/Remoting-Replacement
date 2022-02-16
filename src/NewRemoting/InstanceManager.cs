@@ -231,11 +231,6 @@ namespace NewRemoting
 			GC.SuppressFinalize(this);
 		}
 
-		public void PerformGc(BinaryWriter w)
-		{
-			PerformGc(w, false);
-		}
-
 		/// <summary>
 		/// Checks for dead references in our instance cache and tells the server to clean them up.
 		/// </summary>
@@ -470,6 +465,7 @@ namespace NewRemoting
 				if (isLocal)
 				{
 					_instanceHardReference = obj;
+					_instanceWeakReference = null;
 				}
 				else
 				{
@@ -550,7 +546,7 @@ namespace NewRemoting
 			{
 				object instance = _instanceWeakReference.Target;
 				_instanceHardReference = instance;
-				_instanceWeakReference.Target = null;
+				_instanceWeakReference = null;
 				return instance != null;
 			}
 		}
