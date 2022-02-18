@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Reflection;
+using System.Diagnostics;
 using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
@@ -233,7 +234,8 @@ namespace NewRemoting
 		{
 			if (data is IList enumerable)
 			{
-				var args = enumerable.GetType().GenericTypeArguments;
+				var paramType = enumerable.GetType();
+				var args = paramType.GenericTypeArguments;
 				if (args.Length == 1)
 				{
 					type = args[0];
@@ -253,6 +255,11 @@ namespace NewRemoting
 				else if (args.Length > 1)
 				{
 					// Not currently supported
+					type = null;
+					return false;
+				}
+				else if (paramType.IsArray && paramType.GetElementType().IsValueType && paramType.GetElementType().IsPrimitive)
+				{
 					type = null;
 					return false;
 				}
