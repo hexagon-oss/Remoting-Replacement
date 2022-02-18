@@ -35,10 +35,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void CalculateHash()
 		{
-			MemoryStream ms = new MemoryStream();
-			ms.WriteByte(0);
-			ms.Position = 0;
-			_service.UploadFile("Test.dat", new byte[] { 0, 1, 2, 3 }, ms);
+			_service.PrepareFileUpload("Test.dat", new byte[] { 0, 1, 2, 3 });
 		}
 
 		//// This test might fail, because test fixtures are run in parallel.
