@@ -10,9 +10,32 @@ namespace NewRemoting
 	public interface IRemoteServerService
 	{
 		/// <summary>
-		/// Upload a file to the remote systems working directory.
+		/// Checks if file exists on remote side with given <paramref name="hash"/> and <paramref name="relativePath"/> and prepares file upload.
+		/// This should not be used if the server process lives on the same computer as the client.
+		/// Use this function before calling <see cref="UploadFileData(byte[], int, int)"/> and <see cref="FinishFileUpload"/>.
 		/// </summary>
-		void UploadFile(string relativePath, byte[] hash, Stream content);
+		/// <param name="relativePath">The path where the file is to be placed, relative to the current executing directory</param>
+		/// <param name="hash">The hash code of the file which is used to determine if the file is already present on the remote side</param>
+		/// <returns>true if file is not present on remote system and upload procedure can be started</returns>
+		bool PrepareFileUpload(string relativePath, byte[] hash);
+
+		/// <summary>
+		/// Writes the content of <paramref name="fileContent"/> to the file on the remote side.
+		/// This should not be used if the server process lives on the same computer as the client.
+		/// Call <see cref="PrepareFileUpload(string, byte[])"/> before this.
+		/// </summary>
+		/// <param name="fileContent">The content of the file.</param>
+		/// <param name="count">The amount of bytes to write.</param>
+		/// <exception cref="InvalidOperationException"></exception>
+		void UploadFileData(byte[] fileContent, int count);
+
+		/// <summary>
+		/// Finishes writing to remote file.
+		/// This should not be used if the server process lives on the same computer as the client.
+		/// Call <see cref="PrepareFileUpload(string, byte[])"/> before this.
+		/// </summary>
+		/// <exception cref="InvalidOperationException"></exception>
+		void FinishFileUpload();
 
 		/// <summary>
 		/// Signal remote system that upload is finished.
