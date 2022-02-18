@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Threading;
+using System.Buffers;
 using Microsoft.Extensions.Logging;
 using NewRemoting.Toolkit;
 
@@ -14,12 +15,14 @@ namespace NewRemoting
 		public const string REMOTELOADER_EXECUTABLE = "RemotingServer.exe";
 		private const string REMOTELOADER_DIRECTORY = @"%temp%\RemotingServer";
 		private const string REMOTELOADER_DEPENDENCIES_FILENAME = REMOTELOADER_EXECUTABLE + ".dependencies.txt";
+		// We pick a value that is the largest multiple of 4096 that is still smaller than the large object heap threshold (85K).
+		private const int DEFAULT_COPY_BUFFER_SIZE = 81920;
 
 		private readonly Func<FileInfo, bool> _shouldFileBeUploadedFunc;
 		private readonly string _remoteLoaderId;
 		private readonly FileHashCalculator _fileHashCalculator;
 
-		private IRemoteServerService _remoteLoader;
+		private IRemoteServerService _remoteServer;
 		private Client _remotingClient;
 
 		public RemoteLoaderWindowsClient(Credentials remoteCredentials, string remoteHost, int remotePort,
@@ -64,17 +67,39 @@ namespace NewRemoting
 				// check if the file is needed for upload
 				if (_shouldFileBeUploadedFunc(fileInfo))
 				{
-					byte[] hashCode = _fileHashCalculator.CalculateFastHashFromFile(fileInfo.FullName);
-					using (var stream = fileInfo.Open(FileMode.Open, FileAccess.Read, FileShare.Read))
-					{
-						_remoteLoader.UploadFile(Path.Combine(folder, fileInfo.Name), hashCode, stream);
-					}
+					UploadFile(folder, fileInfo);
 				}
 			}
 
 			foreach (DirectoryInfo subfolder in directory.GetDirectories())
 			{
 				UploadBinaries(subfolder, Path.Combine(folder, subfolder.Name));
+			}
+		}
+
+		private void UploadFile(string folder, FileInfo file)
+		{
+			byte[] hashCode = _fileHashCalculator.CalculateFastHashFromFile(file.FullName);
+			bool uploadFile = _remoteServer.PrepareFileUpload(Path.Combine(folder, file.Name), hashCode);
+
+			if (uploadFile)
+			{
+				using (var stream = file.Open(FileMode.Open, FileAccess.Read, FileShare.Read))
+				{
+					int fileLengthInt = (file.Length > int.MaxValue) ? int.MaxValue : (int)file.Length;
+					int bufferSize = Math.Min(DEFAULT_COPY_BUFFER_SIZE, fileLengthInt);
+					byte[] buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+					int read;
+
+					while ((read = stream.Read(buffer, 0, buffer.Length)) != 0)
+					{
+						_remoteServer.UploadFileData(buffer, read);
+					}
+
+					ArrayPool<byte>.Shared.Return(buffer);
+				}
+
+				_remoteServer.FinishFileUpload();
 			}
 		}
 
@@ -159,9 +184,9 @@ namespace NewRemoting
 			LaunchProcess(externalToken, isRemoteHostOnLocalMachine);
 
 			_remotingClient = new Client(RemoteHost, RemotePort);
-			_remoteLoader = _remotingClient.RequestRemoteInstance<IRemoteServerService>();
-			Logger.LogInformation("Got interface to {0}", _remoteLoader.GetType().Name);
-			if (_remoteLoader == null)
+			_remoteServer = _remotingClient.RequestRemoteInstance<IRemoteServerService>();
+			Logger.LogInformation("Got interface to {0}", _remoteServer.GetType().Name);
+			if (_remoteServer == null)
 			{
 				throw new RemotingException("Could not connect to remote loader interface");
 			}
@@ -171,7 +196,7 @@ namespace NewRemoting
 			if (!isRemoteHostOnLocalMachine)
 			{
 				UploadBinaries(LocalRootDirectory, string.Empty);
-				_remoteLoader.UploadFinished();
+				_remoteServer.UploadFinished();
 			}
 
 			Logger.LogInformation("BinaryUpload finished after '{0}'ms", sw.ElapsedMilliseconds);
