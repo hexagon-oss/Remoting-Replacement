@@ -516,7 +516,7 @@ namespace NewRemoting
 			{
 				get
 				{
-					return _instanceHardReference == null && !_instanceWeakReference.IsAlive;
+					return _instanceHardReference == null && (_instanceWeakReference == null || !_instanceWeakReference.IsAlive);
 				}
 			}
 
@@ -544,7 +544,7 @@ namespace NewRemoting
 
 			public bool Resurrect()
 			{
-				object instance = _instanceWeakReference.Target;
+				object instance = _instanceWeakReference?.Target;
 				_instanceHardReference = instance;
 				_instanceWeakReference = null;
 				return instance != null;
