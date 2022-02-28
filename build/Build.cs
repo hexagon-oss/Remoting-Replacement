@@ -82,11 +82,11 @@ class Build : NukeBuild
 				    .SetConfiguration(Configuration)
 				    .EnableNoBuild()
 				    .EnableNoRestore()
-				    .SetResultsDirectory(RootDirectory / string.Concat("TestResult.UnitTest.", Platform, ".", Configuration, ".", "net5.0"))
+				    .SetResultsDirectory(RootDirectory / string.Concat("TestResult.UnitTest.", Platform, ".", Configuration, ".", "net6.0"))
 				    .CombineWith(projectsToCheck, (cs, v) => cs.SetProjectFile(v));
 		    }
 
-		    var coverageResult = RootDirectory / string.Concat("Coverage.", Platform, ".", Configuration, ".", "net5.0", ".xml");
+		    var coverageResult = RootDirectory / string.Concat("Coverage.", Platform, ".", Configuration, ".", "net6.0", ".xml");
 		    OpenCoverTasks.OpenCover(c => c
 			    .AddExcludeByAttributes(typeof(System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverageAttribute).FullName)
 			    .AddExcludeByAttributes(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute).FullName)
@@ -100,7 +100,7 @@ class Build : NukeBuild
 
 		    var doPublishCoverageResultToTeamCity = TeamCity.Instance != null && Configuration == Configuration.Debug;
 		    ReportGeneratorTasks.ReportGenerator(r => r
-			    .SetFramework("net5.0")
+			    .SetFramework("net6.0")
 			    .AddReports(coverageResult)
 			    .AddReportTypes(ReportTypes.XmlSummary, ReportTypes.Html)
 			    .When(doPublishCoverageResultToTeamCity, x => x.AddReportTypes(ReportTypes.TeamCitySummary))
@@ -113,7 +113,7 @@ class Build : NukeBuild
 	    {
 		    DotNetPublish(s => s
 			    .SetProject(SourceDirectory / "RemotingServer" / "RemotingServer.csproj")
-			    .SetFramework("net5.0-windows")
+			    .SetFramework("net6.0-windows")
 		    );
 	    });
 
@@ -132,7 +132,7 @@ class Build : NukeBuild
 			    .SetVersion(GitVersion.SemVer)
 			    .SetInformationalVersion(GitVersion.InformationalVersion));
 
-		    var publishDir = SourceDirectory / "RemotingServer" / "bin" / Configuration / "net5.0-windows" / "publish";
+		    var publishDir = SourceDirectory / "RemotingServer" / "bin" / Configuration / "net6.0-windows" / "publish";
 
 		    NuGetPack(s => s
 				    .SetBasePath(publishDir)

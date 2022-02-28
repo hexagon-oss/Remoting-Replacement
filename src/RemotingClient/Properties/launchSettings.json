@@ -3,7 +3,7 @@
     "RemotingClient": {
       "commandName": "Project",
       "commandLineArgs": "--debug",
-      "workingDirectory": "C:\\projects\\RemotingReplacement\\src\\RemotingClient\\bin\\Debug\\net5.0-windows"
+      "workingDirectory": "C:\\projects\\RemotingReplacement\\src\\RemotingClient\\bin\\Debug\\net6.0-windows"
     }
   }
 }
