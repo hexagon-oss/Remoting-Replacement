@@ -8,11 +8,11 @@ namespace NewRemoting
 {
 	public class FileHashCalculator : IDisposable
 	{
-		private readonly MD5CryptoServiceProvider _md5;
+		private readonly MD5 _md5;
 
 		public FileHashCalculator()
 		{
-			_md5 = new MD5CryptoServiceProvider();
+			_md5 = MD5.Create();
 		}
 
 		/// <summary>

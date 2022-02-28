@@ -154,6 +154,11 @@ namespace NewRemoting
 			if (me.DeclaringType != null)
 			{
 				writer.Write(me.DeclaringType.AssemblyQualifiedName ?? string.Empty);
+				if (me.DeclaringType == typeof(FileStream) && invocation.Method.Name == nameof(Dispose))
+				{
+					// We have created an actual instance of this class, so also dispose it properly
+					invocation.Proceed();
+				}
 			}
 			else
 			{
