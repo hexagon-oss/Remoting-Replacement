@@ -358,10 +358,10 @@ namespace NewRemoting
 				{
 					// Special case of the Stream case below. This is not a general solution, but for this type, we can then create the correct type, so when
 					// it is casted or marshalled again, it gets the correct proxy type.
-					SafeFileHandle handle = new SafeFileHandle(new IntPtr(1), true);
+					// As of .NET6.0, we need to create a real local instance, since creating a fake handle no longer works.
+					string mySelf = Assembly.GetExecutingAssembly().Location;
 					instance = ProxyGenerator.CreateClassProxy(typeof(FileStream), interfaces, ProxyGenerationOptions.Default,
-						new object[] { handle, FileAccess.Read, 1024 }, interceptor);
-					handle.SetHandleAsInvalid(); // Do not attempt to later free this handle
+						new object[] { mySelf, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 }, interceptor);
 				}
 				else if (type.IsAssignableTo(typeof(Stream)))
 				{
