@@ -67,7 +67,7 @@ namespace NewRemoting
 			_client = new TcpClient(server, port);
 			_serverLink = new TcpClient(server, port);
 			Stream stream = _client.GetStream();
-			if (certificateFilename != null)
+			if (_certificateFilename != null)
 			{
 				stream = Authenticate(_client, _certificateFilename);
 			}
@@ -90,9 +90,9 @@ namespace NewRemoting
 			WaitForConnectionReply(stream);
 
 			Stream s = _serverLink.GetStream();
-			if (certificateFilename != null)
+			if (_certificateFilename != null)
 			{
-				s = Authenticate(_serverLink, certificateFilename);
+				s = Authenticate(_serverLink, _certificateFilename);
 			}
 
 			WriteAuthenticationHeader(s, true);
@@ -161,7 +161,7 @@ namespace NewRemoting
 
 		private SslStream Authenticate(TcpClient client, string serverName)
 		{
-			SslStream sslStream = new SslStream(client.GetStream(), true, new RemoteCertificateValidationCallback(ValidateServerCertificate), null);
+			SslStream sslStream = new SslStream(client.GetStream(), false, new RemoteCertificateValidationCallback(ValidateServerCertificate), null);
 			// The server name must match the name on the server certificate.
 			try
 			{

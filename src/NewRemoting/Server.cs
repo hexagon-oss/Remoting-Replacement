@@ -284,7 +284,7 @@ namespace NewRemoting
 
 		internal static SslStream Authenticate(TcpClient client, X509Certificate certificate, ILogger logger)
 		{
-			SslStream sslStream = new SslStream(client.GetStream(), true);
+			SslStream sslStream = new SslStream(client.GetStream(), false);
 			try
 			{
 				sslStream.AuthenticateAsServer(certificate, clientCertificateRequired: false, checkCertificateRevocation: true);
