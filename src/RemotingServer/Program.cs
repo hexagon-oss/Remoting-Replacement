@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Threading;
+using Castle.Core.Internal;
 using Castle.DynamicProxy;
 using NewRemoting;
 using CommandLine;
@@ -36,7 +37,10 @@ namespace RemotingServer
 					logger = new ConsoleAndDebugLogger("RemotingServer");
 				}
 
-				var server = new Server(port, logger);
+				var certificate = options.Certificate;
+				var certPwd = options.CertificatePassword;
+
+				var server = new Server(port, certificate, certPwd, logger);
 				if (options.KillSelf)
 				{
 					server.KillProcessWhenChannelDisconnected = true;

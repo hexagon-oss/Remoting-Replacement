@@ -6,6 +6,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -13,6 +14,8 @@ using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -72,13 +75,25 @@ namespace NewRemoting
 		private Dictionary<string, ClientSideInterceptor> _serverInterceptorForCallbacks;
 
 		/// <summary>
+		/// the certificate
+		/// </summary>
+		private X509Certificate _serverCertificate;
+
+		public string CertificateFilename { get; set; }
+		public string CertificatePassword { get; set; }
+
+		/// <summary>
 		/// Create a remoting server instance. Other processes (local or remote) will be able to perform remote calls to this process.
 		/// Start <see cref="StartListening"/> to actually start the server.
 		/// </summary>
 		/// <param name="networkPort">Network port to open server on</param>
+		/// <param name="certificatePassword">the certificate password</param>
 		/// <param name="logger">Optional logger instance, for debugging purposes</param>
-		public Server(int networkPort, ILogger logger = null)
+		/// <param name="certificateFilename">the certificate filename</param>
+		public Server(int networkPort, string certificateFilename = null, string certificatePassword = null, ILogger logger = null)
 		{
+			CertificateFilename = certificateFilename;
+			CertificatePassword = certificatePassword;
 			Logger = logger ?? NullLogger.Instance;
 			_networkPort = networkPort;
 			_threads = new();
@@ -100,7 +115,7 @@ namespace NewRemoting
 		/// <summary>
 		/// This ctor is used if this server runs on the client side (for the return channel). The actual data store is the local client instance.
 		/// </summary>
-		internal Server(Stream preopenedStream, MessageHandler messageHandler, ClientSideInterceptor localInterceptor, ILogger logger = null)
+		internal Server(Stream preopenedStream, MessageHandler messageHandler, ClientSideInterceptor localInterceptor, string certificateFilename = null, string certificatePassword = null, ILogger logger = null)
 		{
 			_networkPort = 0;
 			Logger = logger ?? NullLogger.Instance;
@@ -267,8 +282,31 @@ namespace NewRemoting
 			}
 		}
 
+		internal static SslStream Authenticate(TcpClient client, X509Certificate certificate, ILogger logger)
+		{
+			SslStream sslStream = new SslStream(client.GetStream(), true);
+			try
+			{
+				sslStream.AuthenticateAsServer(certificate, clientCertificateRequired: false, checkCertificateRevocation: true);
+				return sslStream;
+			}
+			catch (AuthenticationException e)
+			{
+				logger.Log(LogLevel.Error, e.ToString());
+				logger.Log(LogLevel.Error, "Authentication failed - closing the connection.");
+				sslStream.Close();
+				client.Close();
+				throw e;
+			}
+		}
+
 		public void StartListening()
 		{
+			if (CertificateFilename != null && CertificatePassword != null)
+			{
+				_serverCertificate = new X509Certificate2(CertificateFilename, CertificatePassword, X509KeyStorageFlags.MachineKeySet);
+			}
+
 			_listener = new TcpListener(IPAddress.Any, _networkPort);
 			_threadRunning = true;
 			_listener.Start();
@@ -760,7 +798,12 @@ namespace NewRemoting
 				try
 				{
 					var tcpClient = _listener.AcceptTcpClient();
-					var stream = tcpClient.GetStream();
+					Stream stream = tcpClient.GetStream();
+					if (_serverCertificate != null)
+					{
+						stream = Authenticate(tcpClient, _serverCertificate, Logger);
+					}
+
 					byte[] authenticationToken = new byte[100];
 
 					// TODO: This needs some kind of authentication / trust management, but I have _no_ clue on how to get that safely done,
@@ -794,7 +837,7 @@ namespace NewRemoting
 
 					if (authenticationToken[0] == 1)
 					{
-						_clientStreamsExpectingUse.TryAdd(instanceHash, tcpClient.GetStream());
+						_clientStreamsExpectingUse.TryAdd(instanceHash, stream);
 						continue;
 					}
 
@@ -807,6 +850,10 @@ namespace NewRemoting
 				catch (SocketException x)
 				{
 					Console.WriteLine($"Server terminating? Got {x}");
+				}
+				catch (AuthenticationException e)
+				{
+					Console.WriteLine($"Connection failed to authenticate. Got {e}");
 				}
 			}
 		}

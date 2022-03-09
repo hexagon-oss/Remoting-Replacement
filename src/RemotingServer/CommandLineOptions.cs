@@ -30,5 +30,19 @@ namespace RemotingServer
 			get;
 			set;
 		}
+
+		[Option('c', "certificate", HelpText = "full filename of the certificate")]
+		public string Certificate
+		{
+			get;
+			set;
+		}
+
+		[Option('w', "certificate password", HelpText = "certificate password")]
+		public string CertificatePassword
+		{
+			get;
+			set;
+		}
 	}
 }

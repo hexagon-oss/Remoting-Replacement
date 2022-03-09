@@ -4,11 +4,14 @@ using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
 using Castle.DynamicProxy;
@@ -43,8 +46,8 @@ namespace NewRemoting
 		private object _accessLock;
 		private TcpClient _serverLink;
 		private bool _connectionConfigured;
-
 		private bool _disconnected;
+		private string _certificateFilename;
 
 		/// <summary>
 		/// Creates a remoting client for the given server and opens the network connection
@@ -52,8 +55,10 @@ namespace NewRemoting
 		/// <param name="server">Server name or IP</param>
 		/// <param name="port">Network port</param>
 		/// <param name="logger">Optional logging sink (for diagnostic messages)</param>
-		public Client(string server, int port, ILogger logger = null)
+		/// <param name="certificateFilename">the certificate filename usually a pfx file</param>
+		public Client(string server, int port, string certificateFilename = null, ILogger logger = null)
 		{
+			_certificateFilename = certificateFilename;
 			Logger = logger ?? NullLogger.Instance;
 			_accessLock = new object();
 			_connectionConfigured = false;
@@ -61,8 +66,14 @@ namespace NewRemoting
 
 			_client = new TcpClient(server, port);
 			_serverLink = new TcpClient(server, port);
-			_writer = new BinaryWriter(_client.GetStream(), Encoding.Unicode);
-			_reader = new BinaryReader(_client.GetStream(), Encoding.Unicode);
+			Stream stream = _client.GetStream();
+			if (certificateFilename != null)
+			{
+				stream = Authenticate(_client, _certificateFilename);
+			}
+
+			_writer = new BinaryWriter(stream, Encoding.Unicode);
+			_reader = new BinaryReader(stream, Encoding.Unicode);
 			_builder = new DefaultProxyBuilder();
 			_proxy = new ProxyGenerator(_builder);
 			_instanceManager = new InstanceManager(_proxy, Logger);
@@ -71,16 +82,21 @@ namespace NewRemoting
 			_messageHandler = new MessageHandler(_instanceManager, _formatterFactory);
 
 			// A client side has only one server, so there's also only one interceptor and only one server side
-			_interceptor = new ClientSideInterceptor(string.Empty, _instanceManager.InstanceIdentifier, true, _client.GetStream(), _messageHandler, Logger);
+			_interceptor = new ClientSideInterceptor(string.Empty, _instanceManager.InstanceIdentifier, true, stream, _messageHandler, Logger);
 			_instanceManager.AddInterceptor(_interceptor);
 			_messageHandler.AddInterceptor(_interceptor);
 
-			Stream s = _serverLink.GetStream();
-			WriteAuthenticationHeader(s, true);
-			WriteAuthenticationHeader(_client.GetStream(), false);
+			WriteAuthenticationHeader(stream, false);
+			WaitForConnectionReply(stream);
 
+			Stream s = _serverLink.GetStream();
+			if (certificateFilename != null)
+			{
+				s = Authenticate(_serverLink, certificateFilename);
+			}
+
+			WriteAuthenticationHeader(s, true);
 			WaitForConnectionReply(s);
-			WaitForConnectionReply(_client.GetStream());
 
 			_formatter = _formatterFactory.CreateOrGetFormatter(_interceptor.OtherSideInstanceId);
 			_interceptor.Start();
@@ -143,6 +159,29 @@ namespace NewRemoting
 			return true;
 		}
 
+		private SslStream Authenticate(TcpClient client, string serverName)
+		{
+			SslStream sslStream = new SslStream(client.GetStream(), true, new RemoteCertificateValidationCallback(ValidateServerCertificate), null);
+			// The server name must match the name on the server certificate.
+			try
+			{
+				sslStream.AuthenticateAsClient(serverName);
+				return sslStream;
+			}
+			catch (AuthenticationException e)
+			{
+				Logger.LogError(e.ToString());
+				if (e.InnerException != null)
+				{
+					Console.WriteLine("Inner exception: {0}", e.InnerException.Message);
+				}
+
+				Logger.LogError("Authentication failed - closing the connection.");
+				client.Close();
+				throw e;
+			}
+		}
+
 		/// <summary>
 		/// The logger
 		/// </summary>
@@ -183,6 +222,23 @@ namespace NewRemoting
 			}
 
 			return t;
+		}
+
+		private static bool ValidateServerCertificate(
+			object sender,
+			X509Certificate certificate,
+			X509Chain chain,
+			SslPolicyErrors sslPolicyErrors)
+		{
+			if (sslPolicyErrors == SslPolicyErrors.None | sslPolicyErrors == SslPolicyErrors.RemoteCertificateChainErrors | sslPolicyErrors == SslPolicyErrors.RemoteCertificateNameMismatch)
+			{
+				return true;
+			}
+
+			Console.WriteLine("Certificate error: {0}", sslPolicyErrors);
+
+			// Do not allow this client to communicate with unauthenticated servers.
+			return false;
 		}
 
 		internal static Type ManualGetUnproxiedType(Type t)
