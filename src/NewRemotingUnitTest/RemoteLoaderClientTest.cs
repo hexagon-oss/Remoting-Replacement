@@ -98,7 +98,7 @@ namespace NewRemotingUnitTest
 			/// "Failed to connect to Service Control Manager on XXX.XXX.XXX.XXX. Access is denied. [Err=0x5, 5]"
 			/// make sure you do not have a user on the remote system which has the same username than currently active on the local machine.
 			/// </summary>
-			private static readonly Credentials RemoteCredentials = Credentials.Create("Administrator", "Administrator", RemoteHost);
+			private static readonly Credentials RemoteCredentials = Credentials.Create("Administrator", "Administrator", RemoteHost, null);
 
 			[Test]
 			public void LocalHostDirectoryInfo()

@@ -1,21 +1,15 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
-using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
-using System.Runtime.Serialization.Formatters.Binary;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
-using System.Threading.Tasks;
+using Castle.Core.Internal;
 using Castle.DynamicProxy;
-using Castle.DynamicProxy.Generators.Emitters.SimpleAST;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NewRemoting.Toolkit;
@@ -67,9 +61,13 @@ namespace NewRemoting
 			_client = new TcpClient(server, port);
 			_serverLink = new TcpClient(server, port);
 			Stream stream = _client.GetStream();
-			if (_certificateFilename != null)
+			if (!_certificateFilename.IsNullOrEmpty())
 			{
-				stream = Authenticate(_client, _certificateFilename);
+				stream = Authenticate(_client, server);
+				if (logger != null)
+				{
+					logger.LogInformation("Client authentication done.");
+				}
 			}
 
 			_writer = new BinaryWriter(stream, Encoding.Unicode);
@@ -90,9 +88,9 @@ namespace NewRemoting
 			WaitForConnectionReply(stream);
 
 			Stream s = _serverLink.GetStream();
-			if (_certificateFilename != null)
+			if (!_certificateFilename.IsNullOrEmpty())
 			{
-				s = Authenticate(_serverLink, _certificateFilename);
+				s = Authenticate(_serverLink, server);
 			}
 
 			WriteAuthenticationHeader(s, true);
@@ -159,13 +157,14 @@ namespace NewRemoting
 			return true;
 		}
 
-		private SslStream Authenticate(TcpClient client, string serverName)
+		private SslStream Authenticate(TcpClient client, string targetHost)
 		{
 			SslStream sslStream = new SslStream(client.GetStream(), false, new RemoteCertificateValidationCallback(ValidateServerCertificate), null);
 			// The server name must match the name on the server certificate.
 			try
 			{
-				sslStream.AuthenticateAsClient(serverName);
+				sslStream.AuthenticateAsClient(targetHost);
+				Logger?.LogInformation("Client Authentication Done.");
 				return sslStream;
 			}
 			catch (AuthenticationException e)
@@ -230,14 +229,12 @@ namespace NewRemoting
 			X509Chain chain,
 			SslPolicyErrors sslPolicyErrors)
 		{
-			if (sslPolicyErrors == SslPolicyErrors.None | sslPolicyErrors == SslPolicyErrors.RemoteCertificateChainErrors | sslPolicyErrors == SslPolicyErrors.RemoteCertificateNameMismatch)
+			// todo remote the mismatch case
+			if (sslPolicyErrors == SslPolicyErrors.None || sslPolicyErrors == SslPolicyErrors.RemoteCertificateNameMismatch)
 			{
 				return true;
 			}
 
-			Console.WriteLine("Certificate error: {0}", sslPolicyErrors);
-
-			// Do not allow this client to communicate with unauthenticated servers.
 			return false;
 		}
 

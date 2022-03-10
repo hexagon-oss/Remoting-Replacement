@@ -9,19 +9,14 @@ using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Runtime.Loader;
 using System.Runtime.Serialization;
-using System.Runtime.Serialization.Formatters.Binary;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using Castle.Components.DictionaryAdapter;
-using Castle.Core.Internal;
 using Castle.DynamicProxy;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -79,8 +74,8 @@ namespace NewRemoting
 		/// </summary>
 		private X509Certificate _serverCertificate;
 
-		public string CertificateFilename { get; set; }
-		public string CertificatePassword { get; set; }
+		public string CertificateFilename { get; }
+		public string CertificatePassword { get; }
 
 		/// <summary>
 		/// Create a remoting server instance. Other processes (local or remote) will be able to perform remote calls to this process.
@@ -802,6 +797,10 @@ namespace NewRemoting
 					if (_serverCertificate != null)
 					{
 						stream = Authenticate(tcpClient, _serverCertificate, Logger);
+						if (Logger != null)
+						{
+							Logger.LogInformation("Server authentication done");
+						}
 					}
 
 					byte[] authenticationToken = new byte[100];
@@ -854,6 +853,12 @@ namespace NewRemoting
 				catch (AuthenticationException e)
 				{
 					Console.WriteLine($"Connection failed to authenticate. Got {e}");
+				}
+				catch (System.IO.IOException e)
+				{
+					// can happen if the client certificate does not correspond to the server one (RemoteCertificateNameMismatch)
+					// error on the client validate function
+					Console.WriteLine($"Decryption failed. Got {e}");
 				}
 			}
 		}

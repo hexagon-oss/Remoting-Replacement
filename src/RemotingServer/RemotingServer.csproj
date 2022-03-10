@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -21,6 +21,7 @@
   <ItemGroup>
     <PackageReference Include="Castle.Core" Version="4.4.1" />
     <PackageReference Include="CommandLineParser" Version="2.8.0" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="5.0.0" />
   </ItemGroup>
 	<PropertyGroup Condition="$(TargetFramework.Contains('windows'))">
 		<!-- The project doesn't actualy use these, but this allows loading WPF or Winforms dlls into the process' appdomain -->
@@ -35,6 +36,9 @@
   <ItemGroup>
     <None Update="paexec.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="RemotingServer.dll.config">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Update="RemotingServer.exe.dependencies.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

@@ -6,3 +6,4 @@ NewRemoting.dll
 RemotingServer.deps.json
 RemotingServer.dll
 RemotingServer.runtimeconfig.json
+RemotingServer.dll.config
