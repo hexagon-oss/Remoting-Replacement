@@ -27,8 +27,8 @@ namespace NewRemoting
 
 		public RemoteLoaderWindowsClient(Credentials remoteCredentials, string remoteHost, int remotePort,
 			FileHashCalculator fileHashCalculator,
-			Func<FileInfo, bool> shouldFileBeUploadedFunc, TimeSpan waitTimeBetweenPaExecExecute)
-			: base(remoteCredentials, remoteHost, waitTimeBetweenPaExecExecute)
+			Func<FileInfo, bool> shouldFileBeUploadedFunc, TimeSpan waitTimeBetweenPaExecExecute, ILogger logger = null)
+			: base(remoteCredentials, remoteHost, waitTimeBetweenPaExecExecute, logger)
 		{
 			RemotePort = remotePort;
 			_shouldFileBeUploadedFunc = shouldFileBeUploadedFunc ?? throw new ArgumentNullException(nameof(shouldFileBeUploadedFunc));
