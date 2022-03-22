@@ -98,7 +98,7 @@ namespace NewRemoting
 			}
 
 			var fi = new FileInfo(dest);
-
+			_uploadedFiles.Add(fi); // files that are already present and files that need to be transfered count as uploaded
 			if (fi.Exists)
 			{
 				byte[] hashLocal = _fileHashCalculator.CalculateFastHashFromFile(fi.FullName);
@@ -109,7 +109,6 @@ namespace NewRemoting
 				}
 			}
 
-			_uploadedFiles.Add(fi);
 			_uploadCandidate = new FileUploadCandidate(fi);
 			return true;
 		}
