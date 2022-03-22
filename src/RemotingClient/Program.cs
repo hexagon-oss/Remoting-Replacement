@@ -86,6 +86,19 @@ namespace RemotingClient
 			string[] versions = bios.GetBiosVersions();
 			Console.WriteLine($"Server bios versions are: {string.Join(", ", versions)}.");
 
+			// Wait until the GC kicks in
+			GC.Collect();
+			GC.WaitForFullGCComplete();
+			GC.WaitForPendingFinalizers();
+			Thread.Sleep(20000);
+			client.ForceGc();
+			Thread.Sleep(1000);
+			var moreVersions = bios.GetBiosVersions();
+			if (moreVersions[0] != versions[0])
+			{
+				Console.WriteLine("The bios version has changed unexpectedly!?!?");
+			}
+
 			Console.WriteLine("Getting remote server service...");
 			var serverService = client.RequestRemoteInstance<IRemoteServerService>();
 			Stopwatch sw = Stopwatch.StartNew();
