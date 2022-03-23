@@ -532,6 +532,17 @@ namespace NewRemoting
 			{
 				_instanceManager.PerformGc(_writer, false);
 			}
+
+			var remoteServerService = RequestRemoteInstance<IRemoteServerService>();
+			if (remoteServerService != null)
+			{
+				remoteServerService.PerformGc();
+			}
+		}
+
+		public Task ForceGcAsync()
+		{
+			return Task.Factory.StartNew(ForceGc);
 		}
 	}
 }

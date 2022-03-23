@@ -21,6 +21,7 @@ namespace NewRemoting
 {
 	internal sealed class ClientSideInterceptor : IInterceptor, IProxyGenerationHook, IDisposable
 	{
+		private const int NumberOfCallsForGc = 100;
 		private static readonly TimeSpan GcLoopTime = new TimeSpan(0, 0, 0, 20);
 		private readonly Stream _serverLink;
 		private readonly MessageHandler _messageHandler;
@@ -32,6 +33,7 @@ namespace NewRemoting
 		private bool _receiving;
 		private CancellationTokenSource _terminator;
 		private AutoResetEvent _gcEvent;
+		private int _numberOfCallsInspected;
 
 		/// <summary>
 		/// This is only used withhin the receiver thread, but must be global so it can be closed on dispose (to
@@ -42,6 +44,7 @@ namespace NewRemoting
 		public ClientSideInterceptor(string otherSideInstanceId, string thisSideInstanceId, bool clientSide, Stream serverLink, MessageHandler messageHandler, ILogger logger)
 		{
 			_receiving = true;
+			_numberOfCallsInspected = 0;
 			OtherSideInstanceId = otherSideInstanceId;
 			ThisSideInstanceId = thisSideInstanceId;
 			DebuggerToStringBehavior = DebuggerToStringBehavior.ReturnProxyName;
@@ -214,6 +217,12 @@ namespace NewRemoting
 			}
 		}
 
+		public void InitiateGc()
+		{
+			Interlocked.Exchange(ref _numberOfCallsInspected, NumberOfCallsForGc + 10);
+			_gcEvent.Set();
+		}
+
 		/// <summary>
 		/// Informs the server about stale object references.
 		/// Ideally, we would listen to GC callbacks, but the documentation on <see cref="GC.RegisterForFullGCNotification"/> is ambiguous to say the least: It says this
@@ -221,18 +230,17 @@ namespace NewRemoting
 		/// </summary>
 		private void MemoryCollectingThread()
 		{
-			int numberOfCallsInspected = 0;
 			GCMemoryInfo lastGc = GC.GetGCMemoryInfo(GCKind.Any);
 			WaitHandle[] handles = new WaitHandle[] { _gcEvent, _terminator.Token.WaitHandle };
 			while (_receiving)
 			{
-				if (numberOfCallsInspected++ > 100)
+				if (Interlocked.Increment(ref _numberOfCallsInspected) > NumberOfCallsForGc)
 				{
 					using MemoryStream rawDataMessage = new MemoryStream(1024);
 					using BinaryWriter writer = new BinaryWriter(rawDataMessage, Encoding.Unicode);
 					_messageHandler.InstanceManager.PerformGc(writer, false);
 					SafeSendToServer(rawDataMessage);
-					numberOfCallsInspected = 0;
+					Interlocked.Exchange(ref _numberOfCallsInspected, 0);
 				}
 
 				int waitEventNo = WaitHandle.WaitAny(handles, GcLoopTime);
@@ -248,13 +256,15 @@ namespace NewRemoting
 
 				// timeout case
 				// If we run into a timeout here, we want to perform a GC a bit more aggressive
-				numberOfCallsInspected += 20;
+				int newValue = _numberOfCallsInspected + 20;
+				// If we loose an assignment int the worst case here, nothing ugly is going to happen
+				Interlocked.Exchange(ref _numberOfCallsInspected, newValue);
 
 				GCMemoryInfo info = GC.GetGCMemoryInfo(GCKind.Any);
 				if (info.Index > lastGc.Index)
 				{
 					// A GC has happened
-					numberOfCallsInspected = Int32.MaxValue;
+					Interlocked.Exchange(ref _numberOfCallsInspected, NumberOfCallsForGc + 10);
 				}
 			}
 		}

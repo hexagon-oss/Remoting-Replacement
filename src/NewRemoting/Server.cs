@@ -47,6 +47,14 @@ namespace NewRemoting
 		private readonly FormatterFactory _formatterFactory;
 
 		/// <summary>
+		/// This is the interceptor list for calls from the server to the client using a server-side proxy (i.e. an interface registered for a callback)
+		/// There is one instance per client.
+		/// </summary>
+		private readonly Dictionary<string, ClientSideInterceptor> _serverInterceptorForCallbacks;
+
+		private readonly object _interceptorLock;
+
+		/// <summary>
 		/// This contains a (typically small) queue of streams that will be used for the reverse communication.
 		/// The list is emptied by OpenReverseChannel commands.
 		/// </summary>
@@ -62,12 +70,6 @@ namespace NewRemoting
 		/// If this is non-null, this server instance lives within the client.
 		/// </summary>
 		private Stream _preopenedStream;
-
-		/// <summary>
-		/// This is the interceptor list for calls from the server to the client using a server-side proxy (i.e. an interface registered for a callback)
-		/// There is one instance per client.
-		/// </summary>
-		private Dictionary<string, ClientSideInterceptor> _serverInterceptorForCallbacks;
 
 		/// <summary>
 		/// the certificate
@@ -90,6 +92,7 @@ namespace NewRemoting
 			CertificateFilename = certificateFilename;
 			CertificatePassword = certificatePassword;
 			Logger = logger ?? NullLogger.Instance;
+			_interceptorLock = new object();
 			_networkPort = networkPort;
 			_threads = new();
 			_proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
@@ -113,6 +116,7 @@ namespace NewRemoting
 		internal Server(Stream preopenedStream, MessageHandler messageHandler, ClientSideInterceptor localInterceptor, string certificateFilename = null, string certificatePassword = null, ILogger logger = null)
 		{
 			_networkPort = 0;
+			_interceptorLock = new object();
 			Logger = logger ?? NullLogger.Instance;
 			_preopenedStream = preopenedStream;
 			_clientStreamsExpectingUse = null; // Shall not be used in this case
@@ -683,16 +687,23 @@ namespace NewRemoting
 				newInterceptor.Start();
 				_messageHandler.AddInterceptor(newInterceptor);
 				_instanceManager.AddInterceptor(newInterceptor);
-				_serverInterceptorForCallbacks.Add(otherSideInstanceId1, newInterceptor);
+				lock (_interceptorLock)
+				{
+					_serverInterceptorForCallbacks.Add(otherSideInstanceId1, newInterceptor);
+				}
+
 				return true;
 			}
 
 			if (hd.Function == RemotingFunctionType.ClientDisconnecting)
 			{
 				string clientName = r.ReadString();
-				if (_serverInterceptorForCallbacks.TryGetValue(clientName, out var interceptor))
+				lock (_interceptorLock)
 				{
-					interceptor.Dispose();
+					if (_serverInterceptorForCallbacks.TryGetValue(clientName, out var interceptor))
+					{
+						interceptor.Dispose();
+					}
 				}
 
 				clientDisconnecting = true;
@@ -853,13 +864,13 @@ namespace NewRemoting
 				catch (AuthenticationException e)
 				{
 					Console.WriteLine($"Connection failed to authenticate. Got {e}");
-				}
+			}
 				catch (System.IO.IOException e)
 				{
 					// can happen if the client certificate does not correspond to the server one (RemoteCertificateNameMismatch)
 					// error on the client validate function
 					Console.WriteLine($"Decryption failed. Got {e}");
-				}
+		}
 			}
 		}
 
@@ -872,6 +883,17 @@ namespace NewRemoting
 			var lenBytes = BitConverter.GetBytes(instanceIdentifier.Length);
 			stream.Write(lenBytes);
 			stream.Write(instanceIdentifier);
+		}
+
+		public void PerformGc()
+		{
+			lock (_interceptorLock)
+			{
+				foreach (var i in _serverInterceptorForCallbacks)
+				{
+					i.Value.InitiateGc();
+				}
+			}
 		}
 
 		/// <summary>
@@ -912,12 +934,15 @@ namespace NewRemoting
 
 			_threads.Clear();
 
-			foreach (var clientThread in _serverInterceptorForCallbacks)
+			lock (_interceptorLock)
 			{
-				clientThread.Value.Dispose();
-			}
+				foreach (var clientThread in _serverInterceptorForCallbacks)
+				{
+					clientThread.Value.Dispose();
+				}
 
-			_serverInterceptorForCallbacks.Clear();
+				_serverInterceptorForCallbacks.Clear();
+			}
 
 			_listener?.Stop();
 			_mainThread?.Join();

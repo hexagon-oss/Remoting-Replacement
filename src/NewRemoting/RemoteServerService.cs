@@ -218,6 +218,14 @@ namespace NewRemoting
 			return ServiceContainer.GetService<T>();
 		}
 
+		public void PerformGc()
+		{
+			GC.Collect();
+			GC.WaitForPendingFinalizers();
+			GC.WaitForFullGCComplete();
+			_server.PerformGc();
+		}
+
 		/// <summary>
 		/// Helper class for <see cref="PrepareFileUpload(string, byte[])"/>, <see cref="UploadFileData(byte[], int, int)"/> and <see cref="FinishFileUpload"/>
 		/// </summary>
