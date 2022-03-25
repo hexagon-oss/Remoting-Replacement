@@ -241,12 +241,12 @@ namespace NewRemoting
 		/// <param name="externalToken">Cancellation token (does only cancel the startup attempt, not the process itself, if launching was successful</param>
 		/// <param name="isRemoteHostOnLocalMachine">True if the process should actually be started locally. Null to auto-detect</param>
 		/// <param name="processName">Name of the remote process</param>
+		/// <param name="arguments">Arguments to remote process</param>
 		/// <param name="dependenciesFile">A file containing the set of files to copy to the remote machine before execution</param>
 		/// <param name="remoteFileDirectory">The directory on the remote machine where the file should be copied to</param>
-		/// <param name="arguments">Arguments to the remote process</param>
 		/// <returns>The created process. Do NOT dispose the returned process instance directly, but dispose the <see cref="PaExecClient"/> instance instead.</returns>
-		public virtual IProcess LaunchProcess(CancellationToken externalToken, bool? isRemoteHostOnLocalMachine, string processName,
-			string dependenciesFile, string remoteFileDirectory, string arguments)
+		public virtual IProcess LaunchProcess(CancellationToken externalToken, bool? isRemoteHostOnLocalMachine, string processName, string arguments,
+			string dependenciesFile, string remoteFileDirectory)
 		{
 			var sw = Stopwatch.StartNew();
 			if (!isRemoteHostOnLocalMachine.HasValue)

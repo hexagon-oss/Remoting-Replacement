@@ -19,20 +19,20 @@ namespace NewRemoting
 		private const int DEFAULT_COPY_BUFFER_SIZE = 81920;
 
 		private readonly Func<FileInfo, bool> _shouldFileBeUploadedFunc;
-		private readonly string _remoteLoaderId;
 		private readonly FileHashCalculator _fileHashCalculator;
+		private readonly string _extraArguments;
 
 		private IRemoteServerService _remoteServer;
 		private Client _remotingClient;
 
 		public RemoteLoaderWindowsClient(Credentials remoteCredentials, string remoteHost, int remotePort,
 			FileHashCalculator fileHashCalculator,
-			Func<FileInfo, bool> shouldFileBeUploadedFunc, TimeSpan waitTimeBetweenPaExecExecute, ILogger logger = null)
+			Func<FileInfo, bool> shouldFileBeUploadedFunc, TimeSpan waitTimeBetweenPaExecExecute, string extraArguments, ILogger logger = null)
 			: base(remoteCredentials, remoteHost, waitTimeBetweenPaExecExecute, logger)
 		{
 			RemotePort = remotePort;
+			_extraArguments = extraArguments;
 			_shouldFileBeUploadedFunc = shouldFileBeUploadedFunc ?? throw new ArgumentNullException(nameof(shouldFileBeUploadedFunc));
-			_remoteLoaderId = Guid.NewGuid().ToString();
 			_fileHashCalculator = fileHashCalculator ?? throw new ArgumentNullException(nameof(fileHashCalculator));
 			OutputDataReceived += (s, l) =>
 			{
@@ -137,29 +137,7 @@ namespace NewRemoting
 
 		public IProcess LaunchProcess(CancellationToken externalCancellation, bool isRemoteHostOnLocalMachine)
 		{
-			string arguments = _remoteLoaderId;
-			IPAddress ip;
-
-			// if we can determine the remote IP, we pass it to remoting server. The server will bind to this IP
-			if (NetworkUtil.TryGetIpAddressForHostName(RemoteHost, out ip))
-			{
-				// If the target ip is loopback, try to use the external IP instead.
-				// When we later forward this IP to our clients (i.e. user interface), it must be accessible from there as well. Telling a remote
-				// client to use loopback to connect to the remote loader will not work.
-				// Hint: If the local computer has more than one network interface, we would need to explicitly choose the one to use from outside
-				// by setting the registry key.
-				IPAddress localIp = NetworkUtil.GetLocalIp();
-				if (isRemoteHostOnLocalMachine && ip.Equals(IPAddress.Loopback) && localIp != null)
-				{
-					ip = localIp;
-					RemoteHost = ip.ToString();
-				}
-
-				arguments = string.Format(CultureInfo.InvariantCulture, "{0} {1}", arguments, ip);
-			}
-
-			return LaunchProcess(externalCancellation, isRemoteHostOnLocalMachine, REMOTELOADER_EXECUTABLE, REMOTELOADER_DEPENDENCIES_FILENAME, REMOTELOADER_DIRECTORY,
-									arguments);
+			return LaunchProcess(externalCancellation, isRemoteHostOnLocalMachine, REMOTELOADER_EXECUTABLE, _extraArguments, REMOTELOADER_DEPENDENCIES_FILENAME, REMOTELOADER_DIRECTORY);
 		}
 
 		protected override bool WaitForRemoteProcessStartup(CancellationTokenSource linkedCancellationTokenSource, IProcess process)
