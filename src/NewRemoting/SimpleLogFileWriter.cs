@@ -20,7 +20,7 @@ namespace NewRemoting
 			_emptyDisposable = new ScopeDisposable();
 			_loggerName = loggerName;
 			_minLogLevel = minLogLevel;
-			_writer = new StreamWriter(file, Encoding.Unicode, new FileStreamOptions() { Access = FileAccess.Write, Mode = FileMode.CreateNew });
+			_writer = new StreamWriter(file, Encoding.Unicode, new FileStreamOptions() { Access = FileAccess.Write, Mode = FileMode.Create });
 		}
 
 		public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
@@ -28,8 +28,8 @@ namespace NewRemoting
 			if (formatter != null)
 			{
 				string msg = formatter(state, exception);
-				string formattedTime = DateTime.UtcNow.ToString("O").Replace("T", " ").Replace("Z", string.Empty);
-				string formatted = FormattableString.Invariant($"\"{formattedTime}\"; \"{logLevel}\"; \"{_loggerName}\"; \"{msg}\"; \"{exception}\"");
+				string formattedTime = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss.ffff");
+				string formatted = FormattableString.Invariant($"\"{formattedTime}\";\"{logLevel}\";\"{_loggerName}\";\"{msg}\";\"{exception}\"");
 				_writer.WriteLine(formatted);
 			}
 		}

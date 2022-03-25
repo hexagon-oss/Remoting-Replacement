@@ -285,10 +285,11 @@ namespace NewRemoting
 		internal void WaitForReply(IInvocation invocation, CallContext ctx)
 		{
 			// The event is signaled by the receiver thread when the message was processed
+			string methodName = invocation.Method != null ? invocation.Method.ToString() : invocation.ToString();
 			ctx.Wait();
 			if (ctx.Exception != null)
 			{
-				_logger.LogDebug($"{ThisSideInstanceId}: {invocation.Method} caused an exception to be thrown: {ctx.Exception.Message}.");
+				_logger.LogDebug($"{ThisSideInstanceId}: {methodName} caused an exception to be thrown: {ctx.Exception.Message}.");
 				if (ctx.IsInTerminationMethod())
 				{
 					return;
@@ -298,7 +299,7 @@ namespace NewRemoting
 				ExceptionDispatchInfo.Capture(ctx.Exception).Throw();
 			}
 
-			_logger.Log(LogLevel.Debug, $"{ThisSideInstanceId}: {invocation.Method} returns.");
+			_logger.Log(LogLevel.Debug, $"{ThisSideInstanceId}: {methodName} returns.");
 		}
 
 		private void ReceiverThread()
