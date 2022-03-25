@@ -29,7 +29,7 @@ namespace NewRemotingUnitTest
 
 				CancellationTokenSource errorTokenSource = new CancellationTokenSource();
 				errorTokenSource.CancelAfter(TimeSpan.FromSeconds(60));
-				IRemoteLoaderClient client = new RemoteLoaderWindowsClient(Credentials.None, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(2));
+				IRemoteLoaderClient client = new RemoteLoaderWindowsClient(Credentials.None, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(2), string.Empty);
 				client.Connect(errorTokenSource.Token, null);
 				// Should not be cancelled yet.
 				Assert.False(errorTokenSource.IsCancellationRequested);
@@ -47,7 +47,7 @@ namespace NewRemotingUnitTest
 			[Test]
 			public void NoCrashesWhenRemoteCallsAreExpensive()
 			{
-				IRemoteLoaderClient client = new RemoteLoaderWindowsClient(Credentials.None, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(0.1));
+				IRemoteLoaderClient client = new RemoteLoaderWindowsClient(Credentials.None, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(0.1), string.Empty);
 				try
 				{
 					CancellationTokenSource errorTokenSource = new CancellationTokenSource();
