@@ -40,7 +40,6 @@ namespace SampleServerClasses
 
 		public virtual int GetSomeData()
 		{
-			Console.WriteLine("Getting remote number");
 			return 4711;
 		}
 

@@ -238,6 +238,7 @@ namespace NewRemoting
 				{
 					using MemoryStream rawDataMessage = new MemoryStream(1024);
 					using BinaryWriter writer = new BinaryWriter(rawDataMessage, Encoding.Unicode);
+					_logger.LogInformation($"Starting GC on {ThisSideInstanceId}");
 					_messageHandler.InstanceManager.PerformGc(writer, false);
 					SafeSendToServer(rawDataMessage);
 					Interlocked.Exchange(ref _numberOfCallsInspected, 0);
@@ -257,7 +258,7 @@ namespace NewRemoting
 				// timeout case
 				// If we run into a timeout here, we want to perform a GC a bit more aggressive
 				int newValue = _numberOfCallsInspected + 20;
-				// If we loose an assignment int the worst case here, nothing ugly is going to happen
+				// If we loose an assignment in the worst case here, nothing ugly is going to happen
 				Interlocked.Exchange(ref _numberOfCallsInspected, newValue);
 
 				GCMemoryInfo info = GC.GetGCMemoryInfo(GCKind.Any);
@@ -285,9 +286,9 @@ namespace NewRemoting
 		{
 			// The event is signaled by the receiver thread when the message was processed
 			ctx.Wait();
-			_logger.Log(LogLevel.Debug, $"{ThisSideInstanceId}: {invocation.Method} done.");
 			if (ctx.Exception != null)
 			{
+				_logger.LogDebug($"{ThisSideInstanceId}: {invocation.Method} caused an exception to be thrown: {ctx.Exception.Message}.");
 				if (ctx.IsInTerminationMethod())
 				{
 					return;
@@ -296,6 +297,8 @@ namespace NewRemoting
 				// Rethrow remote exception
 				ExceptionDispatchInfo.Capture(ctx.Exception).Throw();
 			}
+
+			_logger.Log(LogLevel.Debug, $"{ThisSideInstanceId}: {invocation.Method} returns.");
 		}
 
 		private void ReceiverThread()
