@@ -251,6 +251,7 @@ namespace NewRemoting
 						instancesToClear.Add(e.Value);
 					}
 
+					_logger.LogDebug($"Instance {e.Value.Identifier} is released locally");
 					MarkInstanceAsUnusedLocally(e.Value.Identifier);
 				}
 			}
@@ -274,7 +275,7 @@ namespace NewRemoting
 		{
 			if (s_objects.TryGetValue(id, out var ii))
 			{
-				ii.MarkAsUnusedRemotely();
+				ii.MarkAsUnusedViaRemoting();
 				// Instances that are managed on the server side shall not be removed,
 				// because others might just ask for them.
 				if (!ii.IsReleased)
@@ -289,6 +290,8 @@ namespace NewRemoting
 				{
 					throw new InvalidOperationException("Attempting to free a reference that is still in use");
 				}
+
+				_logger.LogDebug($"Instance {ii.Identifier} is removed from the instance manager");
 			}
 		}
 
@@ -307,6 +310,7 @@ namespace NewRemoting
 				// (i.e. because it is sending a reference to a proxy back)
 				if (TryGetObjectFromId(objectId, out instance))
 				{
+					_logger.LogDebug($"Found an instance for object id {objectId}");
 					return instance;
 				}
 
@@ -316,6 +320,7 @@ namespace NewRemoting
 			{
 				if (TryGetObjectFromId(objectId, out instance))
 				{
+					_logger.LogDebug($"Found an instance for object id {objectId}");
 					return instance;
 				}
 			}
@@ -533,7 +538,7 @@ namespace NewRemoting
 				set;
 			}
 
-			public void MarkAsUnusedRemotely()
+			public void MarkAsUnusedViaRemoting()
 			{
 				if (_instanceHardReference != null)
 				{

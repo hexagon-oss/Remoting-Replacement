@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using System.Runtime.Serialization;
 using System.Threading;
 using CommandLine;
+using Microsoft.Extensions.Logging;
 using NewRemoting;
 using SampleServerClasses;
 
@@ -168,7 +169,7 @@ namespace RemotingClient
 			{
 				try
 				{
-					Client client = new NewRemoting.Client("localhost", Client.DefaultNetworkPort, certificate);
+					Client client = new Client("localhost", Client.DefaultNetworkPort, certificate, new SimpleLogFileWriter("ClientLog.log", "ClientLog", LogLevel.Trace));
 					return client;
 				}
 				catch (SocketException x)

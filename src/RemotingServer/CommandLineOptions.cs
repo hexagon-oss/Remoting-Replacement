@@ -30,5 +30,12 @@ namespace RemotingServer
 			get;
 			set;
 		}
+
+		[Option('l', "logfile", HelpText = "Writes log data to the given log file. Should only be used for debugging, as it has a significant performance impact. Cannot be used with -v.")]
+		public string LogFile
+		{
+			get;
+			set;
+		}
 	}
 }

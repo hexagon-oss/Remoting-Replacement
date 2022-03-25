@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading;
+using Microsoft.Extensions.Logging;
 
 namespace NewRemoting
 {
@@ -34,7 +35,11 @@ namespace NewRemoting
 		/// <summary>
 		/// Connects the remote loader to the remote system;
 		/// </summary>
-		void Connect(CancellationToken externalToken);
+		/// <param name="cancellationToken">Abort token for connection attempt</param>
+		/// <param name="clientConnectionLogger">A logger for logging all communication activities. Use for debugging only, as it has a
+		/// performance penalty</param>
+		/// <exception cref="RemotingException">Thrown if connection to remote loader fails</exception>
+		void Connect(CancellationToken cancellationToken, ILogger clientConnectionLogger = null);
 
 		/// <summary>
 		/// Creates an object in a host process on a remote machine.

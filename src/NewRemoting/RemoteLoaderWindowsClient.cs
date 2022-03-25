@@ -174,8 +174,8 @@ namespace NewRemoting
 			return true;
 		}
 
-		/// <exception cref="RemoteAccessException">Thrown if connection to remote loader fails</exception>
-		public void Connect(CancellationToken externalToken)
+		/// <inheritdoc />
+		public void Connect(CancellationToken externalToken, ILogger clientConnectionLogger)
 		{
 			Logger.LogInformation("Connecting to RemotingServer");
 
@@ -183,7 +183,7 @@ namespace NewRemoting
 
 			LaunchProcess(externalToken, isRemoteHostOnLocalMachine);
 
-			_remotingClient = new Client(RemoteHost, RemotePort, Credentials.Certificate);
+			_remotingClient = new Client(RemoteHost, RemotePort, Credential.Certificate, clientConnectionLogger);
 			_remoteServer = _remotingClient.RequestRemoteInstance<IRemoteServerService>();
 			Logger.LogInformation("Got interface to {0}", _remoteServer.GetType().Name);
 			if (_remoteServer == null)
