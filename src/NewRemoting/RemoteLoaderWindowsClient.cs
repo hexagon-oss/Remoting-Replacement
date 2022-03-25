@@ -20,6 +20,7 @@ namespace NewRemoting
 
 		private readonly Func<FileInfo, bool> _shouldFileBeUploadedFunc;
 		private readonly FileHashCalculator _fileHashCalculator;
+		private readonly string _extraArguments;
 
 		private IRemoteServerService _remoteServer;
 		private Client _remotingClient;
@@ -27,9 +28,10 @@ namespace NewRemoting
 		public RemoteLoaderWindowsClient(Credentials remoteCredentials, string remoteHost, int remotePort,
 			FileHashCalculator fileHashCalculator,
 			Func<FileInfo, bool> shouldFileBeUploadedFunc, TimeSpan waitTimeBetweenPaExecExecute, string extraArguments, ILogger logger = null)
-			: base(remoteCredentials, remoteHost, waitTimeBetweenPaExecExecute, extraArguments, logger)
+			: base(remoteCredentials, remoteHost, waitTimeBetweenPaExecExecute, logger)
 		{
 			RemotePort = remotePort;
+			_extraArguments = extraArguments;
 			_shouldFileBeUploadedFunc = shouldFileBeUploadedFunc ?? throw new ArgumentNullException(nameof(shouldFileBeUploadedFunc));
 			_fileHashCalculator = fileHashCalculator ?? throw new ArgumentNullException(nameof(fileHashCalculator));
 			OutputDataReceived += (s, l) =>
@@ -135,7 +137,7 @@ namespace NewRemoting
 
 		public IProcess LaunchProcess(CancellationToken externalCancellation, bool isRemoteHostOnLocalMachine)
 		{
-			return LaunchProcess(externalCancellation, isRemoteHostOnLocalMachine, REMOTELOADER_EXECUTABLE, REMOTELOADER_DEPENDENCIES_FILENAME, REMOTELOADER_DIRECTORY);
+			return LaunchProcess(externalCancellation, isRemoteHostOnLocalMachine, REMOTELOADER_EXECUTABLE, _extraArguments, REMOTELOADER_DEPENDENCIES_FILENAME, REMOTELOADER_DIRECTORY);
 		}
 
 		protected override bool WaitForRemoteProcessStartup(CancellationTokenSource linkedCancellationTokenSource, IProcess process)

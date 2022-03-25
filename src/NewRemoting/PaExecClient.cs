@@ -29,8 +29,6 @@ namespace NewRemoting
 		/// </summary>
 		private readonly object _internalCancellationTokenSourceLock = new object();
 
-		private readonly string _extraArguments;
-
 		private Credentials _remoteCredentials;
 		private TimeSpan _waitTimeBetweenPaExecExecute;
 		private DirectoryInfo _root;
@@ -45,7 +43,7 @@ namespace NewRemoting
 		/// <param name="remoteCredentials">Credentials for accessing the remote system</param>
 		/// <param name="remoteHost">Remote host name/IP</param>
 		public PaExecClient(Credentials remoteCredentials, string remoteHost)
-			: this(remoteCredentials, remoteHost, TimeSpan.FromSeconds(1), string.Empty)
+			: this(remoteCredentials, remoteHost, TimeSpan.FromSeconds(1))
 		{
 		}
 
@@ -54,7 +52,7 @@ namespace NewRemoting
 		/// </summary>
 		/// <exception cref="ArgumentNullException">Thrown if credentials are null</exception>
 		/// <exception cref="ArgumentException">Thrown if host name is invalid</exception>
-		public PaExecClient(Credentials remoteCredentials, string remoteHost, TimeSpan waitTimeBetweenPaExecExecute, string extraArguments, ILogger logger = null)
+		public PaExecClient(Credentials remoteCredentials, string remoteHost, TimeSpan waitTimeBetweenPaExecExecute, ILogger logger = null)
 		{
 			if (remoteCredentials == null)
 			{
@@ -71,7 +69,6 @@ namespace NewRemoting
 			_root = new DirectoryInfo(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
 			RemoteHost = remoteHost;
 			_remoteCredentials = remoteCredentials;
-			_extraArguments = extraArguments;
 
 			_internalCancellationTokenSource = new ResetableCancellationTokenSource();
 
@@ -244,10 +241,11 @@ namespace NewRemoting
 		/// <param name="externalToken">Cancellation token (does only cancel the startup attempt, not the process itself, if launching was successful</param>
 		/// <param name="isRemoteHostOnLocalMachine">True if the process should actually be started locally. Null to auto-detect</param>
 		/// <param name="processName">Name of the remote process</param>
+		/// <param name="arguments">Arguments to remote process</param>
 		/// <param name="dependenciesFile">A file containing the set of files to copy to the remote machine before execution</param>
 		/// <param name="remoteFileDirectory">The directory on the remote machine where the file should be copied to</param>
 		/// <returns>The created process. Do NOT dispose the returned process instance directly, but dispose the <see cref="PaExecClient"/> instance instead.</returns>
-		public virtual IProcess LaunchProcess(CancellationToken externalToken, bool? isRemoteHostOnLocalMachine, string processName,
+		public virtual IProcess LaunchProcess(CancellationToken externalToken, bool? isRemoteHostOnLocalMachine, string processName, string arguments,
 			string dependenciesFile, string remoteFileDirectory)
 		{
 			var sw = Stopwatch.StartNew();
@@ -266,8 +264,8 @@ namespace NewRemoting
 			while (_process == null)
 			{
 				var process = isRemoteHostOnLocalMachine.Value ?
-					CreateProcessLocal(PrependAppDomainPath(processName), _extraArguments) :
-					CreateProcessOnRemoteMachine(externalToken, processName, dependenciesFile, remoteFileDirectory, _extraArguments);
+					CreateProcessLocal(PrependAppDomainPath(processName), arguments) :
+					CreateProcessOnRemoteMachine(externalToken, processName, dependenciesFile, remoteFileDirectory, arguments);
 				_logger.LogInformation("Process created after '{0}'ms", sw.ElapsedMilliseconds);
 				// Cancel operation if process exits or canceled externally
 				lock (_internalCancellationTokenSourceLock)
@@ -339,7 +337,7 @@ namespace NewRemoting
 						}
 						else
 						{
-							var errorMsg = string.Format(CultureInfo.InvariantCulture, "Could not launch remote loader on machine {0} Error Code: {1} Arguments {2}", RemoteHost, errorCode, _extraArguments);
+							var errorMsg = string.Format(CultureInfo.InvariantCulture, "Could not launch remote loader on machine {0} Error Code: {1} Arguments {2}", RemoteHost, errorCode, arguments);
 							Logger.LogError(errorMsg);
 							throw new RemotingException(errorMsg);
 						}
