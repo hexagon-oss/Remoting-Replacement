@@ -25,12 +25,16 @@ namespace NewRemoting
 
 		public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
 		{
-			if (formatter != null)
+			if (formatter != null && IsEnabled(logLevel))
 			{
 				string msg = formatter(state, exception);
 				string formattedTime = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss.ffff");
 				string formatted = FormattableString.Invariant($"\"{formattedTime}\";\"{logLevel}\";\"{_loggerName}\";\"{msg}\";\"{exception}\"");
-				_writer.WriteLine(formatted);
+				// This method is not thread safe
+				lock (_writer)
+				{
+					_writer.WriteLine(formatted);
+				}
 			}
 		}
 
