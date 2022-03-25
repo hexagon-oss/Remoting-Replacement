@@ -4,8 +4,8 @@ using System.Linq;
 using System.Net.Sockets;
 using System.Runtime.Serialization;
 using System.Threading;
+using CommandLine;
 using NewRemoting;
-using RemotingServer;
 using SampleServerClasses;
 
 namespace RemotingClient
@@ -15,6 +15,10 @@ namespace RemotingClient
 		public static void Main(string[] args)
 		{
 			Console.WriteLine("Hello World of clients!");
+			var parsed = Parser.Default.ParseArguments<CommandLineOptions>(args);
+			CommandLineOptions options = null;
+			parsed.WithParsed(r => options = r);
+			string certificate = options?.Certificate;
 			if (args.Any(x => x == "--debug"))
 			{
 				Console.WriteLine("Waiting for debugger...");
@@ -24,12 +28,12 @@ namespace RemotingClient
 				}
 			}
 
-			DoSomeRemoting();
+			DoSomeRemoting(certificate);
 		}
 
-		public static void DoSomeRemoting()
+		public static void DoSomeRemoting(string certificate)
 		{
-			using var client = GetClient();
+			using var client = GetClient(certificate);
 			MarshallableClass cls = client.CreateRemoteInstance<MarshallableClass>();
 			int number = cls.GetSomeData();
 			Console.WriteLine($"Server said the number is {number}!");
@@ -144,14 +148,14 @@ namespace RemotingClient
 			Console.WriteLine($"It is now {obj.ToLongDateString()}");
 		}
 
-		private static Client GetClient()
+		private static Client GetClient(string certificate)
 		{
 			int i = 5;
 			while (true)
 			{
 				try
 				{
-					Client client = new NewRemoting.Client("localhost", Client.DefaultNetworkPort);
+					Client client = new NewRemoting.Client("localhost", Client.DefaultNetworkPort, certificate);
 					return client;
 				}
 				catch (SocketException x)
@@ -173,6 +177,16 @@ namespace RemotingClient
 			{
 				Console.WriteLine($"It really is {obj.ToLongTimeString()} on {where}");
 			}
+		}
+	}
+
+	internal class CommandLineOptions
+	{
+		[Option('c', "certificate", HelpText = "full filename of the certificate")]
+		public string Certificate
+		{
+			get;
+			set;
 		}
 	}
 }

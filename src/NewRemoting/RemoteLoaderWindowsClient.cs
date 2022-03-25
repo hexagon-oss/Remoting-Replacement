@@ -183,7 +183,7 @@ namespace NewRemoting
 
 			LaunchProcess(externalToken, isRemoteHostOnLocalMachine);
 
-			_remotingClient = new Client(RemoteHost, RemotePort);
+			_remotingClient = new Client(RemoteHost, RemotePort, Credentials.Certificate);
 			_remoteServer = _remotingClient.RequestRemoteInstance<IRemoteServerService>();
 			Logger.LogInformation("Got interface to {0}", _remoteServer.GetType().Name);
 			if (_remoteServer == null)

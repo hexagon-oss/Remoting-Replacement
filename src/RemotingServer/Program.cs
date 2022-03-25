@@ -1,10 +1,11 @@
 ﻿using System;
-using System.Diagnostics;
-using System.Threading;
-using Castle.DynamicProxy;
-using NewRemoting;
+using System.Configuration;
+using System.IO;
+using System.Linq;
+using Castle.Core.Internal;
 using CommandLine;
 using Microsoft.Extensions.Logging;
+using NewRemoting;
 
 namespace RemotingServer
 {
@@ -36,7 +37,34 @@ namespace RemotingServer
 					logger = new ConsoleAndDebugLogger("RemotingServer");
 				}
 
-				var server = new Server(port, logger);
+				var allKeys = ConfigurationManager.AppSettings.AllKeys;
+				string certificate = null;
+				string certPwd = null;
+
+				if (allKeys.Contains("CertificateFileName"))
+				{
+					var cert = ConfigurationManager.AppSettings.Get("CertificateFileName");
+					if (!cert.IsNullOrEmpty())
+					{
+						certificate = cert;
+					}
+				}
+
+				if (allKeys.Contains("CertificatePassword"))
+				{
+					certPwd = ConfigurationManager.AppSettings.Get("CertificatePassword");
+				}
+
+				if (!certificate.IsNullOrEmpty())
+				{
+					if (!File.Exists(certificate))
+					{
+						Console.WriteLine($"Certificate {certificate} does not exist");
+						return;
+					}
+				}
+
+				var server = new Server(port, certificate, certPwd, logger);
 				if (options.KillSelf)
 				{
 					server.KillProcessWhenChannelDisconnected = true;

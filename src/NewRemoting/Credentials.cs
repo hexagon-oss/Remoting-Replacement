@@ -15,7 +15,7 @@ namespace NewRemoting
 		/// <summary>
 		/// Constant for no credentials
 		/// </summary>
-		public static readonly Credentials None = new Credentials(null, null, null);
+		public static readonly Credentials None = new Credentials(null, null, null, null);
 
 		/// <summary>
 		/// For marshalling.
@@ -27,11 +27,12 @@ namespace NewRemoting
 		/// <summary>
 		/// Constructor, use factory methods to create instances of that type.
 		/// </summary>
-		private Credentials(string username, string password, string domainName)
+		private Credentials(string username, string password, string domainName, string certificate)
 		{
 			Username = username;
 			Password = password;
 			DomainName = domainName;
+			Certificate = certificate;
 		}
 
 		/// <summary>
@@ -73,20 +74,28 @@ namespace NewRemoting
 		}
 
 		/// <summary>
+		/// The certificate filename.
+		/// </summary>
+		public string Certificate
+		{
+			get;
+		}
+
+		/// <summary>
 		/// Creates remote credentials for a username and a corresponding password
 		/// </summary>
-		public static Credentials CreateLocal(string username, string password)
+		public static Credentials CreateLocal(string username, string password, string certificate)
 		{
-			return Create(username, password, Environment.MachineName);
+			return Create(username, password, Environment.MachineName, certificate);
 		}
 
 		/// <summary>
 		/// Creates remote credentials for a username and a corresponding password, also supply domain or computer name of user account
 		/// </summary>
 		/// <exception cref="ArgumentNullException">Parameter was null</exception>
-		public static Credentials Create(string username, string password, string domainName)
+		public static Credentials Create(string username, string password, string domainName, string certificate)
 		{
-			return new Credentials(username ?? string.Empty, password ?? string.Empty, domainName ?? string.Empty);
+			return new Credentials(username ?? string.Empty, password ?? string.Empty, domainName ?? string.Empty, certificate);
 		}
 
 		public bool Equals(Credentials other)
