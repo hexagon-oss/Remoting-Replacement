@@ -8,6 +8,7 @@ using System.Runtime.Serialization;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Threading.Tasks;
 using Castle.Core.Internal;
 using Castle.DynamicProxy;
 using Microsoft.Extensions.Logging;
