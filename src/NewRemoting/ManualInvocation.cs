@@ -13,15 +13,19 @@ namespace NewRemoting
 	/// </summary>
 	internal class ManualInvocation : IInvocation
 	{
+		private string _methodName;
+
 		public ManualInvocation(MethodBase method, object[] args)
 		{
 			if (method is MethodInfo mi)
 			{
 				Method = mi;
+				_methodName = method.Name;
 			}
 			else if (method is ConstructorInfo ci)
 			{
 				Constructor = ci;
+				_methodName = ci.Name;
 			}
 			else
 			{
@@ -33,6 +37,7 @@ namespace NewRemoting
 
 		public ManualInvocation(Type expectedReturnType)
 		{
+			_methodName = "Type " + expectedReturnType.Name;
 			Method = null;
 			Constructor = null;
 			TargetType = expectedReturnType;
@@ -80,5 +85,10 @@ namespace NewRemoting
 		public object Proxy { get; set; }
 		public object ReturnValue { get; set; }
 		public Type TargetType { get; }
+
+		public override string ToString()
+		{
+			return _methodName;
+		}
 	}
 }

@@ -29,8 +29,8 @@ namespace NewRemotingUnitTest
 
 				CancellationTokenSource errorTokenSource = new CancellationTokenSource();
 				errorTokenSource.CancelAfter(TimeSpan.FromSeconds(60));
-				IRemoteLoaderClient client = new RemoteLoaderWindowsClient(Credentials.None, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(2));
-				client.Connect(errorTokenSource.Token);
+				IRemoteLoaderClient client = new RemoteLoaderWindowsClient(Credentials.None, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(2), string.Empty);
+				client.Connect(errorTokenSource.Token, null);
 				// Should not be cancelled yet.
 				Assert.False(errorTokenSource.IsCancellationRequested);
 				existingProcess.Kill();
@@ -47,12 +47,12 @@ namespace NewRemotingUnitTest
 			[Test]
 			public void NoCrashesWhenRemoteCallsAreExpensive()
 			{
-				IRemoteLoaderClient client = new RemoteLoaderWindowsClient(Credentials.None, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(0.1));
+				IRemoteLoaderClient client = new RemoteLoaderWindowsClient(Credentials.None, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(0.1), string.Empty);
 				try
 				{
 					CancellationTokenSource errorTokenSource = new CancellationTokenSource();
 					errorTokenSource.CancelAfter(TimeSpan.FromSeconds(20));
-					client.Connect(errorTokenSource.Token);
+					client.Connect(errorTokenSource.Token, null);
 					Assert.False(errorTokenSource.IsCancellationRequested);
 					RemoteObjectWithSlowMethods remObject = client.CreateObject<RemoteObjectWithSlowMethods>();
 					remObject.Sleep(TimeSpan.FromSeconds(1));
@@ -105,7 +105,7 @@ namespace NewRemotingUnitTest
 			{
 				using (IRemoteLoaderClient remoteLoaderClient = new RemoteLoaderFactory().Create(RemoteCredentials, "127.0.0.1"))
 				{
-					remoteLoaderClient.Connect(CancellationToken.None);
+					remoteLoaderClient.Connect(CancellationToken.None, null);
 					var dirInfo = remoteLoaderClient.CreateObject<DirectoryInfo>(new object[] { "C:\\" });
 					var subDirs = dirInfo.GetDirectories();
 					foreach (var subDir in subDirs)
@@ -120,7 +120,7 @@ namespace NewRemotingUnitTest
 			{
 				using (IRemoteLoaderClient remoteLoaderClient = new RemoteLoaderFactory().Create(RemoteCredentials, RemoteHost))
 				{
-					remoteLoaderClient.Connect(CancellationToken.None);
+					remoteLoaderClient.Connect(CancellationToken.None, null);
 					var dirInfo = remoteLoaderClient.CreateObject<DirectoryInfo>(new object[] { "C:\\" });
 					var subDirs = dirInfo.GetDirectories();
 					foreach (var subDir in subDirs)
@@ -145,7 +145,7 @@ namespace NewRemotingUnitTest
 			{
 				using (IRemoteLoaderClient remoteLoaderClient = new RemoteLoaderFactory().Create(RemoteCredentials, RemoteHost))
 				{
-					remoteLoaderClient.Connect(CancellationToken.None);
+					remoteLoaderClient.Connect(CancellationToken.None, null);
 					var dirInfo = remoteLoaderClient.CreateObject<DirectoryInfo>(new object[] { "C:\\" });
 					var subDirs = dirInfo.GetDirectories();
 					foreach (var subDir in subDirs)
@@ -160,11 +160,11 @@ namespace NewRemotingUnitTest
 			{
 				using (IRemoteLoaderClient remoteLoaderClient1 = new RemoteLoaderFactory().Create(Credentials.None, "127.0.0.1"))
 				{
-					remoteLoaderClient1.Connect(CancellationToken.None);
+					remoteLoaderClient1.Connect(CancellationToken.None, null);
 
 					using (IRemoteLoaderClient remoteLoaderClient2 = new RemoteLoaderFactory().Create(Credentials.None, "127.0.0.1"))
 					{
-						remoteLoaderClient2.Connect(CancellationToken.None);
+						remoteLoaderClient2.Connect(CancellationToken.None, null);
 
 						var testObjectRemote2 = remoteLoaderClient2.CreateObject<TestObject>();
 						var testObjectRemote1 = remoteLoaderClient1.CreateObject<TestObject>();

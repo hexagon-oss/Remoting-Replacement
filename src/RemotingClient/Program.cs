@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using System.Runtime.Serialization;
 using System.Threading;
 using CommandLine;
+using Microsoft.Extensions.Logging;
 using NewRemoting;
 using SampleServerClasses;
 
@@ -86,6 +87,19 @@ namespace RemotingClient
 			string[] versions = bios.GetBiosVersions();
 			Console.WriteLine($"Server bios versions are: {string.Join(", ", versions)}.");
 
+			// Wait until the GC kicks in
+			GC.Collect();
+			GC.WaitForFullGCComplete();
+			GC.WaitForPendingFinalizers();
+			Thread.Sleep(20000);
+			client.ForceGc();
+			Thread.Sleep(1000);
+			var moreVersions = bios.GetBiosVersions();
+			if (moreVersions[0] != versions[0])
+			{
+				Console.WriteLine("The bios version has changed unexpectedly!?!?");
+			}
+
 			Console.WriteLine("Getting remote server service...");
 			var serverService = client.RequestRemoteInstance<IRemoteServerService>();
 			Stopwatch sw = Stopwatch.StartNew();
@@ -155,7 +169,7 @@ namespace RemotingClient
 			{
 				try
 				{
-					Client client = new NewRemoting.Client("localhost", Client.DefaultNetworkPort, certificate);
+					Client client = new Client("localhost", Client.DefaultNetworkPort, certificate, new SimpleLogFileWriter("ClientLog.log", "ClientLog", LogLevel.Trace));
 					return client;
 				}
 				catch (SocketException x)

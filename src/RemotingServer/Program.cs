@@ -37,6 +37,11 @@ namespace RemotingServer
 					logger = new ConsoleAndDebugLogger("RemotingServer");
 				}
 
+				if (!string.IsNullOrWhiteSpace(options.LogFile))
+				{
+					logger = new SimpleLogFileWriter(options.LogFile, "ServerLog", LogLevel.Trace);
+				}
+
 				var allKeys = ConfigurationManager.AppSettings.AllKeys;
 				string certificate = null;
 				string certPwd = null;
@@ -77,6 +82,10 @@ namespace RemotingServer
 				server.WaitForTermination();
 				server.Terminate(false);
 				GC.KeepAlive(server);
+				if (logger is IDisposable disposable)
+				{
+					disposable.Dispose();
+				}
 			}
 		}
 	}

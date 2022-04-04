@@ -83,5 +83,10 @@ namespace NewRemoting
 		/// <typeparam name="T">The type to query</typeparam>
 		/// <returns>An instance of the given type (as proxy) or null if no such instance was registered</returns>
 		T QueryServiceFromServer<T>();
+
+		/// <summary>
+		/// Performs a server side GC
+		/// </summary>
+		void PerformGc();
 	}
 }

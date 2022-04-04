@@ -8,6 +8,7 @@ using System.Runtime.Serialization;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Threading.Tasks;
 using Castle.Core.Internal;
 using Castle.DynamicProxy;
 using Microsoft.Extensions.Logging;
@@ -532,6 +533,17 @@ namespace NewRemoting
 			{
 				_instanceManager.PerformGc(_writer, false);
 			}
+
+			var remoteServerService = RequestRemoteInstance<IRemoteServerService>();
+			if (remoteServerService != null)
+			{
+				remoteServerService.PerformGc();
+			}
+		}
+
+		public Task ForceGcAsync()
+		{
+			return Task.Factory.StartNew(ForceGc);
 		}
 	}
 }
