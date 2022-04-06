@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net;
 using System.Reflection;
 using System.Diagnostics;
+using System.Runtime.ExceptionServices;
 using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
@@ -347,6 +348,7 @@ namespace NewRemoting
 			RemotingCallHeader hdReturnValue = new RemotingCallHeader(RemotingFunctionType.ExceptionReturn, sequence);
 			hdReturnValue.WriteTo(w);
 			SendSerializedObject(w, exception, otherSideInstanceId);
+			w.Write(exception.StackTrace ?? string.Empty);
 		}
 
 		public object ReadArgumentFromStream(BinaryReader r, MethodBase callingMethod, IInvocation invocation, bool canAttemptToInstantiate, Type typeOfArgument, string otherSideInstanceId)
@@ -521,12 +523,14 @@ namespace NewRemoting
 			reader.ReadInt32(); // RemotingReferenceType.SerializedItem
 			int argumentLen = reader.ReadInt32();
 			byte[] argumentData = reader.ReadBytes(argumentLen);
+			string remoteStack = reader.ReadString();
 			MemoryStream ms = new MemoryStream(argumentData, false);
 #pragma warning disable 618
 			var formatter = _formatterFactory.CreateOrGetFormatter(otherSideInstanceId);
-			object decodedArg = formatter.Deserialize(ms);
+			Exception decodedArg = (Exception)formatter.Deserialize(ms);
 #pragma warning restore 618
-			return (Exception)decodedArg;
+			ExceptionDispatchInfo.SetRemoteStackTrace(decodedArg, remoteStack);
+			return decodedArg;
 		}
 
 		public void AddInterceptor(ClientSideInterceptor newInterceptor)

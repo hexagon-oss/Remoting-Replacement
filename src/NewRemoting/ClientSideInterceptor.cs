@@ -343,9 +343,6 @@ namespace NewRemoting
 							_logger.Log(LogLevel.Debug, $"{ThisSideInstanceId}: Receiving exception in reply to {ctx.Invocation.Method}");
 							var exception = _messageHandler.DecodeException(_reader, OtherSideInstanceId);
 							ctx.Exception = exception;
-							// Hack to move the remote stack trace to the correct field.
-							var remoteField = typeof(Exception).GetField("_remoteStackTraceString", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-							remoteField.SetValue(exception, exception.StackTrace);
 							ctx.Set();
 						}
 						else
