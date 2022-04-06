@@ -20,7 +20,36 @@ namespace NewRemoting
 			_emptyDisposable = new ScopeDisposable();
 			_loggerName = loggerName;
 			_minLogLevel = minLogLevel;
+			FileInfo fileInfo = new FileInfo(file);
+			if (!IsDirectoryWritable(fileInfo.DirectoryName))
+			{
+				file = Path.Combine(Path.GetTempPath(), fileInfo.Name);
+				Console.WriteLine($"Unable to write to file {fileInfo.FullName}, using logfile {file} instead");
+			}
+
 			_writer = new StreamWriter(file, Encoding.Unicode, new FileStreamOptions() { Access = FileAccess.Write, Mode = FileMode.Create });
+		}
+
+		public static bool IsDirectoryWritable(string directory)
+		{
+			String randomFileName = Path.Combine(directory, Path.GetRandomFileName());
+			try
+			{
+				using (FileStream fs = File.Create(randomFileName))
+				{
+					fs.WriteByte(50);
+				}
+
+				return true;
+			}
+			catch (Exception x) when (x is UnauthorizedAccessException || x is IOException)
+			{
+				return false;
+			}
+			finally
+			{
+				File.Delete(randomFileName);
+			}
 		}
 
 		public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
