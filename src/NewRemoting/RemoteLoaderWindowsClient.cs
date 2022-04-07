@@ -5,6 +5,7 @@ using System.IO;
 using System.Net;
 using System.Threading;
 using System.Buffers;
+using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
 using NewRemoting.Toolkit;
 
@@ -146,7 +147,9 @@ namespace NewRemoting
 			Thread.Sleep(1000);
 			if (process.HasExited)
 			{
-				throw new RemotingException($"Process died during startup. Exit code {process.ExitCode}");
+				string errorMsg = $"Remoting process died during startup. Exit code {process.ExitCode}";
+				Logger.LogError(errorMsg);
+				throw new RemotingException(errorMsg);
 			}
 
 			return true;
@@ -161,7 +164,33 @@ namespace NewRemoting
 
 			LaunchProcess(externalToken, isRemoteHostOnLocalMachine);
 
-			_remotingClient = new Client(RemoteHost, RemotePort, Credentials.Certificate, clientConnectionLogger);
+			_remotingClient = null;
+
+			Exception lastError = null;
+
+			for (int retries = 0; retries < 5; retries++)
+			{
+				try
+				{
+					lastError = null;
+					_remotingClient = new Client(RemoteHost, RemotePort, Credentials.Certificate,
+						clientConnectionLogger);
+					break;
+				}
+				catch (Exception x) when (x is IOException || x is SocketException || x is UnauthorizedAccessException)
+				{
+					Logger.LogError(x, $"Unable to connect to remote server. Attempt {retries + 1}: {x.Message}");
+					lastError = x;
+				}
+
+				Thread.Sleep(1000); // Maybe the server hasn't started properly yet
+			}
+
+			if (lastError != null)
+			{
+				throw lastError;
+			}
+
 			_remoteServer = _remotingClient.RequestRemoteInstance<IRemoteServerService>();
 			Logger.LogInformation("Got interface to {0}", _remoteServer.GetType().Name);
 			if (_remoteServer == null)
