@@ -113,6 +113,9 @@ class Build : NukeBuild
 	    {
 		    DotNetPublish(s => s
 			    .SetProject(SourceDirectory / "RemotingServer" / "RemotingServer.csproj")
+				.SetAssemblyVersion(GitVersion.AssemblySemVer)
+			    .SetFileVersion(GitVersion.AssemblySemFileVer)
+			    .SetInformationalVersion(GitVersion.InformationalVersion)
 			    .SetFramework("net6.0-windows")
 		    );
 	    });
