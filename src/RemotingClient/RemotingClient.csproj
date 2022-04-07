@@ -11,4 +11,8 @@
     <ProjectReference Include="..\SampleServerClasses\SampleServerClasses.csproj" />
   </ItemGroup>
 
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="xcopy /Y /D $(OutDir)*.* $(SolutionDir)\RemotingServer\bin\$(Configuration)\net6.0-windows" />
+  </Target>
+
 </Project>
