@@ -551,14 +551,20 @@ namespace NewRemoting
 
 			foreach (var e in stringValuePairs)
 			{
-				if (e.Key == "StackTraceString")
+				switch (e.Key)
 				{
-					// We don't want to set this one, so we are able to use SetRemoteStackTrace
-					info.AddValue(e.Key, null);
-				}
-				else
-				{
-					info.AddValue(e.Key, e.Value);
+					case "StackTraceString":
+						// We don't want to set this one, so we are able to use SetRemoteStackTrace
+						info.AddValue(e.Key, null);
+						break;
+					case "RemoteStackTraceString":
+						// If this is already provided, the exception has probably been thrown on yet another instance
+						info.AddValue(e.Key, null);
+						remoteStack += " previously thrown at " + e.Value;
+						break;
+					default:
+						info.AddValue(e.Key, e.Value);
+						break;
 				}
 			}
 
@@ -593,10 +599,20 @@ namespace NewRemoting
 			if (decodedException == null)
 			{
 				// We have neither a default ctor nor a deserialization ctor. This is bad.
-				decodedException = new Exception($"Unable to deserialize exception of type {exceptionTypeName}. Please fix it's deserialization constructor");
+				decodedException = new RemotingException($"Unable to deserialize exception of type {exceptionTypeName}. Please fix it's deserialization constructor");
 			}
 
-			ExceptionDispatchInfo.SetRemoteStackTrace(decodedException!, remoteStack);
+			try
+			{
+				ExceptionDispatchInfo.SetRemoteStackTrace(decodedException!, remoteStack);
+			}
+			catch (InvalidOperationException)
+			{
+				throw new RemotingException(
+					$"Unable to properly deserialize exception {decodedException}. Inner exception is {decodedException.Message}",
+					decodedException);
+			}
+
 			return decodedException;
 		}
 
