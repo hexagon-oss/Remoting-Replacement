@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net6.0-windows</TargetFramework>
     <IsPackable>false</IsPackable>
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>../../NewRemoting.snk</AssemblyOriginatorKeyFile>
@@ -20,7 +20,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\NewRemoting\NewRemoting.csproj" />
-    <ProjectReference Include="..\RemotingServer\RemotingServer.csproj" />
     <ProjectReference Include="..\SampleServerClasses\SampleServerClasses.csproj" />
   </ItemGroup>
 

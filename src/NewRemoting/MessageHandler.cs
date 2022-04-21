@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net;
 using System.Reflection;
 using System.Diagnostics;
+using System.Runtime.ExceptionServices;
 using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
@@ -346,7 +347,21 @@ namespace NewRemoting
 		{
 			RemotingCallHeader hdReturnValue = new RemotingCallHeader(RemotingFunctionType.ExceptionReturn, sequence);
 			hdReturnValue.WriteTo(w);
-			SendSerializedObject(w, exception, otherSideInstanceId);
+			// We're manually serializing exceptions, because that's apparently how this should be done (since
+			// ExceptionDispatchInfo.SetRemoteStackTrace doesn't work if the stack trace has already been set)
+			w.Write(exception.GetType().AssemblyQualifiedName ?? string.Empty);
+			SerializationInfo info = new SerializationInfo(exception.GetType(), new FormatterConverter());
+			StreamingContext ctx = new StreamingContext();
+			exception.GetObjectData(info, ctx);
+			w.Write(info.MemberCount);
+			foreach (var e in info)
+			{
+				w.Write(e.Name);
+				// This may contain inner exceptions, but since we're not throwing those, this shouldn't cause any issues on the remote side
+				WriteArgumentToStream(w, e.Value, otherSideInstanceId);
+			}
+
+			w.Write(exception.StackTrace ?? string.Empty);
 		}
 
 		public object ReadArgumentFromStream(BinaryReader r, MethodBase callingMethod, IInvocation invocation, bool canAttemptToInstantiate, Type typeOfArgument, string otherSideInstanceId)
@@ -518,15 +533,87 @@ namespace NewRemoting
 
 		public Exception DecodeException(BinaryReader reader, string otherSideInstanceId)
 		{
-			reader.ReadInt32(); // RemotingReferenceType.SerializedItem
-			int argumentLen = reader.ReadInt32();
-			byte[] argumentData = reader.ReadBytes(argumentLen);
-			MemoryStream ms = new MemoryStream(argumentData, false);
-#pragma warning disable 618
-			var formatter = _formatterFactory.CreateOrGetFormatter(otherSideInstanceId);
-			object decodedArg = formatter.Deserialize(ms);
-#pragma warning restore 618
-			return (Exception)decodedArg;
+			string exceptionTypeName = reader.ReadString();
+			Dictionary<string, object> stringValuePairs = new Dictionary<string, object>();
+			int numValues = reader.ReadInt32();
+			for (int i = 0; i < numValues; i++)
+			{
+				string name = reader.ReadString();
+				// The values found here should all be serializable again
+				object data = ReadArgumentFromStream(reader, null, null, false, typeof(object),
+					otherSideInstanceId);
+				stringValuePairs.Add(name, data);
+			}
+
+			string remoteStack = reader.ReadString();
+			Type exceptionType = Server.GetTypeFromAnyAssembly(exceptionTypeName);
+			SerializationInfo info = new SerializationInfo(exceptionType, new FormatterConverter());
+
+			foreach (var e in stringValuePairs)
+			{
+				switch (e.Key)
+				{
+					case "StackTraceString":
+						// We don't want to set this one, so we are able to use SetRemoteStackTrace
+						info.AddValue(e.Key, null);
+						break;
+					case "RemoteStackTraceString":
+						// If this is already provided, the exception has probably been thrown on yet another instance
+						info.AddValue(e.Key, null);
+						remoteStack += " previously thrown at " + e.Value;
+						break;
+					default:
+						info.AddValue(e.Key, e.Value);
+						break;
+				}
+			}
+
+			StreamingContext ctx = new StreamingContext();
+			var ctors = exceptionType.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+			// Default ctor as fallback
+			ConstructorInfo ctorToUse = null;
+
+			// Manually search the deserialization constructor. Activator.CreateInstance is not helpful when something is wrong
+			Exception decodedException = null;
+			foreach (var ctor in ctors)
+			{
+				var parameters = ctor.GetParameters();
+				if (parameters.Length == 2 && parameters[0].ParameterType == typeof(SerializationInfo) && parameters[1].ParameterType == typeof(StreamingContext))
+				{
+					ctorToUse = ctor;
+					decodedException = (Exception)ctorToUse.Invoke(new object[] { info, ctx });
+					break;
+				}
+			}
+
+			if (decodedException == null)
+			{
+				ctorToUse = ctors.FirstOrDefault(x => x.GetParameters().Length == 0);
+				if (ctorToUse != null)
+				{
+					decodedException = (Exception)ctorToUse.Invoke(Array.Empty<object>());
+				}
+			}
+
+			if (decodedException == null)
+			{
+				// We have neither a default ctor nor a deserialization ctor. This is bad.
+				decodedException = new RemotingException($"Unable to deserialize exception of type {exceptionTypeName}. Please fix it's deserialization constructor");
+			}
+
+			try
+			{
+				ExceptionDispatchInfo.SetRemoteStackTrace(decodedException!, remoteStack);
+			}
+			catch (InvalidOperationException)
+			{
+				throw new RemotingException(
+					$"Unable to properly deserialize exception {decodedException}. Inner exception is {decodedException.Message}",
+					decodedException);
+			}
+
+			return decodedException;
 		}
 
 		public void AddInterceptor(ClientSideInterceptor newInterceptor)

@@ -6,9 +6,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="CommandLineParser" Version="2.8.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\NewRemoting\NewRemoting.csproj" />
-    <ProjectReference Include="..\RemotingServer\RemotingServer.csproj" />
     <ProjectReference Include="..\SampleServerClasses\SampleServerClasses.csproj" />
   </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="xcopy /Y /D /I $(OutDir)*.* $(SolutionDir)\RemotingServer\bin\$(Configuration)\net6.0-windows&#xD;&#xA;xcopy /Y /E /S /I $(OutDir)runtimes $(SolutionDir)\RemotingServer\bin\$(Configuration)\net6.0-windows\runtimes&#xD;&#xA;&#xD;&#xA;xcopy /Y /D /I $(SolutionDir)\RemotingServer\bin\$(Configuration)\net6.0-windows $(SolutionDir)\NewRemotingUnitTest\bin\$(Configuration)\net6.0-windows&#xD;&#xA;xcopy /Y /D /I $(OutDir)*.* $(SolutionDir)\NewRemotingUnitTest\bin\$(Configuration)\net6.0-windows&#xD;&#xA;xcopy /Y /E /S /I $(OutDir)runtimes $(SolutionDir)\NewRemotingUnitTest\bin\$(Configuration)\net6.0-windows\runtimes&#xD;&#xA;" />
+  </Target>
 
 </Project>
