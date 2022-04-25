@@ -63,5 +63,24 @@ namespace NewRemotingUnitTest
 			var myInstance2 = _instanceManager.GetObjectFromId(name2);
 			Assert.True(ReferenceEquals(myInstance, myInstance2));
 		}
+
+		[Test]
+		public void AddInstance()
+		{
+			var myInstance = new MarshallableClass(100);
+			var myInstanceId = _instanceManager.InstanceIdentifier + "id";
+			_instanceManager.AddInstance(myInstance, myInstanceId, "1", typeof(MarshallableClass));
+#pragma warning disable CS0618
+			var ii = _instanceManager.QueryInstanceInfo(myInstanceId);
+#pragma warning restore CS0618
+			Assert.AreEqual(1, ii.ReferenceBitVector);
+			Assert.IsFalse(ii.IsReleased);
+			_instanceManager.AddInstance(myInstance, myInstanceId, "2", typeof(MarshallableClass));
+#pragma warning disable CS0618
+			ii = _instanceManager.QueryInstanceInfo(myInstanceId);
+#pragma warning restore CS0618
+			Assert.AreEqual(3, ii.ReferenceBitVector);
+			Assert.IsFalse(ii.IsReleased);
+		}
 	}
 }
