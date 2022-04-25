@@ -183,9 +183,10 @@ namespace NewRemoting
 		/// <param name="dependenciesFile">Name of a file containing dependencies to upload (or null)</param>
 		/// <param name="remoteFileDirectory">Temp directory where the executable should be copied to. Will be created if doesn't exist yet</param>
 		/// <param name="arguments">Arguments to remote program</param>
+		/// <param name="paexec_args">PA exec additional arguments</param>
 		/// <returns>A process instance, pointing to the remote process</returns>
 		/// <exception cref="RemoteAccessException">Error sharing local folder</exception>
-		protected virtual IProcess CreateProcessOnRemoteMachine(CancellationToken externalCancellation, string processName, string dependenciesFile, string remoteFileDirectory, string arguments)
+		protected virtual IProcess CreateProcessOnRemoteMachine(CancellationToken externalCancellation, string processName, string dependenciesFile, string remoteFileDirectory, string arguments, string paexec_args)
 		{
 			var remoteConsole = new RemoteConsole(RemoteHost, _remoteCredentials);
 			// 1. Because not all systems use the same folder for %TEMP% we read the path from remote system.
@@ -231,7 +232,7 @@ namespace NewRemoting
 			// Launch remote loader
 			var commandLaunch = FormattableString.Invariant($"\"{Path.Combine(workingDirectory, processName)}\" {arguments}");
 			_logger.LogInformation("Execute command {0} on {1}", commandLaunch, RemoteHost);
-			var process = remoteConsole.CreateProcess(commandLaunch, false, dependenciesFile, workingDirectory, true, true, false);
+			var process = remoteConsole.CreateProcess(commandLaunch, false, dependenciesFile, workingDirectory, true, true, false, paexec_args);
 			return new ProcessWrapper(process);
 		}
 
@@ -246,7 +247,7 @@ namespace NewRemoting
 		/// <param name="remoteFileDirectory">The directory on the remote machine where the file should be copied to</param>
 		/// <returns>The created process. Do NOT dispose the returned process instance directly, but dispose the <see cref="PaExecClient"/> instance instead.</returns>
 		public virtual IProcess LaunchProcess(CancellationToken externalToken, bool? isRemoteHostOnLocalMachine, string processName, string arguments,
-			string dependenciesFile, string remoteFileDirectory)
+			string dependenciesFile, string remoteFileDirectory, string paexec_args = null)
 		{
 			var sw = Stopwatch.StartNew();
 			if (!isRemoteHostOnLocalMachine.HasValue)
@@ -265,7 +266,7 @@ namespace NewRemoting
 			{
 				var process = isRemoteHostOnLocalMachine.Value ?
 					CreateProcessLocal(PrependAppDomainPath(processName), arguments) :
-					CreateProcessOnRemoteMachine(externalToken, processName, dependenciesFile, remoteFileDirectory, arguments);
+					CreateProcessOnRemoteMachine(externalToken, processName, dependenciesFile, remoteFileDirectory, arguments, paexec_args);
 				_logger.LogInformation("Process created after '{0}'ms", sw.ElapsedMilliseconds);
 				// Cancel operation if process exits or canceled externally
 				lock (_internalCancellationTokenSourceLock)

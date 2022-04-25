@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using Castle.Core.Internal;
 
 namespace NewRemoting
 {
@@ -28,7 +29,7 @@ namespace NewRemoting
 			_remoteHost = remoteHost;
 		}
 
-		public Process CreateProcess(string commandLine, bool enableUserInterfaceInteraction = false, string fileListPath = null, string workingDirectory = null, bool redirectStandardOutput = false, bool redirectStandardError = false, bool redirectStandardInput = false)
+		public Process CreateProcess(string commandLine, bool enableUserInterfaceInteraction = false, string fileListPath = null, string workingDirectory = null, bool redirectStandardOutput = false, bool redirectStandardError = false, bool redirectStandardInput = false, string paexec_args = null)
 		{
 			var startInfo = new ProcessStartInfo();
 			startInfo.CreateNoWindow = true;
@@ -43,6 +44,11 @@ namespace NewRemoting
 			var copyArgments = string.IsNullOrEmpty(fileListPath) ? string.Empty : FormattableString.Invariant($"-c -f -clist {fileListPath} ");
 			var workingDirAgruments = string.IsNullOrEmpty(workingDirectory) ? string.Empty : FormattableString.Invariant($"-w \"{workingDirectory}\" ");
 			startInfo.Arguments = FormattableString.Invariant($@"\\{_remoteHost} -u {_remoteCredentials.DomainQualifiedUsername} -p {_remoteCredentials.Password} -dfr {interactionArgument}{workingDirAgruments}{copyArgments}{commandLine}");
+
+			if (!string.IsNullOrEmpty(paexec_args))
+			{
+				startInfo.Arguments += paexec_args;
+			}
 
 			var unstartedProcess = new Process();
 			unstartedProcess.StartInfo = startInfo;
