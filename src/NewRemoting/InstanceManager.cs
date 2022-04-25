@@ -216,6 +216,12 @@ namespace NewRemoting
 			}
 		}
 
+		[Obsolete("Unittest only")]
+		internal InstanceInfo QueryInstanceInfo(string id)
+		{
+			return s_objects[id];
+		}
+
 		/// <summary>
 		/// Completely clears this instance. Only to be used for testing purposes
 		/// </summary>
@@ -476,7 +482,7 @@ namespace NewRemoting
 			return 1ul << index;
 		}
 
-		private class InstanceInfo
+		internal class InstanceInfo
 		{
 			private readonly InstanceManager _owningInstanceManager;
 			private object _instanceHardReference;
