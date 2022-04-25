@@ -145,9 +145,21 @@ namespace NewRemoting
 				throw new ArgumentException("The original type cannot be a proxy", nameof(originalType));
 			}
 
-			var ii = new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), originalType, this);
-			MarkInstanceAsInUseBy(willBeSentTo, ii);
-			s_objects.AddOrUpdate(objectId, s => ii, (s, info) => ii);
+			s_objects.AddOrUpdate(objectId, s =>
+			{
+				// Insert new info object
+				var ii = new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), originalType, this);
+				MarkInstanceAsInUseBy(willBeSentTo, ii);
+				return ii;
+			}, (id, existingInfo) =>
+			{
+				// Update existing info object with new client information
+				lock (existingInfo)
+				{
+					MarkInstanceAsInUseBy(willBeSentTo, existingInfo);
+					return existingInfo;
+				}
+			});
 		}
 
 		/// <summary>
@@ -243,16 +255,19 @@ namespace NewRemoting
 			List<InstanceInfo> instancesToClear = new();
 			foreach (var e in s_objects)
 			{
-				// Iterating over a ConcurrentDictionary should be thread safe
-				if (e.Value.IsReleased || (dropAll && e.Value.Owner == this))
+				lock (e.Value)
 				{
-					if (e.Value.IsLocal == false)
+					// Iterating over a ConcurrentDictionary should be thread safe
+					if (e.Value.IsReleased || (dropAll && e.Value.Owner == this))
 					{
-						instancesToClear.Add(e.Value);
-					}
+						if (e.Value.IsLocal == false)
+						{
+							instancesToClear.Add(e.Value);
+						}
 
-					_logger.LogDebug($"Instance {e.Value.Identifier} is released locally");
-					MarkInstanceAsUnusedLocally(e.Value.Identifier);
+						_logger.LogDebug($"Instance {e.Value.Identifier} is released locally");
+						MarkInstanceAsUnusedLocally(e.Value.Identifier);
+					}
 				}
 			}
 
@@ -271,6 +286,9 @@ namespace NewRemoting
 			}
 		}
 
+		/// <summary>
+		/// Mark instance as unused and remove it if possible - needs to be called with lock on ii
+		/// </summary>
 		private void MarkInstanceAsUnusedLocally(string id)
 		{
 			if (s_objects.TryGetValue(id, out var ii))
@@ -407,11 +425,14 @@ namespace NewRemoting
 
 			if (s_objects.TryGetValue(objectId, out InstanceInfo ii))
 			{
-				ii.ReferenceBitVector &= ~bit;
-				if (ii.ReferenceBitVector == 0)
+				lock (ii)
 				{
-					// If not more clients, forget about this object - the server GC will care for the rest.
-					MarkInstanceAsUnusedLocally(ii.Identifier);
+					ii.ReferenceBitVector &= ~bit;
+					if (ii.ReferenceBitVector == 0)
+					{
+						// If not more clients, forget about this object - the server GC will care for the rest.
+						MarkInstanceAsUnusedLocally(ii.Identifier);
+					}
 				}
 			}
 		}
