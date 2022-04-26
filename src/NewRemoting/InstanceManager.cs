@@ -147,7 +147,7 @@ namespace NewRemoting
 
 			s_objects.AddOrUpdate(objectId, s =>
 			{
-				// Insert new info object
+				// Not found in list - insert new info object
 				var ii = new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), originalType, this);
 				MarkInstanceAsInUseBy(willBeSentTo, ii);
 				return ii;
@@ -156,8 +156,17 @@ namespace NewRemoting
 				// Update existing info object with new client information
 				lock (existingInfo)
 				{
-					MarkInstanceAsInUseBy(willBeSentTo, existingInfo);
-					return existingInfo;
+					if (!existingInfo.IsReleased)
+					{
+						// Update existing living info object with new client information
+						MarkInstanceAsInUseBy(willBeSentTo, existingInfo);
+						return existingInfo;
+					}
+
+					// Insert new info object if the found instance is marked for removal already
+					var ii = new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), originalType, this);
+					MarkInstanceAsInUseBy(willBeSentTo, ii);
+					return ii;
 				}
 			});
 		}
