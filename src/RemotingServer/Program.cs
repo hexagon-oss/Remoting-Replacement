@@ -49,18 +49,31 @@ namespace RemotingServer
 				if (allKeys.Contains("CertificateFileName"))
 				{
 					var cert = ConfigurationManager.AppSettings.Get("CertificateFileName");
-					if (!cert.IsNullOrEmpty())
+					if (!string.IsNullOrEmpty(cert))
 					{
 						certificate = cert;
 					}
 				}
 
+				if (!string.IsNullOrEmpty(certificate))
+				{
+					logger?.LogInformation("Certificate provided to application");
+				}
+				else
+				{
+					logger?.LogInformation("Certificate not provided to application.");
+				}
+
 				if (allKeys.Contains("CertificatePassword"))
 				{
 					certPwd = ConfigurationManager.AppSettings.Get("CertificatePassword");
+					if (!string.IsNullOrEmpty(certPwd))
+					{
+						logger?.LogInformation("password provided to application.");
+					}
 				}
 
-				if (!certificate.IsNullOrEmpty())
+				if (!string.IsNullOrEmpty(certificate))
 				{
 					if (!File.Exists(certificate))
 					{
