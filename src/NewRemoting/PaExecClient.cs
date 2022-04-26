@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq.Expressions;
 using System.Net;
 using System.Reflection;
 using System.Threading;
@@ -157,11 +158,35 @@ namespace NewRemoting
 			return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, file);
 		}
 
-		private string ResolveTempFolder(string toResolve)
+		private string ResolveTempFolder(string toResolve, bool createFolder = false)
 		{
 			if (toResolve.ToLower().Contains(TEMP_FOLDER_ALIAS))
 			{
 				var resolved = toResolve.ToLower().Replace(TEMP_FOLDER_ALIAS, Path.GetTempPath());
+
+				if (createFolder)
+				{
+					if (!Directory.Exists(resolved))
+					{
+						try
+						{
+							Directory.CreateDirectory(resolved);
+						}
+						catch (IOException e)
+						{
+							Logger?.LogError(e.Message);
+						}
+						catch (UnauthorizedAccessException e)
+						{
+							Logger?.LogError(e.Message);
+						}
+						catch (NotSupportedException e)
+						{
+							Logger?.LogError(e.Message);
+						}
+					}
+				}
+
 				return resolved;
 			}
 
@@ -284,7 +309,7 @@ namespace NewRemoting
 			{
 				if (isRemoteHostOnLocalMachine.Value)
 				{
-					remoteFileDirectory = ResolveTempFolder(remoteFileDirectory);
+					remoteFileDirectory = ResolveTempFolder(remoteFileDirectory, true);
 				}
 
 				var process = isRemoteHostOnLocalMachine.Value ?
