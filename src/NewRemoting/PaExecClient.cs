@@ -18,6 +18,7 @@ namespace NewRemoting
 		/// </summary>
 		internal const int PAEXEC_SERVICE_COULD_NOT_BE_INSTALLED = -6;
 		internal const int PAEXEC_FAILED_TO_COPY_APP = -8;
+		internal const string TEMP_FOLDER_ALIAS = "%temp%";
 
 		private static readonly TimeSpan DefaultTerminationTimeout = TimeSpan.FromSeconds(10);
 
@@ -156,6 +157,17 @@ namespace NewRemoting
 			return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, file);
 		}
 
+		private string ResolveTempFolder(string toResolve)
+		{
+			if (toResolve.ToLower().Contains(TEMP_FOLDER_ALIAS))
+			{
+				var resolved = toResolve.ToLower().Replace(TEMP_FOLDER_ALIAS, Path.GetTempPath());
+				return resolved;
+			}
+
+			return toResolve;
+		}
+
 		/* Not sure why this overload existed. It is unused
 		private Process CreateProcess(string commandLine, bool enableUserInterfaceInteraction = false, string fileListPath = null, string workingDirectory = null, bool redirectStandardOutput = false, bool redirectStandardError = false, bool redirectStandardInput = false)
 		{
@@ -270,8 +282,13 @@ namespace NewRemoting
 			// try to launch the remote process.. retry until canceled
 			while (_process == null)
 			{
+				if (isRemoteHostOnLocalMachine.Value)
+				{
+					remoteFileDirectory = ResolveTempFolder(remoteFileDirectory);
+				}
+
 				var process = isRemoteHostOnLocalMachine.Value ?
-					CreateProcessLocal(PrependAppDomainPath(processName), arguments, AppDomain.CurrentDomain.BaseDirectory) :
+					CreateProcessLocal(PrependAppDomainPath(processName), arguments, remoteFileDirectory) :
 					CreateProcessOnRemoteMachine(externalToken, processName, dependenciesFile, remoteFileDirectory, arguments, paexec_args);
 				_logger.LogInformation("Process created after '{0}'ms", sw.ElapsedMilliseconds);
 				// Cancel operation if process exits or canceled externally
