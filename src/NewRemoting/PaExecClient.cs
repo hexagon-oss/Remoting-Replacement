@@ -122,7 +122,7 @@ namespace NewRemoting
 			GC.SuppressFinalize(this);
 		}
 
-		internal static IProcess CreateProcessLocal(string executableName, string arguments)
+		internal static IProcess CreateProcessLocal(string executableName, string arguments, string workingDir = null)
 		{
 			var startInfo = new ProcessStartInfo
 			{
@@ -135,6 +135,12 @@ namespace NewRemoting
 				Arguments = arguments,
 				FileName = executableName
 			};
+
+			if (!string.IsNullOrEmpty(workingDir))
+			{
+				startInfo.WorkingDirectory = workingDir;
+			}
+
 			var unstartedProcess = new Process();
 			unstartedProcess.StartInfo = startInfo;
 			return new ProcessWrapper(unstartedProcess);
@@ -265,7 +271,7 @@ namespace NewRemoting
 			while (_process == null)
 			{
 				var process = isRemoteHostOnLocalMachine.Value ?
-					CreateProcessLocal(PrependAppDomainPath(processName), arguments) :
+					CreateProcessLocal(PrependAppDomainPath(processName), arguments, AppDomain.CurrentDomain.BaseDirectory) :
 					CreateProcessOnRemoteMachine(externalToken, processName, dependenciesFile, remoteFileDirectory, arguments, paexec_args);
 				_logger.LogInformation("Process created after '{0}'ms", sw.ElapsedMilliseconds);
 				// Cancel operation if process exits or canceled externally
