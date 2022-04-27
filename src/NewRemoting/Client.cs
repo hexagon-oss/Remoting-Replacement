@@ -231,7 +231,8 @@ namespace NewRemoting
 			SslPolicyErrors sslPolicyErrors)
 		{
 			// todo remote the mismatch case
-			if (sslPolicyErrors == SslPolicyErrors.None || sslPolicyErrors == SslPolicyErrors.RemoteCertificateNameMismatch)
+			if (sslPolicyErrors == SslPolicyErrors.None || sslPolicyErrors == SslPolicyErrors.RemoteCertificateNameMismatch ||
+				sslPolicyErrors == SslPolicyErrors.RemoteCertificateChainErrors || !chain.ChainStatus.IsNullOrEmpty())
 			{
 				return true;
 			}
