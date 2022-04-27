@@ -156,17 +156,15 @@ namespace NewRemoting
 				// Update existing info object with new client information
 				lock (existingInfo)
 				{
-					if (!existingInfo.IsReleased)
+					if (existingInfo.IsReleased)
 					{
-						// Update existing living info object with new client information
-						MarkInstanceAsInUseBy(willBeSentTo, existingInfo);
-						return existingInfo;
+						// if marked as no longer needed, revive by setting the instance
+						existingInfo.Instance = instance;
 					}
 
-					// Insert new info object if the found instance is marked for removal already
-					var ii = new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), originalType, this);
-					MarkInstanceAsInUseBy(willBeSentTo, ii);
-					return ii;
+					// Update existing living info object with new client information
+					MarkInstanceAsInUseBy(willBeSentTo, existingInfo);
+					return existingInfo;
 				}
 			});
 		}
@@ -315,13 +313,19 @@ namespace NewRemoting
 				{
 					return;
 				}
+
+				if (ii.ReferenceBitVector != 0)
+				{
+					_logger.LogError($"Instance {ii.Identifier} has inconsistent state preventing removal from the instance manager");
+					return;
+				}
 			}
 
 			if (s_objects.TryRemove(id, out ii))
 			{
 				if (ii.ReferenceBitVector != 0 || ii.IsReleased == false)
 				{
-					throw new InvalidOperationException("Attempting to free a reference that is still in use");
+					throw new InvalidOperationException(FormattableString.Invariant($"Attempting to free a reference ({ii.Identifier}) that is still in use"));
 				}
 
 				_logger.LogDebug($"Instance {ii.Identifier} is removed from the instance manager");
@@ -499,27 +503,21 @@ namespace NewRemoting
 
 			public InstanceInfo(object obj, string identifier, bool isLocal, Type originalType, InstanceManager owner)
 			{
-				// If the actual instance lives in our process, we need to keep the hard reference, because
-				// there are clients that may keep a reference to this object.
-				// If it is a remote reference, we can use a weak reference. It will be gone, once there are no
-				// other references to it within our process - meaning no one has a reference to the proxy any more.
-				if (isLocal)
-				{
-					_instanceHardReference = obj;
-					_instanceWeakReference = null;
-				}
-				else
-				{
-					_instanceWeakReference = new WeakReference(obj, false);
-				}
+				IsLocal = isLocal;
+				Instance = obj;
 
 				Identifier = identifier;
-				IsLocal = isLocal;
 				OriginalType = originalType ?? throw new ArgumentNullException(nameof(originalType));
 				_owningInstanceManager = owner;
 				ReferenceBitVector = 0;
 			}
 
+			/// <summary>
+			/// If the actual instance lives in our process, we need to keep the hard reference, because
+			/// there are clients that may keep a reference to this object.
+			/// If it is a remote reference, we can use a weak reference. It will be gone, once there are no
+			/// other references to it within our process - meaning no one has a reference to the proxy any more.
+			/// </summary>
 			public object Instance
 			{
 				get
@@ -538,6 +536,18 @@ namespace NewRemoting
 					}
 
 					return ret;
+				}
+				set
+				{
+					if (IsLocal)
+					{
+						_instanceHardReference = value;
+						_instanceWeakReference = null;
+					}
+					else
+					{
+						_instanceWeakReference = new WeakReference(value, false);
+					}
 				}
 			}
 
