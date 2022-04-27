@@ -29,12 +29,19 @@ namespace RemotingClient
 				}
 			}
 
-			DoSomeRemoting(certificate);
+			string ip = "localhost";
+
+			if (!string.IsNullOrEmpty(options.Ip))
+			{
+				ip = options.Ip;
+			}
+
+			DoSomeRemoting(certificate, ip);
 		}
 
-		public static void DoSomeRemoting(string certificate)
+		public static void DoSomeRemoting(string certificate, string ip)
 		{
-			using var client = GetClient(certificate);
+			using var client = GetClient(certificate, ip);
 			MarshallableClass cls = client.CreateRemoteInstance<MarshallableClass>();
 			int number = cls.GetSomeData();
 			Console.WriteLine($"Server said the number is {number}!");
@@ -162,14 +169,14 @@ namespace RemotingClient
 			Console.WriteLine($"It is now {obj.ToLongDateString()}");
 		}
 
-		private static Client GetClient(string certificate)
+		private static Client GetClient(string certificate, string ip)
 		{
 			int i = 5;
 			while (true)
 			{
 				try
 				{
-					Client client = new Client("localhost", Client.DefaultNetworkPort, certificate, new SimpleLogFileWriter("ClientLog.log", "ClientLog", LogLevel.Trace));
+					Client client = new Client(ip, Client.DefaultNetworkPort, certificate, new SimpleLogFileWriter("ClientLog.log", "ClientLog", LogLevel.Trace));
 					return client;
 				}
 				catch (SocketException x)
@@ -198,6 +205,13 @@ namespace RemotingClient
 	{
 		[Option('c', "certificate", HelpText = "full filename of the certificate")]
 		public string Certificate
+		{
+			get;
+			set;
+		}
+
+		[Option('i', "ip", HelpText = "ip address")]
+		public string Ip
 		{
 			get;
 			set;
