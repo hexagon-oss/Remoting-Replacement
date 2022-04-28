@@ -162,32 +162,42 @@ namespace NewRemoting
 		{
 			if (toResolve.ToLower().Contains(TEMP_FOLDER_ALIAS))
 			{
-				var resolved = toResolve.ToLower().Replace(TEMP_FOLDER_ALIAS, Path.GetTempPath());
-
-				if (createFolder)
+				try
 				{
-					if (!Directory.Exists(resolved))
+					var idx0 = toResolve.ToLower().IndexOf(TEMP_FOLDER_ALIAS, StringComparison.InvariantCulture);
+					if (idx0 >= 0)
 					{
-						try
+						var substring = toResolve.Substring(idx0, idx0 + TEMP_FOLDER_ALIAS.Length);
+						var resolved = toResolve.Replace(substring, Path.GetTempPath());
+
+						if (createFolder)
 						{
-							Directory.CreateDirectory(resolved);
+							if (!Directory.Exists(resolved))
+							{
+								Directory.CreateDirectory(resolved);
+							}
 						}
-						catch (IOException e)
-						{
-							Logger?.LogError(e.Message);
-						}
-						catch (UnauthorizedAccessException e)
-						{
-							Logger?.LogError(e.Message);
-						}
-						catch (NotSupportedException e)
-						{
-							Logger?.LogError(e.Message);
-						}
+
+						return resolved;
 					}
 				}
+				catch (ArgumentException e)
+				{
+					Logger?.LogError(e.Message);
+				}
+				catch (IOException e)
+				{
+					Logger?.LogError(e.Message);
+				}
+				catch (UnauthorizedAccessException e)
+				{
+					Logger?.LogError(e.Message);
+				}
+				catch (NotSupportedException e)
+				{
+					Logger?.LogError(e.Message);
+				}
 
-				return resolved;
 			}
 
 			return toResolve;
