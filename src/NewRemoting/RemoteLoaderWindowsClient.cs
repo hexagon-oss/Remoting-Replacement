@@ -138,7 +138,7 @@ namespace NewRemoting
 
 		public IProcess LaunchProcess(CancellationToken externalCancellation, bool isRemoteHostOnLocalMachine)
 		{
-			var workingDir = isRemoteHostOnLocalMachine ? Directory.GetCurrentDirectory() : REMOTELOADER_DIRECTORY;
+			var workingDir = isRemoteHostOnLocalMachine ? AppDomain.CurrentDomain.BaseDirectory : REMOTELOADER_DIRECTORY;
 			return LaunchProcess(externalCancellation, isRemoteHostOnLocalMachine, REMOTELOADER_EXECUTABLE, _extraArguments, REMOTELOADER_DEPENDENCIES_FILENAME, workingDir);
 		}
 
