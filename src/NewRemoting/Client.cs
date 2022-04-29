@@ -230,8 +230,9 @@ namespace NewRemoting
 			X509Chain chain,
 			SslPolicyErrors sslPolicyErrors)
 		{
-			// todo remote the mismatch case
-			if (sslPolicyErrors == SslPolicyErrors.None || sslPolicyErrors == SslPolicyErrors.RemoteCertificateNameMismatch)
+			// todo remove the mismatch case
+			if (sslPolicyErrors == SslPolicyErrors.None || sslPolicyErrors == SslPolicyErrors.RemoteCertificateNameMismatch ||
+				sslPolicyErrors == SslPolicyErrors.RemoteCertificateChainErrors || !chain.ChainStatus.IsNullOrEmpty())
 			{
 				return true;
 			}

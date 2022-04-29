@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq.Expressions;
 using System.Net;
 using System.Reflection;
 using System.Threading;
@@ -18,6 +19,7 @@ namespace NewRemoting
 		/// </summary>
 		internal const int PAEXEC_SERVICE_COULD_NOT_BE_INSTALLED = -6;
 		internal const int PAEXEC_FAILED_TO_COPY_APP = -8;
+		internal const string TEMP_FOLDER_ALIAS = "%temp%";
 
 		private static readonly TimeSpan DefaultTerminationTimeout = TimeSpan.FromSeconds(10);
 
@@ -122,7 +124,7 @@ namespace NewRemoting
 			GC.SuppressFinalize(this);
 		}
 
-		internal static IProcess CreateProcessLocal(string executableName, string arguments)
+		internal static IProcess CreateProcessLocal(string executableName, string arguments, string workingDir = null)
 		{
 			var startInfo = new ProcessStartInfo
 			{
@@ -135,6 +137,12 @@ namespace NewRemoting
 				Arguments = arguments,
 				FileName = executableName
 			};
+
+			if (!string.IsNullOrEmpty(workingDir))
+			{
+				startInfo.WorkingDirectory = workingDir;
+			}
+
 			var unstartedProcess = new Process();
 			unstartedProcess.StartInfo = startInfo;
 			return new ProcessWrapper(unstartedProcess);
@@ -148,6 +156,51 @@ namespace NewRemoting
 		private static string PrependAppDomainPath(string file)
 		{
 			return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, file);
+		}
+
+		private string ResolveTempFolder(string toResolve, bool createFolder = false)
+		{
+			if (toResolve.ToLower().Contains(TEMP_FOLDER_ALIAS))
+			{
+				try
+				{
+					var idx0 = toResolve.ToLower().IndexOf(TEMP_FOLDER_ALIAS, StringComparison.InvariantCulture);
+					if (idx0 >= 0)
+					{
+						var substring = toResolve.Substring(idx0, idx0 + TEMP_FOLDER_ALIAS.Length);
+						var resolved = toResolve.Replace(substring, Path.GetTempPath());
+
+						if (createFolder)
+						{
+							if (!Directory.Exists(resolved))
+							{
+								Directory.CreateDirectory(resolved);
+							}
+						}
+
+						return resolved;
+					}
+				}
+				catch (ArgumentException e)
+				{
+					Logger?.LogError(e.Message);
+				}
+				catch (IOException e)
+				{
+					Logger?.LogError(e.Message);
+				}
+				catch (UnauthorizedAccessException e)
+				{
+					Logger?.LogError(e.Message);
+				}
+				catch (NotSupportedException e)
+				{
+					Logger?.LogError(e.Message);
+				}
+
+			}
+
+			return toResolve;
 		}
 
 		/* Not sure why this overload existed. It is unused
@@ -183,9 +236,10 @@ namespace NewRemoting
 		/// <param name="dependenciesFile">Name of a file containing dependencies to upload (or null)</param>
 		/// <param name="remoteFileDirectory">Temp directory where the executable should be copied to. Will be created if doesn't exist yet</param>
 		/// <param name="arguments">Arguments to remote program</param>
+		/// <param name="paexec_args">PA exec additional arguments</param>
 		/// <returns>A process instance, pointing to the remote process</returns>
 		/// <exception cref="RemoteAccessException">Error sharing local folder</exception>
-		protected virtual IProcess CreateProcessOnRemoteMachine(CancellationToken externalCancellation, string processName, string dependenciesFile, string remoteFileDirectory, string arguments)
+		protected virtual IProcess CreateProcessOnRemoteMachine(CancellationToken externalCancellation, string processName, string dependenciesFile, string remoteFileDirectory, string arguments, string paexec_args)
 		{
 			var remoteConsole = new RemoteConsole(RemoteHost, _remoteCredentials);
 			// 1. Because not all systems use the same folder for %TEMP% we read the path from remote system.
@@ -231,7 +285,7 @@ namespace NewRemoting
 			// Launch remote loader
 			var commandLaunch = FormattableString.Invariant($"\"{Path.Combine(workingDirectory, processName)}\" {arguments}");
 			_logger.LogInformation("Execute command {0} on {1}", commandLaunch, RemoteHost);
-			var process = remoteConsole.CreateProcess(commandLaunch, false, dependenciesFile, workingDirectory, true, true, false);
+			var process = remoteConsole.CreateProcess(commandLaunch, false, dependenciesFile, workingDirectory, true, true, false, paexec_args);
 			return new ProcessWrapper(process);
 		}
 
@@ -246,7 +300,7 @@ namespace NewRemoting
 		/// <param name="remoteFileDirectory">The directory on the remote machine where the file should be copied to</param>
 		/// <returns>The created process. Do NOT dispose the returned process instance directly, but dispose the <see cref="PaExecClient"/> instance instead.</returns>
 		public virtual IProcess LaunchProcess(CancellationToken externalToken, bool? isRemoteHostOnLocalMachine, string processName, string arguments,
-			string dependenciesFile, string remoteFileDirectory)
+			string dependenciesFile, string remoteFileDirectory, string paexec_args = null)
 		{
 			var sw = Stopwatch.StartNew();
 			if (!isRemoteHostOnLocalMachine.HasValue)
@@ -263,9 +317,14 @@ namespace NewRemoting
 			// try to launch the remote process.. retry until canceled
 			while (_process == null)
 			{
+				if (isRemoteHostOnLocalMachine.Value)
+				{
+					remoteFileDirectory = ResolveTempFolder(remoteFileDirectory, true);
+				}
+
 				var process = isRemoteHostOnLocalMachine.Value ?
-					CreateProcessLocal(PrependAppDomainPath(processName), arguments) :
-					CreateProcessOnRemoteMachine(externalToken, processName, dependenciesFile, remoteFileDirectory, arguments);
+					CreateProcessLocal(PrependAppDomainPath(processName), arguments, remoteFileDirectory) :
+					CreateProcessOnRemoteMachine(externalToken, processName, dependenciesFile, remoteFileDirectory, arguments, paexec_args);
 				_logger.LogInformation("Process created after '{0}'ms", sw.ElapsedMilliseconds);
 				// Cancel operation if process exits or canceled externally
 				lock (_internalCancellationTokenSourceLock)
