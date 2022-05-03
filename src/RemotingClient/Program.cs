@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Runtime.Serialization;
 using System.Threading;
 using CommandLine;
@@ -135,7 +137,6 @@ namespace RemotingClient
 				Console.WriteLine("This exception is also expected: " + x.Message);
 			}
 
-			/*
 			try
 			{
 				cls.MaybeThrowException(0);
@@ -144,7 +145,6 @@ namespace RemotingClient
 			{
 				Console.WriteLine("Caught " + x);
 			}
-			*/
 
 			SerializableClassWithMarshallableMembers sc = new SerializableClassWithMarshallableMembers(1, new ReferencedComponent() { Data = 10 });
 

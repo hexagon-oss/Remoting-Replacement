@@ -638,6 +638,7 @@ namespace NewRemoting
 			{
 				RemotingCallHeader hdReturnValue = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
 				hdReturnValue.WriteTo(w);
+				// Return the result of a call: The return value and any ref or out parameter values
 				if (me.ReturnType != typeof(void))
 				{
 					if (returnValue == null)
@@ -655,7 +656,12 @@ namespace NewRemoting
 				int index = 0;
 				foreach (var byRefArguments in me.GetParameters())
 				{
-					if (byRefArguments.ParameterType.IsByRef)
+					// Hack to make sure the contents of the array argument in calls to Stream.Read(byte[], int, int) are marshalled both ways
+					if (byRefArguments.ParameterType.IsArray && me.DeclaringType != null && me.DeclaringType.IsSubclassOf(typeof(Stream)))
+					{
+						_messageHandler.WriteArgumentToStream(w, args[index], otherSideInstanceId);
+					}
+					else if (byRefArguments.ParameterType.IsByRef)
 					{
 						_messageHandler.WriteArgumentToStream(w, args[index], otherSideInstanceId);
 					}
