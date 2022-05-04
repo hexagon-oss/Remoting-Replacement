@@ -173,8 +173,10 @@ namespace NewRemoting
 				try
 				{
 					lastError = null;
+					Logger.LogInformation("Creating remoting client");
 					_remotingClient = new Client(RemoteHost, RemotePort, Credentials.Certificate,
-						clientConnectionLogger);
+						clientConnectionLogger, Logger);
+					Logger.LogInformation("Remoting client creation succeeded");
 					break;
 				}
 				catch (Exception x) when (x is IOException || x is SocketException || x is UnauthorizedAccessException)
@@ -182,12 +184,18 @@ namespace NewRemoting
 					Logger.LogError(x, $"Unable to connect to remote server. Attempt {retries + 1}: {x.Message}");
 					lastError = x;
 				}
+				catch (Exception x)
+				{
+					Logger.LogError(x, $"Unable to connect to remote server. Attempt {retries + 1}: {x.Message}, aborting");
+					throw;
+				}
 
 				Thread.Sleep(1000); // Maybe the server hasn't started properly yet
 			}
 
 			if (lastError != null)
 			{
+				Logger.LogError($"Unable to connect to remote server, aborting");
 				throw lastError;
 			}
 
