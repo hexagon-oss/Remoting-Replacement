@@ -406,6 +406,15 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
+		public void FileStreamFromClientToServer()
+		{
+			var server = CreateRemoteInstance();
+			string fileToOpen = Assembly.GetExecutingAssembly().Location;
+			using FileStream fs = new FileStream(fileToOpen, FileMode.Open, FileAccess.Read);
+			Assert.True(server.CheckStreamEqualToFile(fileToOpen, fs.Length, fs));
+		}
+
+		[Test]
 		public void CreateFileStreamOnRemoteServer()
 		{
 			var server = CreateRemoteInstance();

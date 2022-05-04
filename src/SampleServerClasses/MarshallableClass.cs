@@ -178,5 +178,35 @@ namespace SampleServerClasses
 		{
 			return intList.Count();
 		}
+
+		public virtual bool CheckStreamEqualToFile(string fileToOpen, long length, Stream fileStream)
+		{
+			// First, try to just read the file
+			var sreader = new StreamReader(fileStream, null, true, -1, false);
+			string strContent = sreader.ReadToEnd();
+
+			if (strContent.All(x => x == '\0'))
+			{
+				throw new InvalidDataException("The stream data is empty");
+			}
+
+			if (fileStream.Length != length)
+			{
+				throw new InvalidDataException("Data length does not match");
+			}
+
+			fileStream.Position = 0;
+			using FileStream fsLocal = new FileStream(fileToOpen, FileMode.Open, FileAccess.Read);
+			fsLocal.Position = 0;
+			var sreader2 = new StreamReader(fileStream, null, true, -1, false);
+			string strContent2 = sreader2.ReadToEnd();
+
+			if (strContent != strContent2)
+			{
+				throw new InvalidDataException("The data is not equal");
+			}
+
+			return true;
+		}
 	}
 }

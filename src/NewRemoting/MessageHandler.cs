@@ -333,7 +333,21 @@ namespace NewRemoting
 			int index = 0;
 			foreach (var byRefArguments in methodBase.GetParameters())
 			{
-				if (byRefArguments.ParameterType.IsByRef)
+				if (byRefArguments.ParameterType.IsArray && methodBase.DeclaringType != null &&
+					methodBase.DeclaringType.IsSubclassOf(typeof(Stream)))
+				{
+					// Copy the contents of the array-to-be-filled
+					object byRefValue = ReadArgumentFromStream(reader, methodBase, invocation, false, byRefArguments.ParameterType, otherSideInstanceId);
+					Array source = (Array)byRefValue; // The data from the remote side
+					Array destination = ((Array)invocation.Arguments[index]); // The argument to be filled
+					if (source.Length != destination.Length)
+					{
+						throw new RemotingException("Array size mismatch: Return data size inconsistent");
+					}
+
+					Array.Copy(source, destination, source.Length);
+				}
+				else if (byRefArguments.ParameterType.IsByRef)
 				{
 					object byRefValue = ReadArgumentFromStream(reader, methodBase, invocation, false, byRefArguments.ParameterType, otherSideInstanceId);
 					invocation.Arguments[index] = byRefValue;
