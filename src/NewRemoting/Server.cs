@@ -823,11 +823,13 @@ namespace NewRemoting
 						LogToBoth("Server authentication done", LogLevel.Information);
 					}
 
+					using var reader = new BinaryReader(stream, Encoding.Unicode, true);
+
 					byte[] authenticationToken = new byte[100];
 
 					// TODO: This needs some kind of authentication / trust management, but I have _no_ clue on how to get that safely done,
 					// since we (by design) want anyone to be able to connect and execute arbitrary code locally. Bad combination...
-					var bytesRead = stream.Read(authenticationToken, 0, 100);
+					var bytesRead = reader.Read(authenticationToken, 0, 100);
 					if (bytesRead != 100)
 					{
 						LogToBoth(
@@ -839,7 +841,7 @@ namespace NewRemoting
 					}
 
 					byte[] length = new byte[4];
-					if (stream.Read(length, 0, 4) != 4)
+					if (reader.Read(length, 0, 4) != 4)
 					{
 						LogToBoth(
 							FormattableString.Invariant(
@@ -850,12 +852,12 @@ namespace NewRemoting
 
 					byte[] data = new byte[BitConverter.ToInt32(length)];
 
-					bytesRead = stream.Read(data, 0, data.Length);
+					bytesRead = reader.Read(data, 0, data.Length);
 					if (bytesRead != data.Length)
 					{
 						LogToBoth(
 							FormattableString.Invariant(
-								$"Server disconnecting from client, could not read data length (only {bytesRead})"),
+								$"Server disconnecting from client, could not read data length (only {bytesRead} of {data.Length})"),
 							LogLevel.Error);
 						tcpClient.Dispose();
 						continue;
@@ -867,12 +869,13 @@ namespace NewRemoting
 					int instanceHash = BitConverter.ToInt32(authenticationToken, 1);
 
 					SendAuthenticationReply(stream);
+					LogToBoth("Connected authenticated", LogLevel.Information);
 
 					if (authenticationToken[0] == 1)
 					{
+						// first stream connected, wait until second stream is connected as well before starting server
+						// just restart loop, but keep stream
 						_clientStreamsExpectingUse.TryAdd(instanceHash, stream);
-						LogToBoth("Token 1 received, do not start thread", LogLevel.Information);
-						//// tcpClient.Dispose(); // this dispose looks plausible, but breaks tests
 						continue;
 					}
 
