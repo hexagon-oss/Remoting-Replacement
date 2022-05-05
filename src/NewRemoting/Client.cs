@@ -50,32 +50,34 @@ namespace NewRemoting
 		/// <param name="server">Server name or IP</param>
 		/// <param name="port">Network port</param>
 		/// <param name="logger">Optional logging sink (for diagnostic messages)</param>
+		/// <param name="connectionLogger">Optional connection logging sink (for diagnostic messages)</param>
 		/// <param name="certificateFilename">the certificate filename usually a pfx file</param>
-		public Client(string server, int port, string certificateFilename = null, ILogger logger = null)
+		public Client(string server, int port, string certificateFilename = null, ILogger logger = null, ILogger connectionLogger = null)
 		{
 			_certificateFilename = certificateFilename;
-			Logger = logger ?? NullLogger.Instance;
+			var instanceLogger = logger ?? NullLogger.Instance;
+			Logger = connectionLogger ?? NullLogger.Instance;
 			_accessLock = new object();
 			_connectionConfigured = false;
 			_disconnected = false;
 
+			Logger.LogInformation("Creating client");
 			_client = new TcpClient(server, port);
+
 			_serverLink = new TcpClient(server, port);
 			Stream stream = _client.GetStream();
 			if (!_certificateFilename.IsNullOrEmpty())
 			{
+				Logger.LogInformation("Client authentication started.");
 				stream = Authenticate(_client, server);
-				if (logger != null)
-				{
-					logger.LogInformation("Client authentication done.");
-				}
+				Logger.LogInformation("Client authentication done.");
 			}
 
 			_writer = new BinaryWriter(stream, Encoding.Unicode);
 			_reader = new BinaryReader(stream, Encoding.Unicode);
 			_builder = new DefaultProxyBuilder();
 			_proxy = new ProxyGenerator(_builder);
-			_instanceManager = new InstanceManager(_proxy, Logger);
+			_instanceManager = new InstanceManager(_proxy, instanceLogger);
 			_formatterFactory = new FormatterFactory(_instanceManager);
 
 			_messageHandler = new MessageHandler(_instanceManager, _formatterFactory);
@@ -85,20 +87,27 @@ namespace NewRemoting
 			_instanceManager.AddInterceptor(_interceptor);
 			_messageHandler.AddInterceptor(_interceptor);
 
+			Logger.LogInformation(FormattableString.Invariant($"Client to {server} creation - writing basic client authentication header"));
 			WriteAuthenticationHeader(stream, false);
 			WaitForConnectionReply(stream);
+			Logger.LogInformation("Received basic client authentication reply");
 
 			Stream s = _serverLink.GetStream();
 			if (!_certificateFilename.IsNullOrEmpty())
 			{
+				Logger.LogInformation("Starting server authentication");
 				s = Authenticate(_serverLink, server);
+				Logger.LogInformation("Finished server authentication");
 			}
 
+			Logger.LogInformation("Writing basic server authentication header");
 			WriteAuthenticationHeader(s, true);
 			WaitForConnectionReply(s);
+			Logger.LogInformation("Received basic server authentication reply");
 
 			_formatter = _formatterFactory.CreateOrGetFormatter(_interceptor.OtherSideInstanceId);
 			_interceptor.Start();
+			Logger.LogInformation("Interceptor started");
 
 			// This is used as return channel
 			_server = new Server(s, _messageHandler, _interceptor);

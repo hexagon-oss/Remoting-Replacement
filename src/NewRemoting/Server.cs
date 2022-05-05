@@ -801,6 +801,15 @@ namespace NewRemoting
 		}
 
 		/// <summary>
+		/// Logs to both console and logger - useful for connection sequence
+		/// </summary>
+		private void LogToBoth(string msg, LogLevel level)
+		{
+			Console.WriteLine(msg);
+			Logger.Log(level, msg);
+		}
+
+		/// <summary>
 		/// This controls the master Socket.Accept thread.
 		/// </summary>
 		private void ReceiverThread()
@@ -811,72 +820,95 @@ namespace NewRemoting
 				{
 					var tcpClient = _listener.AcceptTcpClient();
 					Stream stream = tcpClient.GetStream();
+					LogToBoth("Server accepted client stream", LogLevel.Information);
+
 					if (_serverCertificate != null)
 					{
+						LogToBoth("Server authentication started", LogLevel.Information);
 						stream = Authenticate(tcpClient, _serverCertificate, Logger);
-						if (Logger != null)
-						{
-							Logger.LogInformation("Server authentication done");
-						}
+						LogToBoth("Server authentication done", LogLevel.Information);
 					}
+
+					using var reader = new BinaryReader(stream, Encoding.Unicode, true);
 
 					byte[] authenticationToken = new byte[100];
 
 					// TODO: This needs some kind of authentication / trust management, but I have _no_ clue on how to get that safely done,
 					// since we (by design) want anyone to be able to connect and execute arbitrary code locally. Bad combination...
-					if (stream.Read(authenticationToken, 0, 100) != 100)
+					var bytesRead = reader.Read(authenticationToken, 0, 100);
+					if (bytesRead != 100)
 					{
+						LogToBoth(
+							FormattableString.Invariant(
+								$"Server disconnecting from client, could not read complete auth token (only {bytesRead})"),
+							LogLevel.Error);
 						tcpClient.Dispose();
 						continue;
 					}
 
 					byte[] length = new byte[4];
-					if (stream.Read(length, 0, 4) != 4)
+					if (reader.Read(length, 0, 4) != 4)
 					{
+						LogToBoth(
+							FormattableString.Invariant(
+								$"Server disconnecting from client, could not read message length"), LogLevel.Error);
 						tcpClient.Dispose();
 						continue;
 					}
 
 					byte[] data = new byte[BitConverter.ToInt32(length)];
 
-					if (stream.Read(data, 0, data.Length) != data.Length)
+					bytesRead = reader.Read(data, 0, data.Length);
+					if (bytesRead != data.Length)
 					{
+						LogToBoth(
+							FormattableString.Invariant(
+								$"Server disconnecting from client, could not read data length (only {bytesRead} of {data.Length})"),
+							LogLevel.Error);
 						tcpClient.Dispose();
 						continue;
 					}
 
-					string otherSideInstanceId = Encoding.Unicode.GetString(data);
+					LogToBoth("Server received client authentication", LogLevel.Information);
 
+					string otherSideInstanceId = Encoding.Unicode.GetString(data);
 					int instanceHash = BitConverter.ToInt32(authenticationToken, 1);
 
 					SendAuthenticationReply(stream);
+					LogToBoth("Connected authenticated", LogLevel.Information);
 
 					if (authenticationToken[0] == 1)
 					{
+						// first stream connected, wait until second stream is connected as well before starting server
+						// just restart loop, but keep stream
 						_clientStreamsExpectingUse.TryAdd(instanceHash, stream);
 						continue;
 					}
 
 					Thread ts = new Thread(ServerStreamHandler);
 					ts.Name = $"Remote server client {tcpClient.Client.RemoteEndPoint}";
-					var td = new ThreadData(ts, stream, new BinaryReader(stream, Encoding.Unicode), otherSideInstanceId);
+					var td = new ThreadData(ts, stream, new BinaryReader(stream, Encoding.Unicode),
+						otherSideInstanceId);
 					_threads.Add(td);
 					ts.Start(td);
+
+					LogToBoth("Server thread started", LogLevel.Information);
+					Logger.LogInformation("Server thread started");
 				}
 				catch (SocketException x)
 				{
-					Console.WriteLine($"Server terminating? Got {x}");
+					LogToBoth($"Server terminating? Got {x}", LogLevel.Error);
 				}
 				catch (AuthenticationException e)
 				{
-					Console.WriteLine($"Connection failed to authenticate. Got {e}");
-			}
+					LogToBoth($"Connection failed to authenticate. Got {e}", LogLevel.Error);
+				}
 				catch (System.IO.IOException e)
 				{
 					// can happen if the client certificate does not correspond to the server one (RemoteCertificateNameMismatch)
 					// error on the client validate function
-					Console.WriteLine($"Decryption failed. Got {e}");
-		}
+					LogToBoth($"Decryption failed. Got {e}", LogLevel.Error);
+				}
 			}
 		}
 
