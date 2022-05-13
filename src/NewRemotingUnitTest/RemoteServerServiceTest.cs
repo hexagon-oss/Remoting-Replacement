@@ -37,12 +37,5 @@ namespace NewRemotingUnitTest
 		{
 			_service.PrepareFileUpload("Test.dat", new byte[] { 0, 1, 2, 3 });
 		}
-
-		//// This test might fail, because test fixtures are run in parallel.
-		////[Test]
-		////public void IsSingleRemoteServerInstance()
-		////{
-		////	Assert.True(_service.IsSingleRemoteServerInstance());
-		////}
 	}
 }
