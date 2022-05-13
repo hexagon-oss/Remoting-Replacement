@@ -455,6 +455,12 @@ namespace NewRemotingUnitTest
 			Assert.NotNull(server.GetComponent());
 		}
 
+		[Test]
+		public void VerifyMatchingServer()
+		{
+			Assert.IsNull(_client.VerifyMatchingServer());
+		}
+
 		private MarshallableClass CreateRemoteInstance()
 		{
 			return _client.CreateRemoteInstance<MarshallableClass>();

@@ -349,6 +349,31 @@ namespace NewRemoting
 		}
 
 		/// <summary>
+		/// Verifies the server uses a compatible configuration.
+		/// The configuration of the server is incompatible for instance if it doesn't run the exactly same CLR version.
+		/// </summary>
+		/// <returns>Null on success, an error message otherwise. It's the callers responsibility to do something about it.</returns>
+		public string VerifyMatchingServer()
+		{
+			var server = RequestRemoteInstance<IRemoteServerService>();
+			if (server == null)
+			{
+				return $"Internal server error: {nameof(IRemoteServerService)} not available.";
+			}
+
+			Version localVersion = Environment.Version;
+			Version remoteVersion = server.ClrVersion;
+
+			if (localVersion != remoteVersion)
+			{
+				return
+					$"Remote CLR runtime version is {remoteVersion}, local runtime version is {localVersion}. They must be equal";
+			}
+
+			return null;
+		}
+
+		/// <summary>
 		/// Creates an instance of the given type on the remote system and returns a reference to it.
 		/// The type must derive from <see cref="MarshalByRefObject"/> and have a public constructor that takes the given arguments. The server process
 		/// must be able to locate the assembly that contains the type. For best results, the type should NOT be sealed, or you might

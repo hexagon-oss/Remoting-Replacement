@@ -10,6 +10,11 @@ namespace NewRemoting
 	public interface IRemoteServerService
 	{
 		/// <summary>
+		/// Returns the version of the CLR running on the server
+		/// </summary>
+		Version ClrVersion { get; }
+
+		/// <summary>
 		/// Checks if file exists on remote side with given <paramref name="hash"/> and <paramref name="relativePath"/> and prepares file upload.
 		/// This should not be used if the server process lives on the same computer as the client.
 		/// Use this function before calling <see cref="UploadFileData(byte[], int, int)"/> and <see cref="FinishFileUpload"/>.
