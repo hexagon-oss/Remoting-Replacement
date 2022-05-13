@@ -38,6 +38,13 @@ arbitrary code on the other side.
 
 # Usage
 
+There are several possible start-up scenarios. In scenario 1, the remoting server (a special process) is used to offload parts of the program to
+another computer. This can be used to self-distribute the program e.g. for parallel processing or for a machine control scenario, where some
+parts of the program must be able to interact with specific hardware, while the GUI shall run locally.
+
+Scenario 2 is when you want to be able to talk to an existing server process. This might be helpful to easily implement an interface in
+the server backend that can be controlled from another process (either remote or local).
+
 ## Scenario 1: Offload calculations to another computer
 
 In your application, reference the nuget packages `LeicaGeosystemsAG.NewRemoting` and `LeicaGeosystemsAG.NewRemoting.RemotingServer`. The first 
@@ -61,4 +68,22 @@ public class MyServerObject : MarshalByRefObject, IServerObject
 {
 	// Any number of methods/properties
 }
+```
+
+## Scenario 2: Extend an existing server
+
+Inside the server process, start a remote server:
+
+```csharp
+_myServer = new Server(4600);
+ServiceContainer.AddService(typeof(IServerObject), instanceToBeShared);
+// ... can register an arbitrary number of interfaces
+```
+
+In the client process, connect to it:
+
+```csharp
+var client = new Client("localhost", 4600);
+var sharedInstance = client.RequestRemoteInstance<IServerObject>();
+sharedInstance.ControlServer(); // Do something on the server
 ```
