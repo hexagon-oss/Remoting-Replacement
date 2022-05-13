@@ -207,6 +207,12 @@ namespace NewRemoting
 				throw new RemotingException("Could not connect to remote loader interface");
 			}
 
+			string verifyResult = _remotingClient.VerifyMatchingServer();
+			if (!string.IsNullOrWhiteSpace(verifyResult))
+			{
+				throw new RemotingException(verifyResult);
+			}
+
 			Stopwatch sw = Stopwatch.StartNew();
 			// if the remote host is not a local machine we have to upload all necessary binaries and files
 			if (!isRemoteHostOnLocalMachine)

@@ -46,6 +46,8 @@ namespace NewRemoting
 		}
 		#endregion
 
+		public Version ClrVersion => Environment.Version;
+
 		/// <summary>
 		/// Returns true if this server is the only server instance running on this system.
 		/// If this returns false, this may indicate that there's a dangling remote process potentially causing
