@@ -22,6 +22,8 @@ namespace NewRemotingUnitTest
 		private Process _serverProcess;
 		private Client _client;
 		private string _dataReceived;
+		private string _dataReceived2;
+		private string _dataReceived3;
 
 		[OneTimeSetUp]
 		public void OneTimeSetUp()
@@ -461,6 +463,58 @@ namespace NewRemotingUnitTest
 			Assert.IsNull(_client.VerifyMatchingServer());
 		}
 
+		[Test]
+		[Explicit("Takes too long")]
+		public void StressEventHandling()
+		{
+			int expectedCounter = 0;
+
+			var instance = _client.CreateRemoteInstance<MarshallableClass>();
+			instance.DoCallbackOnEvent("Utest");
+
+			ExecuteCallbacks(instance, 40, 100, ref expectedCounter);
+
+		}
+
+		[Test]
+		public void EventHandling()
+		{
+			int expectedCounter = 0;
+
+			var instance = _client.CreateRemoteInstance<MarshallableClass>();
+			instance.DoCallbackOnEvent("Utest");
+
+			ExecuteCallbacks(instance, 4, 10,  ref expectedCounter);
+		}
+
+		private void ExecuteCallbacks(MarshallableClass instance, int overallIterations, int iterations,
+			ref int expectedCounter)
+		{
+			for (int j = 0; j < overallIterations; j++)
+			{
+				instance.AnEvent += CallbackMethod;
+				instance.EventTwo += CallbackMethod2;
+				instance.EventThree += CallbackMethod3;
+				for (int i = 0; i < iterations; i++)
+				{
+					instance.DoCallbackOnEvent("Utest" + ++expectedCounter);
+					instance.DoCallbackOnOtherEvents("Utest" + expectedCounter);
+					Assert.AreEqual("Utest" + expectedCounter, _dataReceived);
+					Assert.AreEqual("Utest" + expectedCounter, _dataReceived2);
+					Assert.AreEqual("Utest" + expectedCounter, _dataReceived3);
+				}
+
+				if (j % 2 == 0)
+				{
+					_client.ForceGc();
+				}
+
+				instance.AnEvent -= CallbackMethod;
+				instance.EventTwo -= CallbackMethod2;
+				instance.EventThree -= CallbackMethod3;
+			}
+		}
+
 		private MarshallableClass CreateRemoteInstance()
 		{
 			return _client.CreateRemoteInstance<MarshallableClass>();
@@ -469,6 +523,16 @@ namespace NewRemotingUnitTest
 		public void CallbackMethod(string argument)
 		{
 			_dataReceived = argument;
+		}
+
+		public void CallbackMethod2(string argument)
+		{
+			_dataReceived2 = argument;
+		}
+
+		public void CallbackMethod3(string argument)
+		{
+			_dataReceived3 = argument;
 		}
 
 		private sealed class CallbackImpl : MarshalByRefObject, ICallbackInterface
