@@ -128,7 +128,8 @@ namespace NewRemoting
 				w.Write((int)RemotingReferenceType.MethodPointer);
 				if (del.Target != null)
 				{
-					string instanceId = _instanceManager.GetIdForObject(del.Target, referencesWillBeSentTo);
+					string instanceId = _instanceManager.GetMethodInfoIdentifier(del.Method);
+					_instanceManager.AddInstance(del, instanceId, referencesWillBeSentTo, del.GetType());
 					w.Write(instanceId);
 				}
 				else
@@ -493,8 +494,16 @@ namespace NewRemoting
 					var interceptor = InstanceManager.GetInterceptor(_interceptors, instanceId);
 					// This creates an instance of the DelegateInternalSink class, which acts as a proxy for delegate callbacks. Instead of the actual delegate
 					// target, we register a method from this class as a delegate target
-					var internalSink = new DelegateInternalSink(interceptor, targetId, methodInfoOfTarget);
-					_instanceManager.AddInstance(internalSink, targetId, interceptor.OtherSideInstanceId, internalSink.GetType());
+					DelegateInternalSink internalSink;
+					if (_instanceManager.TryGetObjectFromId(instanceId, out object sink))
+					{
+						internalSink = (DelegateInternalSink)sink;
+					}
+					else
+					{
+						internalSink = new DelegateInternalSink(interceptor, instanceId, methodInfoOfTarget);
+						_instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideInstanceId, internalSink.GetType());
+					}
 
 					IEnumerable<MethodInfo> possibleSinks = null;
 

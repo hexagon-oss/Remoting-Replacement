@@ -16,6 +16,8 @@ namespace SampleServerClasses
 		private ICallbackInterface _cb;
 		private string _name;
 
+		private event Action<string, string> AnEventInternal;
+
 		public MarshallableClass()
 		{
 			_component = new ReferencedComponent();
@@ -30,7 +32,18 @@ namespace SampleServerClasses
 			_name = name;
 		}
 
-		public virtual event Action<string, string> AnEvent;
+		public virtual event Action<string, string> AnEvent
+		{
+			add
+			{
+				AnEventInternal += value;
+			}
+			remove
+			{
+				AnEventInternal -= value;
+			}
+		}
+
 		public virtual event Action<string> EventTwo;
 		public virtual event Action<string> EventThree;
 
@@ -86,7 +99,7 @@ namespace SampleServerClasses
 
 		public virtual void DoCallbackOnEvent(string msg)
 		{
-			AnEvent?.Invoke(msg, Name);
+			AnEventInternal?.Invoke(msg, Name);
 		}
 
 		public virtual void DoCallbackOnOtherEvents(string msg)
@@ -97,7 +110,7 @@ namespace SampleServerClasses
 
 		public virtual void CleanEvents()
 		{
-			AnEvent = null;
+			AnEventInternal = null;
 			EventTwo = null;
 			EventThree = null;
 		}

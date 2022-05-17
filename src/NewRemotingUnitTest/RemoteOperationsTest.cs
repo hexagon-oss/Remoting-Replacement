@@ -395,6 +395,29 @@ namespace NewRemotingUnitTest
 			Assert.IsNull(_dataReceived);
 		}
 
+		/// <summary>
+		/// Does the same as above, but with a local target object
+		/// </summary>
+		[Test]
+		public void RemovingAnAlreadyRemovedDelegateDoesNothingLocal()
+		{
+			IMarshallInterface instance = new MarshallableClass("Test");
+
+			_dataReceived = null;
+			instance.DoCallbackOnEvent("Test string");
+			Assert.IsNull(_dataReceived);
+			instance.AnEvent += CallbackMethod;
+			instance.DoCallbackOnEvent("Another test string");
+			Assert.AreEqual("Another test string", _dataReceived);
+			_dataReceived = null;
+			instance.AnEvent -= CallbackMethod;
+			instance.DoCallbackOnEvent("A third test string");
+			Assert.IsNull(_dataReceived);
+			instance.AnEvent -= CallbackMethod;
+			instance.DoCallbackOnEvent("Test string 4");
+			Assert.IsNull(_dataReceived);
+		}
+
 		[Test]
 		public void CopyStreamToServer()
 		{
