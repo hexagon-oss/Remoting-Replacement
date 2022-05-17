@@ -31,7 +31,7 @@ namespace SampleServerClasses
 			Identifier = identifier;
 		}
 
-		public virtual event Action<string> AnEvent;
+		public virtual event Action<string, long> AnEvent;
 		public virtual event Action<string> EventTwo;
 		public virtual event Action<string> EventThree;
 
@@ -86,7 +86,7 @@ namespace SampleServerClasses
 
 		public virtual void DoCallbackOnEvent(string msg)
 		{
-			AnEvent?.Invoke(msg);
+			AnEvent?.Invoke(msg, Identifier);
 		}
 
 		public virtual void DoCallbackOnOtherEvents(string msg)

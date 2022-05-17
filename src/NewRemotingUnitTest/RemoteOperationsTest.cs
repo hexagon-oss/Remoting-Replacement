@@ -376,7 +376,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void RemovingAnAlreadyRemovedDelegateDoesNothing()
 		{
-			IMarshallInterface instance = _client.CreateRemoteInstance<MarshallableClass>();
+			IMarshallInterface instance = _client.CreateRemoteInstance<MarshallableClass>(10);
 
 			_dataReceived = null;
 			instance.DoCallbackOnEvent("Test string");
@@ -384,7 +384,7 @@ namespace NewRemotingUnitTest
 			Assert.IsNull(_dataReceived);
 			instance.AnEvent += CallbackMethod;
 			instance.DoCallbackOnEvent("Another test string");
-			Assert.False(string.IsNullOrWhiteSpace(_dataReceived));
+			Assert.AreEqual("Another test string", _dataReceived);
 			_dataReceived = null;
 			instance.AnEvent -= CallbackMethod;
 			instance.DoCallbackOnEvent("A third test string");
@@ -464,7 +464,6 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
-		[Explicit("Takes too long")]
 		public void StressEventHandling()
 		{
 			int expectedCounter = 0;
@@ -472,7 +471,7 @@ namespace NewRemotingUnitTest
 			var instance = _client.CreateRemoteInstance<MarshallableClass>();
 			instance.DoCallbackOnEvent("Utest");
 
-			ExecuteCallbacks(instance, 40, 100, ref expectedCounter);
+			ExecuteCallbacks(instance, 10, 20, ref expectedCounter);
 
 		}
 
@@ -520,8 +519,13 @@ namespace NewRemotingUnitTest
 			return _client.CreateRemoteInstance<MarshallableClass>();
 		}
 
-		public void CallbackMethod(string argument)
+		public void CallbackMethod(string argument, long senderInstance)
 		{
+			if (senderInstance < 100)
+			{
+				Console.WriteLine($"CallbackMethod: Previous value {_dataReceived}, new value {argument}, sender {senderInstance}");
+			}
+
 			_dataReceived = argument;
 		}
 
