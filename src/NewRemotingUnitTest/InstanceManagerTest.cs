@@ -42,7 +42,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void Create()
 		{
-			var myInstance = new MarshallableClass(100);
+			var myInstance = new MarshallableClass();
 			string name1 = _instanceManager.GetIdForObject(myInstance, "1");
 			string name2 = _instanceManager.GetIdForObject(myInstance, "1");
 			Assert.AreEqual(name1, name2);
@@ -54,7 +54,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void InstanceIsNotRemovedWhenAnotherGuyStillHasReference()
 		{
-			var myInstance = new MarshallableClass(100);
+			var myInstance = new MarshallableClass();
 			string name1 = _instanceManager.GetIdForObject(myInstance, "1");
 			string name2 = _instanceManager.GetIdForObject(myInstance, "2");
 			Assert.AreEqual(name1, name2);
@@ -67,7 +67,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void AddInstance()
 		{
-			var myInstance = new MarshallableClass(100);
+			var myInstance = new MarshallableClass();
 			var myInstanceId = _instanceManager.InstanceIdentifier + "id";
 			_instanceManager.AddInstance(myInstance, myInstanceId, "1", typeof(MarshallableClass));
 #pragma warning disable CS0618

@@ -105,7 +105,7 @@ namespace NewRemotingUnitTest
 			secondImpl.RegisterCallback(null);
 		}
 
-		public void CallbackMethod(string argument, long sender)
+		public void CallbackMethod(string argument, string sender)
 		{
 			_dataReceived = argument;
 		}

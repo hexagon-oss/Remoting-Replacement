@@ -14,30 +14,30 @@ namespace SampleServerClasses
 	{
 		private ReferencedComponent _component;
 		private ICallbackInterface _cb;
+		private string _name;
+
 		public MarshallableClass()
 		{
 			_component = new ReferencedComponent();
 			_cb = null;
-			unchecked
-			{
-				Identifier = RuntimeHelpers.GetHashCode(this) + Environment.TickCount64;
-			}
+			Name = "Unnamed" + GetHashCode();
 		}
 
-		public MarshallableClass(long identifier)
+		public MarshallableClass(string name)
 		{
 			_component = new ReferencedComponent();
 			_cb = null;
-			Identifier = identifier;
+			_name = name;
 		}
 
-		public virtual event Action<string, long> AnEvent;
+		public virtual event Action<string, string> AnEvent;
 		public virtual event Action<string> EventTwo;
 		public virtual event Action<string> EventThree;
 
-		public virtual long Identifier
+		public virtual string Name
 		{
-			get;
+			get => _name;
+			set => _name = value;
 		}
 
 		public virtual int GetSomeData()
@@ -86,13 +86,20 @@ namespace SampleServerClasses
 
 		public virtual void DoCallbackOnEvent(string msg)
 		{
-			AnEvent?.Invoke(msg, Identifier);
+			AnEvent?.Invoke(msg, Name);
 		}
 
 		public virtual void DoCallbackOnOtherEvents(string msg)
 		{
 			EventTwo?.Invoke(msg);
 			EventThree?.Invoke(msg);
+		}
+
+		public virtual void CleanEvents()
+		{
+			AnEvent = null;
+			EventTwo = null;
+			EventThree = null;
 		}
 
 		public virtual ReferencedComponent GetComponent()

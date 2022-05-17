@@ -9,7 +9,7 @@ namespace SampleServerClasses
 {
 	public class WithManyInterfaces : MarshalByRefObject, IMarshallInterface, IDisposable, IEnumerable<int>
 	{
-		public event Action<string, long> AnEvent;
+		public event Action<string, string> AnEvent;
 		public string StringProcessId()
 		{
 			return "SomeString";
@@ -17,6 +17,11 @@ namespace SampleServerClasses
 
 		public void DoCallbackOnEvent(string msg)
 		{
+		}
+
+		public void CleanEvents()
+		{
+			AnEvent = null;
 		}
 
 		public void Dispose()
@@ -35,7 +40,7 @@ namespace SampleServerClasses
 
 		public virtual void FireEvent()
 		{
-			AnEvent?.Invoke("Fire!", 0);
+			AnEvent?.Invoke("Fire!", "WithManyInterfaces");
 		}
 	}
 }

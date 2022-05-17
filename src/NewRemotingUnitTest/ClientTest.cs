@@ -39,7 +39,7 @@ namespace NewRemotingUnitTest
 			Assert.True(Client.IsProxyType(proxy.GetType()));
 			Assert.True(Client.IsRemoteProxy(proxy));
 
-			IMarshallInterface mi = new MarshallableClass(10);
+			IMarshallInterface mi = new MarshallableClass(nameof(CanIdentifyProxy));
 			Assert.False(Client.IsProxyType(mi.GetType()));
 			Assert.False(Client.IsRemoteProxy(mi));
 
