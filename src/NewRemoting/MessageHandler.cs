@@ -138,8 +138,6 @@ namespace NewRemoting
 					w.Write(string.Empty);
 				}
 
-				string targetId = _instanceManager.GetIdForObject(del, referencesWillBeSentTo);
-				w.Write(targetId);
 				w.Write(del.Method.DeclaringType.AssemblyQualifiedName);
 				w.Write(del.Method.MetadataToken);
 				var generics = del.Method.GetGenericArguments();
@@ -467,7 +465,6 @@ namespace NewRemoting
 				case RemotingReferenceType.MethodPointer:
 				{
 					string instanceId = r.ReadString();
-					string targetId = r.ReadString();
 					string typeOfTargetName = r.ReadString();
 					int tokenOfTargetMethod = r.ReadInt32();
 					int methodGenericArgs = r.ReadInt32();

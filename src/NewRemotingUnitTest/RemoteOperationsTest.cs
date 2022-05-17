@@ -355,21 +355,27 @@ namespace NewRemotingUnitTest
 			Assert.IsNull(_dataReceived);
 		}
 
-		[Test]
-		public void CanRegisterUnregisterEventWithoutAffectingOtherInstance()
+		private void CallbackMethod4(string message, string caller)
 		{
-			IMarshallInterface instance = _client.CreateRemoteInstance<MarshallableClass>();
-			IMarshallInterface instance2 = _client.CreateRemoteInstance<MarshallableClass>();
+			_dataReceived = message + "from" + caller;
+		}
 
+		[Test]
+		public void CanRegisterUnregisterEventWithoutAffectingOtherInstance([Values]bool remote)
+		{
+			IMarshallInterface instance = CreateInstance(remote, "instance0");
+			IMarshallInterface instance2 = CreateInstance(remote, "instance2");
 			_dataReceived = null;
 			instance.DoCallbackOnEvent("Initial test string");
 
 			Assert.IsNull(_dataReceived);
-			instance.AnEvent += CallbackMethod;
-			instance2.AnEvent += CallbackMethod;
+			instance.AnEvent += CallbackMethod4;
+			instance2.AnEvent += CallbackMethod4;
 			_dataReceived = null;
-			instance.AnEvent -= CallbackMethod;
+			instance.AnEvent -= CallbackMethod4;
 			instance.DoCallbackOnEvent("More testing");
+			Assert.IsNull(_dataReceived);
+			instance2.DoCallbackOnEvent("And yet another test");
 			Assert.IsNotNull(_dataReceived);
 		}
 
@@ -540,6 +546,18 @@ namespace NewRemotingUnitTest
 		private MarshallableClass CreateRemoteInstance()
 		{
 			return _client.CreateRemoteInstance<MarshallableClass>();
+		}
+
+		private IMarshallInterface CreateInstance(bool remote, string name)
+		{
+			if (remote)
+			{
+				return _client.CreateRemoteInstance<MarshallableClass>(name);
+			}
+			else
+			{
+				return new MarshallableClass(name);
+			}
 		}
 
 		public void CallbackMethod(string argument, string senderInstance)
