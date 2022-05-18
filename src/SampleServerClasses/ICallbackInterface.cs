@@ -1,7 +1,13 @@
-﻿namespace SampleServerClasses
+﻿using System;
+
+namespace SampleServerClasses
 {
 	public interface ICallbackInterface
 	{
-		public void FireSomeAction(string nameOfAction);
+		event Action<string> Callback;
+
+		void FireSomeAction(string nameOfAction);
+
+		void InvokeCallback(string data);
 	}
 }

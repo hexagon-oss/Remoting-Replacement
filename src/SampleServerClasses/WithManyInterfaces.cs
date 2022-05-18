@@ -24,6 +24,16 @@ namespace SampleServerClasses
 			AnEvent = null;
 		}
 
+		public void RegisterForCallback(ICallbackInterface callbackInterface)
+		{
+			throw new NotImplementedException();
+		}
+
+		public void EnsureCallbackWasUsed()
+		{
+			throw new NotImplementedException();
+		}
+
 		public void Dispose()
 		{
 		}

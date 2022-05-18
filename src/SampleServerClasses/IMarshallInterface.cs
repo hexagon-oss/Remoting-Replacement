@@ -14,5 +14,7 @@ namespace SampleServerClasses
 		void DoCallbackOnEvent(string msg);
 
 		void CleanEvents();
+		void RegisterForCallback(ICallbackInterface callbackInterface);
+		void EnsureCallbackWasUsed();
 	}
 }

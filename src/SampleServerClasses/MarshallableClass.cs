@@ -16,6 +16,8 @@ namespace SampleServerClasses
 		private ICallbackInterface _cb;
 		private string _name;
 
+		private string _callbackData;
+
 		private event Action<string, string> AnEventInternal;
 
 		public MarshallableClass()
@@ -23,6 +25,7 @@ namespace SampleServerClasses
 			_component = new ReferencedComponent();
 			_cb = null;
 			Name = "Unnamed" + GetHashCode();
+			_callbackData = null;
 		}
 
 		public MarshallableClass(string name)
@@ -30,6 +33,7 @@ namespace SampleServerClasses
 			_component = new ReferencedComponent();
 			_cb = null;
 			_name = name;
+			_callbackData = null;
 		}
 
 		public virtual event Action<string, string> AnEvent
@@ -235,6 +239,24 @@ namespace SampleServerClasses
 			}
 
 			return true;
+		}
+
+		public void EnsureCallbackWasUsed()
+		{
+			if (_callbackData == null)
+			{
+				throw new InvalidOperationException("The callback value was still null");
+			}
+		}
+
+		public void InverseCallback(string data)
+		{
+			_callbackData = data;
+		}
+
+		public void RegisterForCallback(ICallbackInterface callbackInterface)
+		{
+			callbackInterface.Callback += InverseCallback;
 		}
 	}
 }

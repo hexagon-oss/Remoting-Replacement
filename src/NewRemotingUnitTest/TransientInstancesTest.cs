@@ -171,9 +171,16 @@ namespace NewRemotingUnitTest
 				private set;
 			}
 
+			public event Action<string> Callback;
+
 			public void FireSomeAction(string nameOfAction)
 			{
 				HasCallbackOccurred = true;
+			}
+
+			public void InvokeCallback(string data)
+			{
+				Callback?.Invoke(data);
 			}
 		}
 	}

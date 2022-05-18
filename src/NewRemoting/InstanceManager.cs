@@ -111,7 +111,7 @@ namespace NewRemoting
 			return id;
 		}
 
-		public string GetMethodInfoIdentifier(MethodInfo me)
+		public string GetMethodInfoIdentifier(MethodInfo me, object targetInstance)
 		{
 			StringBuilder id = new StringBuilder(FormattableString.Invariant($"{InstanceIdentifier}/{me.GetType().FullName}/.Method/{me.Name}"));
 			foreach (var g in me.GetGenericArguments())
@@ -124,6 +124,11 @@ namespace NewRemoting
 			foreach (var p in parameters)
 			{
 				id.Append($"/{p.ParameterType.FullName}|{p.Name}");
+			}
+
+			if (targetInstance != null)
+			{
+				id.Append($"/{RuntimeHelpers.GetHashCode(targetInstance)}");
 			}
 
 			return id.ToString();

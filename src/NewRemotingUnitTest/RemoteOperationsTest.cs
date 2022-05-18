@@ -360,6 +360,11 @@ namespace NewRemotingUnitTest
 			_dataReceived = message + "from" + caller;
 		}
 
+		private void CallbackMethod2a(string message, string caller)
+		{
+			_dataReceived2 = message + "from" + caller;
+		}
+
 		[Test]
 		public void CanRegisterUnregisterEventWithoutAffectingOtherInstance([Values]bool remote)
 		{
@@ -377,6 +382,84 @@ namespace NewRemotingUnitTest
 			Assert.IsNull(_dataReceived);
 			instance2.DoCallbackOnEvent("And yet another test");
 			Assert.IsNotNull(_dataReceived);
+		}
+
+		[Test]
+		public void CanRegisterTwoCallbacks([Values] bool remote)
+		{
+			IMarshallInterface instance = CreateInstance(remote, "instance0");
+			_dataReceived = null;
+			instance.DoCallbackOnEvent("Initial test string");
+
+			Assert.IsNull(_dataReceived);
+			instance.AnEvent += CallbackMethod4;
+			instance.AnEvent += CallbackMethod2a;
+			_dataReceived = null;
+			_dataReceived2 = null;
+			instance.DoCallbackOnEvent("Some test string");
+			Assert.IsNotNull(_dataReceived);
+			Assert.IsNotNull(_dataReceived2);
+			_dataReceived = null;
+			_dataReceived2 = null;
+			instance.AnEvent -= CallbackMethod4;
+			instance.DoCallbackOnEvent("Simple test string");
+			Assert.IsNull(_dataReceived);
+			Assert.IsNotNull(_dataReceived2);
+			instance.AnEvent -= CallbackMethod2a;
+		}
+
+		[Test]
+		public void RegisterForCallbackReverse([Values] bool remote)
+		{
+			IMarshallInterface instance = CreateInstance(remote, "instance0");
+			_dataReceived = null;
+
+			ICallbackInterface localStuff = new CallbackImpl();
+			instance.RegisterForCallback(localStuff);
+			localStuff.InvokeCallback("Test");
+			instance.EnsureCallbackWasUsed();
+		}
+
+		[Test]
+		public void CanRegisterCallbackOnDifferentInstance([Values] bool remote)
+		{
+			IMarshallInterface instance = CreateInstance(remote, "instance0");
+			instance.DoCallbackOnEvent("Initial test string");
+
+			EventSink sink = new EventSink();
+
+			instance.AnEvent += sink.RegisterThis;
+
+			instance.DoCallbackOnEvent("Test");
+			Assert.AreEqual("Test from instance0", sink.Data);
+
+			sink.Data = null;
+			instance.AnEvent -= sink.RegisterThis;
+			instance.DoCallbackOnEvent("No test");
+			Assert.IsNull(sink.Data);
+		}
+
+		[Test]
+		public void CanRegisterCallbackOnDifferentInstance2([Values] bool remote)
+		{
+			IMarshallInterface instance = CreateInstance(remote, "instance0");
+			instance.DoCallbackOnEvent("Initial test string");
+
+			EventSink sink = new EventSink();
+			EventSink anotherSink = new EventSink();
+
+			instance.AnEvent += sink.RegisterThis;
+			instance.AnEvent += anotherSink.RegisterThis;
+
+			instance.DoCallbackOnEvent("Test");
+			Assert.AreEqual("Test from instance0", sink.Data);
+			Assert.AreEqual("Test from instance0", anotherSink.Data);
+
+			sink.Data = null;
+			instance.AnEvent -= sink.RegisterThis;
+			instance.DoCallbackOnEvent("Test2");
+			Assert.IsNull(sink.Data);
+			Assert.AreEqual("Test2 from instance0", anotherSink.Data);
 		}
 
 		[Test]
@@ -493,17 +576,6 @@ namespace NewRemotingUnitTest
 			Assert.IsNull(_client.VerifyMatchingServer());
 		}
 
-		////[Test]
-		////public void StressEventHandling()
-		////{
-		////	int expectedCounter = 0;
-
-		////	var instance = _client.CreateRemoteInstance<MarshallableClass>();
-		////	instance.DoCallbackOnEvent("Utest");
-
-		////	ExecuteCallbacks(instance, 10, 20, ref expectedCounter);
-		////}
-
 		[Test]
 		public void EventHandling()
 		{
@@ -587,11 +659,32 @@ namespace NewRemotingUnitTest
 				HasBeenCalled = false;
 			}
 
+			public event Action<string> Callback;
+
 			public bool HasBeenCalled { get; set; }
 
 			public void FireSomeAction(string nameOfAction)
 			{
 				HasBeenCalled = true;
+			}
+
+			public void InvokeCallback(string data)
+			{
+				Callback?.Invoke(data);
+			}
+		}
+
+		private sealed class EventSink
+		{
+			public string Data
+			{
+				get;
+				set;
+			}
+
+			public void RegisterThis(string msg, string source)
+			{
+				Data = $"{msg} from {source}";
 			}
 		}
 	}
