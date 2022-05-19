@@ -105,7 +105,7 @@ namespace NewRemotingUnitTest
 			secondImpl.RegisterCallback(null);
 		}
 
-		public void CallbackMethod(string argument)
+		public void CallbackMethod(string argument, string sender)
 		{
 			_dataReceived = argument;
 		}
@@ -171,9 +171,16 @@ namespace NewRemotingUnitTest
 				private set;
 			}
 
+			public event Action<string> Callback;
+
 			public void FireSomeAction(string nameOfAction)
 			{
 				HasCallbackOccurred = true;
+			}
+
+			public void InvokeCallback(string data)
+			{
+				Callback?.Invoke(data);
 			}
 		}
 	}

@@ -14,28 +14,47 @@ namespace SampleServerClasses
 	{
 		private ReferencedComponent _component;
 		private ICallbackInterface _cb;
+		private string _name;
+
+		private string _callbackData;
+
+		private event Action<string, string> AnEventInternal;
+
 		public MarshallableClass()
 		{
 			_component = new ReferencedComponent();
 			_cb = null;
-			unchecked
-			{
-				Identifier = RuntimeHelpers.GetHashCode(this) + Environment.TickCount64;
-			}
+			Name = "Unnamed" + GetHashCode();
+			_callbackData = null;
 		}
 
-		public MarshallableClass(long identifier)
+		public MarshallableClass(string name)
 		{
 			_component = new ReferencedComponent();
 			_cb = null;
-			Identifier = identifier;
+			_name = name;
+			_callbackData = null;
 		}
 
-		public event Action<string> AnEvent;
-
-		public virtual long Identifier
+		public virtual event Action<string, string> AnEvent
 		{
-			get;
+			add
+			{
+				AnEventInternal += value;
+			}
+			remove
+			{
+				AnEventInternal -= value;
+			}
+		}
+
+		public virtual event Action<string> EventTwo;
+		public virtual event Action<string> EventThree;
+
+		public virtual string Name
+		{
+			get => _name;
+			set => _name = value;
 		}
 
 		public virtual int GetSomeData()
@@ -84,7 +103,20 @@ namespace SampleServerClasses
 
 		public virtual void DoCallbackOnEvent(string msg)
 		{
-			AnEvent?.Invoke(msg);
+			AnEventInternal?.Invoke(msg, Name);
+		}
+
+		public virtual void DoCallbackOnOtherEvents(string msg)
+		{
+			EventTwo?.Invoke(msg);
+			EventThree?.Invoke(msg);
+		}
+
+		public virtual void CleanEvents()
+		{
+			AnEventInternal = null;
+			EventTwo = null;
+			EventThree = null;
 		}
 
 		public virtual ReferencedComponent GetComponent()
@@ -207,6 +239,24 @@ namespace SampleServerClasses
 			}
 
 			return true;
+		}
+
+		public void EnsureCallbackWasUsed()
+		{
+			if (_callbackData == null)
+			{
+				throw new InvalidOperationException("The callback value was still null");
+			}
+		}
+
+		public void InverseCallback(string data)
+		{
+			_callbackData = data;
+		}
+
+		public void RegisterForCallback(ICallbackInterface callbackInterface)
+		{
+			callbackInterface.Callback += InverseCallback;
 		}
 	}
 }

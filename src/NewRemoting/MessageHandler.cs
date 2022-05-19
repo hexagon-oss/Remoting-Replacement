@@ -128,7 +128,8 @@ namespace NewRemoting
 				w.Write((int)RemotingReferenceType.MethodPointer);
 				if (del.Target != null)
 				{
-					string instanceId = _instanceManager.GetIdForObject(del.Target, referencesWillBeSentTo);
+					string instanceId = _instanceManager.GetMethodInfoIdentifier(del.Method, del.Target);
+					_instanceManager.AddInstance(del, instanceId, referencesWillBeSentTo, del.GetType());
 					w.Write(instanceId);
 				}
 				else
@@ -137,8 +138,6 @@ namespace NewRemoting
 					w.Write(string.Empty);
 				}
 
-				string targetId = _instanceManager.GetIdForObject(del, referencesWillBeSentTo);
-				w.Write(targetId);
 				w.Write(del.Method.DeclaringType.AssemblyQualifiedName);
 				w.Write(del.Method.MetadataToken);
 				var generics = del.Method.GetGenericArguments();
@@ -466,7 +465,6 @@ namespace NewRemoting
 				case RemotingReferenceType.MethodPointer:
 				{
 					string instanceId = r.ReadString();
-					string targetId = r.ReadString();
 					string typeOfTargetName = r.ReadString();
 					int tokenOfTargetMethod = r.ReadInt32();
 					int methodGenericArgs = r.ReadInt32();
@@ -493,8 +491,16 @@ namespace NewRemoting
 					var interceptor = InstanceManager.GetInterceptor(_interceptors, instanceId);
 					// This creates an instance of the DelegateInternalSink class, which acts as a proxy for delegate callbacks. Instead of the actual delegate
 					// target, we register a method from this class as a delegate target
-					var internalSink = new DelegateInternalSink(interceptor, targetId, methodInfoOfTarget);
-					_instanceManager.AddInstance(internalSink, targetId, interceptor.OtherSideInstanceId, internalSink.GetType());
+					DelegateInternalSink internalSink;
+					if (_instanceManager.TryGetObjectFromId(instanceId, out object sink))
+					{
+						internalSink = (DelegateInternalSink)sink;
+					}
+					else
+					{
+						internalSink = new DelegateInternalSink(interceptor, instanceId, methodInfoOfTarget);
+						_instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideInstanceId, internalSink.GetType());
+					}
 
 					IEnumerable<MethodInfo> possibleSinks = null;
 

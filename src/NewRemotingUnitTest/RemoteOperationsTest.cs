@@ -22,6 +22,8 @@ namespace NewRemotingUnitTest
 		private Process _serverProcess;
 		private Client _client;
 		private string _dataReceived;
+		private string _dataReceived2;
+		private string _dataReceived3;
 
 		[OneTimeSetUp]
 		public void OneTimeSetUp()
@@ -83,23 +85,23 @@ namespace NewRemotingUnitTest
 		{
 			var instance1 = CreateRemoteInstance();
 			var instance2 = CreateRemoteInstance();
-			Assert.AreNotEqual(instance1.Identifier, instance2.Identifier);
+			Assert.AreNotEqual(instance1.Name, instance2.Name);
 		}
 
 		[Test]
 		public void SameInstanceIsUsedInTwoCalls()
 		{
 			var instance1 = CreateRemoteInstance();
-			long a = instance1.Identifier;
-			long b = instance1.Identifier;
+			string a = instance1.Name;
+			string b = instance1.Name;
 			Assert.AreEqual(a, b);
 		}
 
 		[Test]
 		public void CanCreateInstanceWithNonDefaultCtor()
 		{
-			var instance = _client.CreateRemoteInstance<MarshallableClass>(23);
-			Assert.AreEqual(23, instance.Identifier);
+			var instance = _client.CreateRemoteInstance<MarshallableClass>("MyInstance");
+			Assert.AreEqual("MyInstance", instance.Name);
 		}
 
 		[Test]
@@ -353,28 +355,118 @@ namespace NewRemotingUnitTest
 			Assert.IsNull(_dataReceived);
 		}
 
-		[Test]
-		public void CanRegisterUnregisterEventWithoutAffectingOtherInstance()
+		private void CallbackMethod4(string message, string caller)
 		{
-			IMarshallInterface instance = _client.CreateRemoteInstance<MarshallableClass>();
-			IMarshallInterface instance2 = _client.CreateRemoteInstance<MarshallableClass>();
+			_dataReceived = message + "from" + caller;
+		}
 
+		private void CallbackMethod2a(string message, string caller)
+		{
+			_dataReceived2 = message + "from" + caller;
+		}
+
+		[Test]
+		public void CanRegisterUnregisterEventWithoutAffectingOtherInstance([Values]bool remote)
+		{
+			IMarshallInterface instance = CreateInstance(remote, "instance0");
+			IMarshallInterface instance2 = CreateInstance(remote, "instance2");
 			_dataReceived = null;
 			instance.DoCallbackOnEvent("Initial test string");
 
 			Assert.IsNull(_dataReceived);
-			instance.AnEvent += CallbackMethod;
-			instance2.AnEvent += CallbackMethod;
+			instance.AnEvent += CallbackMethod4;
+			instance2.AnEvent += CallbackMethod4;
 			_dataReceived = null;
-			instance.AnEvent -= CallbackMethod;
+			instance.AnEvent -= CallbackMethod4;
 			instance.DoCallbackOnEvent("More testing");
+			Assert.IsNull(_dataReceived);
+			instance2.DoCallbackOnEvent("And yet another test");
 			Assert.IsNotNull(_dataReceived);
+		}
+
+		[Test]
+		public void CanRegisterTwoCallbacks([Values] bool remote)
+		{
+			IMarshallInterface instance = CreateInstance(remote, "instance0");
+			_dataReceived = null;
+			instance.DoCallbackOnEvent("Initial test string");
+
+			Assert.IsNull(_dataReceived);
+			instance.AnEvent += CallbackMethod4;
+			instance.AnEvent += CallbackMethod2a;
+			_dataReceived = null;
+			_dataReceived2 = null;
+			instance.DoCallbackOnEvent("Some test string");
+			Assert.IsNotNull(_dataReceived);
+			Assert.IsNotNull(_dataReceived2);
+			_dataReceived = null;
+			_dataReceived2 = null;
+			instance.AnEvent -= CallbackMethod4;
+			instance.DoCallbackOnEvent("Simple test string");
+			Assert.IsNull(_dataReceived);
+			Assert.IsNotNull(_dataReceived2);
+			instance.AnEvent -= CallbackMethod2a;
+		}
+
+		[Test]
+		public void RegisterForCallbackReverse([Values] bool remote)
+		{
+			IMarshallInterface instance = CreateInstance(remote, "instance0");
+			_dataReceived = null;
+
+			ICallbackInterface localStuff = new CallbackImpl();
+			instance.RegisterForCallback(localStuff);
+			localStuff.InvokeCallback("Test");
+			instance.EnsureCallbackWasUsed();
+		}
+
+		[Test]
+		public void CanRegisterCallbackOnDifferentInstance([Values] bool remote)
+		{
+			IMarshallInterface instance = CreateInstance(remote, "instance0");
+			instance.DoCallbackOnEvent("Initial test string");
+
+			EventSink sink = new EventSink();
+
+			instance.AnEvent += sink.RegisterThis;
+
+			instance.DoCallbackOnEvent("Test");
+			Assert.AreEqual("Test from instance0", sink.Data);
+
+			sink.Data = null;
+			instance.AnEvent -= sink.RegisterThis;
+			instance.DoCallbackOnEvent("No test");
+			Assert.IsNull(sink.Data);
+		}
+
+		[Test]
+		public void CanRegisterCallbackOnDifferentInstance2([Values] bool remote)
+		{
+			IMarshallInterface instance = CreateInstance(remote, "instance0");
+			instance.DoCallbackOnEvent("Initial test string");
+
+			EventSink sink = new EventSink();
+			EventSink anotherSink = new EventSink();
+
+			instance.AnEvent += sink.RegisterThis;
+			instance.AnEvent += anotherSink.RegisterThis;
+
+			instance.DoCallbackOnEvent("Test");
+			Assert.AreEqual("Test from instance0", sink.Data);
+			Assert.AreEqual("Test from instance0", anotherSink.Data);
+
+			sink.Data = null;
+			instance.AnEvent -= sink.RegisterThis;
+			instance.DoCallbackOnEvent("Test2");
+			Assert.IsNull(sink.Data);
+			Assert.AreEqual("Test2 from instance0", anotherSink.Data);
 		}
 
 		[Test]
 		public void RemovingAnAlreadyRemovedDelegateDoesNothing()
 		{
-			IMarshallInterface instance = _client.CreateRemoteInstance<MarshallableClass>();
+			EventHandling();
+			IMarshallInterface instance = _client.CreateRemoteInstance<MarshallableClass>(nameof(RemovingAnAlreadyRemovedDelegateDoesNothing));
 
 			_dataReceived = null;
 			instance.DoCallbackOnEvent("Test string");
@@ -382,7 +474,30 @@ namespace NewRemotingUnitTest
 			Assert.IsNull(_dataReceived);
 			instance.AnEvent += CallbackMethod;
 			instance.DoCallbackOnEvent("Another test string");
-			Assert.False(string.IsNullOrWhiteSpace(_dataReceived));
+			Assert.AreEqual("Another test string", _dataReceived);
+			_dataReceived = null;
+			instance.AnEvent -= CallbackMethod;
+			instance.DoCallbackOnEvent("A third test string");
+			Assert.IsNull(_dataReceived);
+			instance.AnEvent -= CallbackMethod;
+			instance.DoCallbackOnEvent("Test string 4");
+			Assert.IsNull(_dataReceived);
+		}
+
+		/// <summary>
+		/// Does the same as above, but with a local target object
+		/// </summary>
+		[Test]
+		public void RemovingAnAlreadyRemovedDelegateDoesNothingLocal()
+		{
+			IMarshallInterface instance = new MarshallableClass("Test");
+
+			_dataReceived = null;
+			instance.DoCallbackOnEvent("Test string");
+			Assert.IsNull(_dataReceived);
+			instance.AnEvent += CallbackMethod;
+			instance.DoCallbackOnEvent("Another test string");
+			Assert.AreEqual("Another test string", _dataReceived);
 			_dataReceived = null;
 			instance.AnEvent -= CallbackMethod;
 			instance.DoCallbackOnEvent("A third test string");
@@ -461,14 +576,80 @@ namespace NewRemotingUnitTest
 			Assert.IsNull(_client.VerifyMatchingServer());
 		}
 
+		[Test]
+		public void EventHandling()
+		{
+			int expectedCounter = 0;
+
+			var instance = _client.CreateRemoteInstance<MarshallableClass>();
+			instance.DoCallbackOnEvent("Utest");
+
+			ExecuteCallbacks(instance, 4, 10,  ref expectedCounter);
+		}
+
+		private void ExecuteCallbacks(IMarshallInterface instance, int overallIterations, int iterations,
+			ref int expectedCounter)
+		{
+			for (int j = 0; j < overallIterations; j++)
+			{
+				instance.AnEvent += CallbackMethod;
+				// instance.EventTwo += CallbackMethod2;
+				// instance.EventThree += CallbackMethod3;
+				for (int i = 0; i < iterations; i++)
+				{
+					instance.DoCallbackOnEvent("Utest" + ++expectedCounter);
+					// instance.DoCallbackOnOtherEvents("Utest" + expectedCounter);
+					Assert.AreEqual("Utest" + expectedCounter, _dataReceived);
+					// Assert.AreEqual("Utest" + expectedCounter, _dataReceived2);
+					// Assert.AreEqual("Utest" + expectedCounter, _dataReceived3);
+				}
+
+				if (j % 2 == 0)
+				{
+					_client.ForceGc();
+				}
+
+				instance.AnEvent -= CallbackMethod;
+				// instance.EventTwo -= CallbackMethod2;
+				// instance.EventThree -= CallbackMethod3;
+			}
+		}
+
 		private MarshallableClass CreateRemoteInstance()
 		{
 			return _client.CreateRemoteInstance<MarshallableClass>();
 		}
 
-		public void CallbackMethod(string argument)
+		private IMarshallInterface CreateInstance(bool remote, string name)
 		{
+			if (remote)
+			{
+				return _client.CreateRemoteInstance<MarshallableClass>(name);
+			}
+			else
+			{
+				return new MarshallableClass(name);
+			}
+		}
+
+		public void CallbackMethod(string argument, string senderInstance)
+		{
+			if (!senderInstance.StartsWith("Unnamed"))
+			{
+				Console.WriteLine($"CallbackMethod: Previous value {_dataReceived}, new value {argument}, sender {senderInstance}");
+			}
+
 			_dataReceived = argument;
+		}
+
+		public void CallbackMethod2(string argument)
+		{
+			_dataReceived2 = argument;
+		}
+
+		public void CallbackMethod3(string argument)
+		{
+			_dataReceived3 = argument;
 		}
 
 		private sealed class CallbackImpl : MarshalByRefObject, ICallbackInterface
@@ -478,11 +659,32 @@ namespace NewRemotingUnitTest
 				HasBeenCalled = false;
 			}
 
+			public event Action<string> Callback;
+
 			public bool HasBeenCalled { get; set; }
 
 			public void FireSomeAction(string nameOfAction)
 			{
 				HasBeenCalled = true;
+			}
+
+			public void InvokeCallback(string data)
+			{
+				Callback?.Invoke(data);
+			}
+		}
+
+		private sealed class EventSink
+		{
+			public string Data
+			{
+				get;
+				set;
+			}
+
+			public void RegisterThis(string msg, string source)
+			{
+				Data = $"{msg} from {source}";
 			}
 		}
 	}

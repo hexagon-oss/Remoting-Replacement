@@ -111,6 +111,29 @@ namespace NewRemoting
 			return id;
 		}
 
+		public string GetMethodInfoIdentifier(MethodInfo me, object targetInstance)
+		{
+			StringBuilder id = new StringBuilder(FormattableString.Invariant($"{InstanceIdentifier}/{me.GetType().FullName}/.Method/{me.Name}"));
+			foreach (var g in me.GetGenericArguments())
+			{
+				id.Append($"/{g.FullName}");
+			}
+
+			var parameters = me.GetParameters();
+			id.Append($"?{parameters.Length}");
+			foreach (var p in parameters)
+			{
+				id.Append($"/{p.ParameterType.FullName}|{p.Name}");
+			}
+
+			if (targetInstance != null)
+			{
+				id.Append($"/{RuntimeHelpers.GetHashCode(targetInstance)}");
+			}
+
+			return id.ToString();
+		}
+
 		/// <summary>
 		/// Get an actual instance from an object Id
 		/// </summary>
