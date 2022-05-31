@@ -128,7 +128,7 @@ namespace NewRemoting
 				w.Write((int)RemotingReferenceType.MethodPointer);
 				if (del.Target != null)
 				{
-					string instanceId = _instanceManager.GetMethodInfoIdentifier(del.Method, del.Target);
+					string instanceId = _instanceManager.GetDelegateTargetIdentifier(del.Method, del.Target);
 					_instanceManager.AddInstance(del, instanceId, referencesWillBeSentTo, del.GetType());
 					w.Write(instanceId);
 				}

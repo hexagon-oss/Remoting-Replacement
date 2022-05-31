@@ -97,6 +97,35 @@ namespace NewRemoting
 		}
 
 		/// <summary>
+		/// Get a method identifier (basically the unique name of a remote method)
+		/// </summary>
+		/// <param name="me">The method to encode</param>
+		/// <returns></returns>
+		public static string GetMethodIdentifier(MethodInfo me)
+		{
+			StringBuilder id = new StringBuilder($"{me.GetType().FullName}/.M/{me.Name}");
+			var gen = me.GetGenericArguments();
+			if (gen.Length > 0)
+			{
+				id.Append('<');
+				id.AppendJoin(',', gen.Select(x => x.FullName));
+				id.Append('>');
+			}
+
+			var parameters = me.GetParameters();
+			id.Append('(');
+			id.AppendJoin(',', parameters.Select(p => $"{p.ParameterType.FullName} {p.Name}"));
+			foreach (var p in parameters)
+			{
+				id.Append($"/{p.ParameterType.FullName}|{p.Name}");
+			}
+
+			id.Append(')');
+
+			return id.ToString();
+		}
+
+		/// <summary>
 		/// This has a setter, because of the initialization sequence
 		/// </summary>
 		public bool IsLocalInstanceId(string objectId)
@@ -111,7 +140,13 @@ namespace NewRemoting
 			return id;
 		}
 
-		public string GetMethodInfoIdentifier(MethodInfo me, object targetInstance)
+		/// <summary>
+		/// Create an identifier for a delegate target (method + instance)
+		/// </summary>
+		/// <param name="me">The method to be called</param>
+		/// <param name="targetInstance">The instance on which the method shall be called</param>
+		/// <returns></returns>
+		public string GetDelegateTargetIdentifier(MethodInfo me, object targetInstance)
 		{
 			StringBuilder id = new StringBuilder(FormattableString.Invariant($"{InstanceIdentifier}/{me.GetType().FullName}/.Method/{me.Name}"));
 			foreach (var g in me.GetGenericArguments())

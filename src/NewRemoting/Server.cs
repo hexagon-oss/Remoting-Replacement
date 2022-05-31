@@ -386,7 +386,7 @@ namespace NewRemoting
 						typeOfCaller = GetTypeFromAnyAssembly(typeOfCallerName);
 					}
 
-					int methodNo = r.ReadInt32(); // token of method to call
+					string methodId = r.ReadString(); // identifier of method to call
 					int methodGenericArgs = r.ReadInt32(); // number of generic arguments of method (not generic arguments of declaring class!)
 
 					MemoryStream ms = new MemoryStream(4096);
@@ -496,23 +496,50 @@ namespace NewRemoting
 					}
 
 					var methods = typeOfCaller.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-					MethodInfo me = methods.First(x => x.MetadataToken == methodNo);
-
-					if (me == null)
-					{
-						throw new RemotingException($"No such method: {methodNo}");
-					}
-
 					if (methodGenericArgs > 0)
 					{
-						me = me.MakeGenericMethod(typeOfGenericArguments.ToArray());
+						// If the method has generic arguments, only methods with the same number of args can match
+						methods = methods.Where(x => x.GetGenericArguments().Length == methodGenericArgs).ToArray();
+					}
+					else
+					{
+						methods = methods.Where(x => x.IsGenericMethod == false).ToArray();
+					}
+
+					MethodInfo methodToCall = null;
+					foreach (var me in methods)
+					{
+						var me2 = me;
+						try
+						{
+							if (methodGenericArgs > 0)
+							{
+								me2 = me.MakeGenericMethod(typeOfGenericArguments.ToArray());
+							}
+						}
+						catch (Exception x) when (x is InvalidOperationException || x is ArgumentException)
+						{
+							// The generic arguments don't match the method. This can't be the one we're looking for
+							continue;
+						}
+
+						if (InstanceManager.GetMethodIdentifier(me2) == methodId)
+						{
+							methodToCall = me2;
+							break;
+						}
+					}
+
+					if (methodToCall == null)
+					{
+						throw new RemotingException($"Unable to find a method with id {methodId}");
 					}
 
 					int numArgs = r.ReadInt32();
 					object[] args = new object[numArgs];
 					for (int i = 0; i < numArgs; i++)
 					{
-						var decodedArg = _messageHandler.ReadArgumentFromStream(r, me, null, false, me.GetParameters()[i].ParameterType, td.OtherSideInstanceId);
+						var decodedArg = _messageHandler.ReadArgumentFromStream(r, methodToCall, null, false, methodToCall.GetParameters()[i].ParameterType, td.OtherSideInstanceId);
 						args[i] = decodedArg;
 					}
 
@@ -520,7 +547,7 @@ namespace NewRemoting
 					{
 						try
 						{
-							InvokeRealInstance(me, realInstance, args, hd, answerWriter, td.OtherSideInstanceId);
+							InvokeRealInstance(methodToCall, realInstance, args, hd, answerWriter, td.OtherSideInstanceId);
 						}
 						catch (SerializationException x)
 						{

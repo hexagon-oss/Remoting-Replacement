@@ -168,7 +168,8 @@ namespace NewRemoting
 				writer.Write(string.Empty);
 			}
 
-			writer.Write(me.MetadataToken);
+			string methodNameToCall = InstanceManager.GetMethodIdentifier(me);
+			writer.Write(methodNameToCall);
 			if (me.ContainsGenericParameters)
 			{
 				// This should never happen (or the compiler has done something wrong)

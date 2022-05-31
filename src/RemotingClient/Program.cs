@@ -100,9 +100,8 @@ namespace RemotingClient
 			GC.Collect();
 			GC.WaitForFullGCComplete();
 			GC.WaitForPendingFinalizers();
-			Thread.Sleep(20000);
-			client.ForceGc();
 			Thread.Sleep(1000);
+			client.ForceGc();
 			var moreVersions = bios.GetBiosVersions();
 			if (moreVersions[0] != versions[0])
 			{
