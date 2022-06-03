@@ -76,36 +76,16 @@ class Build : NukeBuild
 	    .Executes(() =>
 	    {
 		    var projectsToCheck = Solution.GetProjects("*UnitTest").OrderBy(x => x.Name).ToList();
-            ToolSettings[] settings = null;
-		    {
-			    settings = new DotNetTestSettings()
-				    .SetConfiguration(Configuration)
-				    .EnableNoBuild()
-				    .EnableNoRestore()
-				    .SetResultsDirectory(RootDirectory / string.Concat("TestResult.UnitTest.", Platform, ".", Configuration, ".", "net6.0"))
-				    .CombineWith(projectsToCheck, (cs, v) => cs.SetProjectFile(v));
-		    }
+		    var settings = new DotNetTestSettings()
+			    .SetConfiguration(Configuration)
+			    .SetProjectFile(Solution)
+			    .EnableNoBuild()
+			    .EnableNoRestore()
+			    .SetResultsDirectory(RootDirectory /
+			                         string.Concat("TestResult.UnitTest.", Platform, ".", Configuration, ".", "net6.0"));
+		    DotNetTest(settings);
 
-		    var coverageResult = RootDirectory / string.Concat("Coverage.", Platform, ".", Configuration, ".", "net6.0", ".xml");
-		    OpenCoverTasks.OpenCover(c => c
-			    .AddExcludeByAttributes(typeof(System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverageAttribute).FullName)
-			    .AddExcludeByAttributes(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute).FullName)
-			    .AddExcludeByAttributes(typeof(System.CodeDom.Compiler.GeneratedCodeAttribute).FullName)
-			    .AddFilters("+[*]* -[*.UnitTest]* -[nunit.*]* -[NUnit3.*]* -[xunit.*]* -[Moq]* -[Rhino.Mocks]*")
-			    .SetRegistration(RegistrationType.User)
-			    .SetMaximumVisitCount(100)
-			    .SetTargetExitCodeOffset(0)
-			    .SetOutput(coverageResult)
-			    .CombineWith(settings, (oc, ts) => oc.SetTargetSettings(ts)));
-
-		    var doPublishCoverageResultToTeamCity = TeamCity.Instance != null && Configuration == Configuration.Debug;
-		    ReportGeneratorTasks.ReportGenerator(r => r
-			    .SetFramework("net6.0")
-			    .AddReports(coverageResult)
-			    .AddReportTypes(ReportTypes.XmlSummary, ReportTypes.Html)
-			    .When(doPublishCoverageResultToTeamCity, x => x.AddReportTypes(ReportTypes.TeamCitySummary))
-			    .SetTargetDirectory(ArtifactsDirectory / "CoverageReport"));
-        });
+	    });
 
     Target PublishExecutable => _ => _
 	    .DependsOn(Compile)
