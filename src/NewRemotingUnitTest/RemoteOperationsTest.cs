@@ -28,7 +28,12 @@ namespace NewRemotingUnitTest
 		[OneTimeSetUp]
 		public void OneTimeSetUp()
 		{
-			_serverProcess = Process.Start("RemotingServer.exe");
+			FileInfo fi = new FileInfo(Assembly.GetExecutingAssembly().Location);
+			var psi = new ProcessStartInfo(Path.Combine(fi.DirectoryName, "RemotingServer.exe"));
+
+			Console.WriteLine($"Attempting to start {psi.FileName}...");
+			Console.WriteLine($"Current directory is {Environment.CurrentDirectory}");
+			_serverProcess = Process.Start(psi);
 			Assert.IsNotNull(_serverProcess);
 
 			// Port is currently hardcoded

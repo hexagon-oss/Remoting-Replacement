@@ -33,8 +33,8 @@ class Build : NukeBuild
 
     public static int Main () => Execute<Build>(x => x.Compile);
 
-    [Parameter("Configuration to build - Default is 'Debug' (local) or 'Release' (server)")]
-    readonly Configuration Configuration = IsLocalBuild ? Configuration.Debug : Configuration.Release;
+    [Parameter("Configuration to build - Debug (default) or Release")]
+    readonly Configuration Configuration = Configuration.Debug;
 
     [Solution] readonly Solution Solution;
     [GitRepository] readonly GitRepository GitRepository;
@@ -100,9 +100,46 @@ class Build : NukeBuild
 		    );
 	    });
 
+	/// <summary>
+	/// Copy the build output around, so that unit tests and package building works
+	/// </summary>
+    Target CopyOutputAround => _ => _
+	    .DependsOn(PublishExecutable)
+	    .DependsOn(Compile)
+	    .Executes(() =>
+	    {
+			// The code was originally in the post-build step of RemotingClient, but that was wrong, since that runs before the publish step
+			string outDir = SourceDirectory / "RemotingClient" / "bin" / Configuration / "net6.0-windows";
+			string solutionDir = SourceDirectory;
+		    string[] commandsToExecute = new string[]
+		    {
+			    @$"xcopy /Y /D /I {outDir}\*.* {solutionDir}\RemotingServer\bin\{Configuration}\net6.0-windows",
+			    @$"xcopy /Y /E /S /I {outDir}\runtimes {solutionDir}\RemotingServer\bin\{Configuration}\net6.0-windows\runtimes",
+			    @$"xcopy /Y /D /I {solutionDir}\RemotingServer\bin\{Configuration}\net6.0-windows {solutionDir}\NewRemotingUnitTest\bin\{Configuration}\net6.0-windows",
+			    @$"xcopy /Y /D /I {outDir}\*.* {solutionDir}\NewRemotingUnitTest\bin\{Configuration}\net6.0-windows",
+			    @$"xcopy /Y /E /S /I {outDir}\runtimes {solutionDir}\NewRemotingUnitTest\bin\{Configuration}\net6.0-windows\runtimes"
+		    };
+
+			foreach (var cmd in commandsToExecute)
+		    {
+			    var process = ProcessTasks.StartShell(cmd, null, null, null, true, true);
+			    process.WaitForExit();
+		    }
+	    });
+
+    Target ShowOutput => _ => _
+	    .DependsOn(CopyOutputAround)
+	    .DependsOn(PublishExecutable)
+	    .Executes(() =>
+	    {
+		    var process = ProcessTasks.StartShell("dir /s", null, null, null, true, true);
+		    process.WaitForExit();
+	    });
+
     Target Pack => _ => _
 	    .DependsOn(UnitTest)
 	    .DependsOn(PublishExecutable)
+	    .DependsOn(ShowOutput)
 	    .Executes(() =>
 	    {
 		    DotNetPack(s => s
