@@ -442,8 +442,7 @@ namespace NewRemoting
 					hd.WriteTo(_writer);
 					_writer.Write(typeOfInstance.AssemblyQualifiedName);
 					_writer.Write(string.Empty);
-					_writer.Write(
-						(int)0); // Currently, we do not need the correct ctor identifier, since there can only be one default ctor
+					_writer.Write(string.Empty); // Currently, we do not need the correct ctor identifier, since there can only be one default ctor
 					_writer.Write((int)0); // and no generic args, anyway
 				}
 				else
@@ -452,8 +451,7 @@ namespace NewRemoting
 					hd.WriteTo(_writer);
 					_writer.Write(typeOfInstance.AssemblyQualifiedName);
 					_writer.Write(string.Empty);
-					_writer.Write(
-						(int)0); // we let the server resolve the correct ctor to use, based on the argument types
+					_writer.Write(string.Empty); // we let the server resolve the correct ctor to use, based on the argument types
 					_writer.Write((int)0); // and no generic args, anyway
 					_writer.Write(args.Length); // but we need to provide the number of arguments that follow
 					foreach (var a in args)
@@ -502,7 +500,7 @@ namespace NewRemoting
 				hd.WriteTo(_writer);
 				_writer.Write(typeOfInstance.AssemblyQualifiedName);
 				_writer.Write(string.Empty);
-				_writer.Write((int)0); // No ctor is being called
+				_writer.Write(string.Empty); // No ctor is being called
 				_writer.Write((int)0); // and no generic args, anyway
 
 			}

@@ -138,7 +138,7 @@ namespace NewRemoting
 				catch (NotImplementedException x)
 				{
 					_logger.LogError(x, "Unable to proceed on suspected class ctor. Assuming disconnected interface instead");
-					throw new RemotingException("Unable to call method on remote object. Instance not found.");
+					throw new RemotingException($"Unable to call method {me.Name} on remote object. Instance for object of type {invocation.Proxy.GetType()} not found.");
 				}
 
 				_pendingInvocations.TryRemove(thisSeq, out _);
@@ -168,7 +168,8 @@ namespace NewRemoting
 				writer.Write(string.Empty);
 			}
 
-			writer.Write(me.MetadataToken);
+			string methodNameToCall = InstanceManager.GetMethodIdentifier(me);
+			writer.Write(methodNameToCall);
 			if (me.ContainsGenericParameters)
 			{
 				// This should never happen (or the compiler has done something wrong)
