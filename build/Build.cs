@@ -38,7 +38,7 @@ class Build : NukeBuild
 
     [Solution] readonly Solution Solution;
     [GitRepository] readonly GitRepository GitRepository;
-    [GitVersion(Framework = "net5.0", NoFetch = true)]
+    [GitVersion(Framework = "net6.0", NoFetch = true)]
     public GitVersion GitVersion;
 
     AbsolutePath SourceDirectory => RootDirectory / "src";
