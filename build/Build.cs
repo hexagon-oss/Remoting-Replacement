@@ -33,12 +33,12 @@ class Build : NukeBuild
 
     public static int Main () => Execute<Build>(x => x.Compile);
 
-    [Parameter("Configuration to build - Default is 'Debug' (local) or 'Release' (server)")]
-    readonly Configuration Configuration = IsLocalBuild ? Configuration.Debug : Configuration.Release;
+    [Parameter("Configuration to build - Debug (default) or Release")]
+    readonly Configuration Configuration = Configuration.Debug;
 
     [Solution] readonly Solution Solution;
     [GitRepository] readonly GitRepository GitRepository;
-    [GitVersion(Framework = "net5.0", NoFetch = true)]
+    [GitVersion(Framework = "net6.0", NoFetch = true)]
     public GitVersion GitVersion;
 
     AbsolutePath SourceDirectory => RootDirectory / "src";
@@ -76,36 +76,16 @@ class Build : NukeBuild
 	    .Executes(() =>
 	    {
 		    var projectsToCheck = Solution.GetProjects("*UnitTest").OrderBy(x => x.Name).ToList();
-            ToolSettings[] settings = null;
-		    {
-			    settings = new DotNetTestSettings()
-				    .SetConfiguration(Configuration)
-				    .EnableNoBuild()
-				    .EnableNoRestore()
-				    .SetResultsDirectory(RootDirectory / string.Concat("TestResult.UnitTest.", Platform, ".", Configuration, ".", "net6.0"))
-				    .CombineWith(projectsToCheck, (cs, v) => cs.SetProjectFile(v));
-		    }
+		    var settings = new DotNetTestSettings()
+			    .SetConfiguration(Configuration)
+			    .SetProjectFile(Solution)
+			    .EnableNoBuild()
+			    .EnableNoRestore()
+			    .SetResultsDirectory(RootDirectory /
+			                         string.Concat("TestResult.UnitTest.", Platform, ".", Configuration, ".", "net6.0"));
+		    DotNetTest(settings);
 
-		    var coverageResult = RootDirectory / string.Concat("Coverage.", Platform, ".", Configuration, ".", "net6.0", ".xml");
-		    OpenCoverTasks.OpenCover(c => c
-			    .AddExcludeByAttributes(typeof(System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverageAttribute).FullName)
-			    .AddExcludeByAttributes(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute).FullName)
-			    .AddExcludeByAttributes(typeof(System.CodeDom.Compiler.GeneratedCodeAttribute).FullName)
-			    .AddFilters("+[*]* -[*.UnitTest]* -[nunit.*]* -[NUnit3.*]* -[xunit.*]* -[Moq]* -[Rhino.Mocks]*")
-			    .SetRegistration(RegistrationType.User)
-			    .SetMaximumVisitCount(100)
-			    .SetTargetExitCodeOffset(0)
-			    .SetOutput(coverageResult)
-			    .CombineWith(settings, (oc, ts) => oc.SetTargetSettings(ts)));
-
-		    var doPublishCoverageResultToTeamCity = TeamCity.Instance != null && Configuration == Configuration.Debug;
-		    ReportGeneratorTasks.ReportGenerator(r => r
-			    .SetFramework("net6.0")
-			    .AddReports(coverageResult)
-			    .AddReportTypes(ReportTypes.XmlSummary, ReportTypes.Html)
-			    .When(doPublishCoverageResultToTeamCity, x => x.AddReportTypes(ReportTypes.TeamCitySummary))
-			    .SetTargetDirectory(ArtifactsDirectory / "CoverageReport"));
-        });
+	    });
 
     Target PublishExecutable => _ => _
 	    .DependsOn(Compile)
@@ -120,9 +100,46 @@ class Build : NukeBuild
 		    );
 	    });
 
+	/// <summary>
+	/// Copy the build output around, so that unit tests and package building works
+	/// </summary>
+    Target CopyOutputAround => _ => _
+	    .DependsOn(PublishExecutable)
+	    .DependsOn(Compile)
+	    .Executes(() =>
+	    {
+			// The code was originally in the post-build step of RemotingClient, but that was wrong, since that runs before the publish step
+			string outDir = SourceDirectory / "RemotingClient" / "bin" / Configuration / "net6.0-windows";
+			string solutionDir = SourceDirectory;
+		    string[] commandsToExecute = new string[]
+		    {
+			    @$"xcopy /Y /D /I {outDir}\*.* {solutionDir}\RemotingServer\bin\{Configuration}\net6.0-windows",
+			    @$"xcopy /Y /E /S /I {outDir}\runtimes {solutionDir}\RemotingServer\bin\{Configuration}\net6.0-windows\runtimes",
+			    @$"xcopy /Y /D /I {solutionDir}\RemotingServer\bin\{Configuration}\net6.0-windows {solutionDir}\NewRemotingUnitTest\bin\{Configuration}\net6.0-windows",
+			    @$"xcopy /Y /D /I {outDir}\*.* {solutionDir}\NewRemotingUnitTest\bin\{Configuration}\net6.0-windows",
+			    @$"xcopy /Y /E /S /I {outDir}\runtimes {solutionDir}\NewRemotingUnitTest\bin\{Configuration}\net6.0-windows\runtimes"
+		    };
+
+			foreach (var cmd in commandsToExecute)
+		    {
+			    var process = ProcessTasks.StartShell(cmd, null, null, null, true, true);
+			    process.WaitForExit();
+		    }
+	    });
+
+    Target ShowOutput => _ => _
+	    .DependsOn(CopyOutputAround)
+	    .DependsOn(PublishExecutable)
+	    .Executes(() =>
+	    {
+		    var process = ProcessTasks.StartShell("dir /s", null, null, null, true, true);
+		    process.WaitForExit();
+	    });
+
     Target Pack => _ => _
 	    .DependsOn(UnitTest)
 	    .DependsOn(PublishExecutable)
+	    .DependsOn(ShowOutput)
 	    .Executes(() =>
 	    {
 		    DotNetPack(s => s
