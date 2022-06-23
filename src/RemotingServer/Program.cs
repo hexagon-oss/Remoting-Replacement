@@ -39,7 +39,8 @@ namespace RemotingServer
 
 				if (!string.IsNullOrWhiteSpace(options.LogFile))
 				{
-					logger = new SimpleLogFileWriter(options.LogFile, "ServerLog", LogLevel.Trace);
+					// logfile argument is expected to be without root path (as it is called remotely without knowledge of local paths)
+					logger = new SimpleLogFileWriter(Path.Combine(Path.GetTempPath(), options.LogFile), "ServerLog", LogLevel.Trace);
 				}
 
 				var allKeys = ConfigurationManager.AppSettings.AllKeys;
