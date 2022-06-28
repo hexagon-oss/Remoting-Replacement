@@ -598,15 +598,10 @@ namespace NewRemotingUnitTest
 			for (int j = 0; j < overallIterations; j++)
 			{
 				instance.AnEvent += CallbackMethod;
-				// instance.EventTwo += CallbackMethod2;
-				// instance.EventThree += CallbackMethod3;
 				for (int i = 0; i < iterations; i++)
 				{
 					instance.DoCallbackOnEvent("Utest" + ++expectedCounter);
-					// instance.DoCallbackOnOtherEvents("Utest" + expectedCounter);
 					Assert.AreEqual("Utest" + expectedCounter, _dataReceived);
-					// Assert.AreEqual("Utest" + expectedCounter, _dataReceived2);
-					// Assert.AreEqual("Utest" + expectedCounter, _dataReceived3);
 				}
 
 				if (j % 2 == 0)
@@ -615,8 +610,6 @@ namespace NewRemotingUnitTest
 				}
 
 				instance.AnEvent -= CallbackMethod;
-				// instance.EventTwo -= CallbackMethod2;
-				// instance.EventThree -= CallbackMethod3;
 			}
 		}
 
@@ -645,16 +638,6 @@ namespace NewRemotingUnitTest
 			}
 
 			_dataReceived = argument;
-		}
-
-		public void CallbackMethod2(string argument)
-		{
-			_dataReceived2 = argument;
-		}
-
-		public void CallbackMethod3(string argument)
-		{
-			_dataReceived3 = argument;
 		}
 
 		private sealed class CallbackImpl : MarshalByRefObject, ICallbackInterface
