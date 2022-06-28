@@ -37,7 +37,7 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup Condition="($(MSBuildProjectName.EndsWith('UnitTest')) OR $(MSBuildProjectName.EndsWith('IntegrationTest'))) AND '$(MSBuildProjectExtension)' == '.csproj'">
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.9.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.1.0" />
   </ItemGroup>
   <PropertyGroup Condition="($(MSBuildProjectName.EndsWith('UnitTest')) OR $(MSBuildProjectName.EndsWith('IntegrationTest'))) AND '$(MSBuildProjectExtension)' == '.csproj'">
   	<NoWarn>$(NoWarn);CA1304</NoWarn> <!-- Disable "missing culture argument" warning for tests, either it is correct or the test will fail -->
