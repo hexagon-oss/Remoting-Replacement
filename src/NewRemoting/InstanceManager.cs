@@ -208,6 +208,7 @@ namespace NewRemoting
 				// Not found in list - insert new info object
 				var ii = new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), originalType, this);
 				MarkInstanceAsInUseBy(willBeSentTo, ii);
+				_logger.LogDebug($"Added new instance {ii.Identifier} to instance manager");
 				return ii;
 			}, (id, existingInfo) =>
 			{
