@@ -73,6 +73,7 @@ class Build : NukeBuild
 
     Target UnitTest => _ => _
 	    .DependsOn(Compile)
+	    .DependsOn(CopyOutputAround)
 	    .Executes(() =>
 	    {
 		    var projectsToCheck = Solution.GetProjects("*UnitTest").OrderBy(x => x.Name).ToList();
