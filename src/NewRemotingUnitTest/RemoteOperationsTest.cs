@@ -23,7 +23,6 @@ namespace NewRemotingUnitTest
 		private Client _client;
 		private string _dataReceived;
 		private string _dataReceived2;
-		private string _dataReceived3;
 
 		[OneTimeSetUp]
 		public void OneTimeSetUp()
@@ -590,6 +589,27 @@ namespace NewRemotingUnitTest
 			instance.DoCallbackOnEvent("Utest");
 
 			ExecuteCallbacks(instance, 4, 10,  ref expectedCounter);
+		}
+
+		[Test]
+		public void ParallelGetObjectInstance()
+		{
+			var server = _client.CreateRemoteInstance<MarshallableClass>();
+			server.CreateCalc();
+			SimpleCalc localCalc = new SimpleCalc();
+			Parallel.For(0, 100, x =>
+			{
+				if (x != 0) // Not on the primary thread
+				{
+					var calc = server.DetermineCalc();
+					Assert.NotNull(calc);
+					double result = calc.Add(x, x);
+					Assert.AreEqual(2 * x, result, 1E-10);
+
+					_client.ForceGc();
+					calc.DooFoo(localCalc);
+				}
+			});
 		}
 
 		private void ExecuteCallbacks(IMarshallInterface instance, int overallIterations, int iterations,
