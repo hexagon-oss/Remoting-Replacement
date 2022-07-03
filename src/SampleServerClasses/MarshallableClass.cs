@@ -269,5 +269,10 @@ namespace SampleServerClasses
 		{
 			return _calculator;
 		}
+
+		public virtual object GetSealedClass()
+		{
+			return new SealedClass();
+		}
 	}
 }

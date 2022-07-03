@@ -612,6 +612,20 @@ namespace NewRemotingUnitTest
 			});
 		}
 
+		[Test]
+		public void TestSealedProxy()
+		{
+			var server = _client.CreateRemoteInstance<MarshallableClass>();
+			object instance = server.GetSealedClass();
+
+			IMyComponentInterface interf = (IMyComponentInterface)instance;
+			var data = interf.ProcessName();
+			IDisposable disp = (IDisposable)interf;
+			disp.Dispose();
+
+			Assert.False(string.IsNullOrWhiteSpace(data));
+		}
+
 		private void ExecuteCallbacks(IMarshallInterface instance, int overallIterations, int iterations,
 			ref int expectedCounter)
 		{
