@@ -438,36 +438,33 @@ namespace NewRemoting
 			ManualInvocation dummyInvocation = new ManualInvocation(ctorType, args);
 			using ClientSideInterceptor.CallContext ctx = _interceptor.CreateCallContext(dummyInvocation, sequence);
 
-			lock (_accessLock)
+			if (args.Length == 0)
 			{
-				if (args == null || args.Length == 0)
+				RemotingCallHeader hd =
+					new RemotingCallHeader(RemotingFunctionType.CreateInstanceWithDefaultCtor, sequence);
+				using (var lck = hd.WriteHeader(_writer))
 				{
-					RemotingCallHeader hd =
-						new RemotingCallHeader(RemotingFunctionType.CreateInstanceWithDefaultCtor, sequence);
-					using (var lck = hd.WriteHeader(_writer))
-					{
-						_writer.Write(typeOfInstance.AssemblyQualifiedName);
-						_writer.Write(string.Empty);
-						_writer.Write(string
-							.Empty); // Currently, we do not need the correct ctor identifier, since there can only be one default ctor
-						_writer.Write((int)0); // and no generic args, anyway
-					}
+					_writer.Write(typeOfInstance.AssemblyQualifiedName);
+					_writer.Write(string.Empty);
+					_writer.Write(string
+						.Empty); // Currently, we do not need the correct ctor identifier, since there can only be one default ctor
+					_writer.Write((int)0); // and no generic args, anyway
 				}
-				else
+			}
+			else
+			{
+				RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.CreateInstance, sequence);
+				using (var lck = hd.WriteHeader(_writer))
 				{
-					RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.CreateInstance, sequence);
-					using (var lck = hd.WriteHeader(_writer))
+					_writer.Write(typeOfInstance.AssemblyQualifiedName);
+					_writer.Write(string.Empty);
+					_writer.Write(string
+						.Empty); // we let the server resolve the correct ctor to use, based on the argument types
+					_writer.Write((int)0); // and no generic args, anyway
+					_writer.Write(args.Length); // but we need to provide the number of arguments that follow
+					foreach (var a in args)
 					{
-						_writer.Write(typeOfInstance.AssemblyQualifiedName);
-						_writer.Write(string.Empty);
-						_writer.Write(string
-							.Empty); // we let the server resolve the correct ctor to use, based on the argument types
-						_writer.Write((int)0); // and no generic args, anyway
-						_writer.Write(args.Length); // but we need to provide the number of arguments that follow
-						foreach (var a in args)
-						{
-							_messageHandler.WriteArgumentToStream(_writer, a, _interceptor.OtherSideInstanceId);
-						}
+						_messageHandler.WriteArgumentToStream(_writer, a, _interceptor.OtherSideInstanceId);
 					}
 				}
 			}
@@ -505,16 +502,13 @@ namespace NewRemoting
 			ManualInvocation dummyInvocation = new ManualInvocation(typeOfInstance);
 			using ClientSideInterceptor.CallContext ctx = _interceptor.CreateCallContext(dummyInvocation, sequence);
 
-			lock (_accessLock)
+			RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.RequestServiceReference, sequence);
+			using (var lck = hd.WriteHeader(_writer))
 			{
-				RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.RequestServiceReference, sequence);
-				using (var lck = hd.WriteHeader(_writer))
-				{
-					_writer.Write(typeOfInstance.AssemblyQualifiedName);
-					_writer.Write(string.Empty);
-					_writer.Write(string.Empty); // No ctor is being called
-					_writer.Write((int)0); // and no generic args, anyway
-				}
+				_writer.Write(typeOfInstance.AssemblyQualifiedName);
+				_writer.Write(string.Empty);
+				_writer.Write(string.Empty); // No ctor is being called
+				_writer.Write((int)0); // and no generic args, anyway
 			}
 
 			_interceptor.WaitForReply(dummyInvocation, ctx);
