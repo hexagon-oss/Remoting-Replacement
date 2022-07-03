@@ -24,7 +24,6 @@ namespace NewRemoting
 	{
 		private readonly InstanceManager _instanceManager;
 		private readonly FormatterFactory _formatterFactory;
-		private readonly object _communicationLock;
 		private readonly Dictionary<string, ClientSideInterceptor> _interceptors;
 		private bool _initialized;
 
@@ -32,15 +31,9 @@ namespace NewRemoting
 		{
 			_instanceManager = instanceManager;
 			_formatterFactory = formatterFactory;
-			_communicationLock = new object();
 			_initialized = false;
 			_interceptors = new();
 		}
-
-		/// <summary>
-		/// Exposing this is a bit dangerous, but since everything is internal, it should be fine
-		/// </summary>
-		internal object CommunicationLinkLock => _communicationLock;
 
 		public InstanceManager InstanceManager => _instanceManager;
 
@@ -359,7 +352,7 @@ namespace NewRemoting
 		public void SendExceptionReply(Exception exception, BinaryWriter w, int sequence, string otherSideInstanceId)
 		{
 			RemotingCallHeader hdReturnValue = new RemotingCallHeader(RemotingFunctionType.ExceptionReturn, sequence);
-			hdReturnValue.WriteTo(w);
+			using var lck = hdReturnValue.WriteHeader(w);
 			// We're manually serializing exceptions, because that's apparently how this should be done (since
 			// ExceptionDispatchInfo.SetRemoteStackTrace doesn't work if the stack trace has already been set)
 			w.Write(exception.GetType().AssemblyQualifiedName ?? string.Empty);

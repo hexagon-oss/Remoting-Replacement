@@ -316,7 +316,7 @@ namespace NewRemoting
 					_server.StartProcessing(_interceptor.OtherSideInstanceId);
 					RemotingCallHeader openReturnChannel =
 						new RemotingCallHeader(RemotingFunctionType.OpenReverseChannel, 0);
-					openReturnChannel.WriteTo(_writer);
+					using var lck = openReturnChannel.WriteHeader(_writer);
 					var addresses = NetworkUtil.LocalIpAddresses();
 					var addressToUse = addresses.First(x => x.AddressFamily == AddressFamily.InterNetwork);
 					_writer.Write(addressToUse.ToString());
@@ -337,13 +337,18 @@ namespace NewRemoting
 			lock (_accessLock)
 			{
 				RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.ShutdownServer, 0);
+				IDisposable disp = null;
 				try
 				{
-					hd.WriteTo(_writer);
+					disp = hd.WriteHeader(_writer);
 				}
 				catch (System.IO.IOException x)
 				{
 					Logger.LogError(x, "Sending termination command failed. Server already down?");
+				}
+				finally
+				{
+					disp?.Dispose();
 				}
 			}
 		}
@@ -439,24 +444,30 @@ namespace NewRemoting
 				{
 					RemotingCallHeader hd =
 						new RemotingCallHeader(RemotingFunctionType.CreateInstanceWithDefaultCtor, sequence);
-					hd.WriteTo(_writer);
-					_writer.Write(typeOfInstance.AssemblyQualifiedName);
-					_writer.Write(string.Empty);
-					_writer.Write(string.Empty); // Currently, we do not need the correct ctor identifier, since there can only be one default ctor
-					_writer.Write((int)0); // and no generic args, anyway
+					using (var lck = hd.WriteHeader(_writer))
+					{
+						_writer.Write(typeOfInstance.AssemblyQualifiedName);
+						_writer.Write(string.Empty);
+						_writer.Write(string
+							.Empty); // Currently, we do not need the correct ctor identifier, since there can only be one default ctor
+						_writer.Write((int)0); // and no generic args, anyway
+					}
 				}
 				else
 				{
 					RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.CreateInstance, sequence);
-					hd.WriteTo(_writer);
-					_writer.Write(typeOfInstance.AssemblyQualifiedName);
-					_writer.Write(string.Empty);
-					_writer.Write(string.Empty); // we let the server resolve the correct ctor to use, based on the argument types
-					_writer.Write((int)0); // and no generic args, anyway
-					_writer.Write(args.Length); // but we need to provide the number of arguments that follow
-					foreach (var a in args)
+					using (var lck = hd.WriteHeader(_writer))
 					{
-						_messageHandler.WriteArgumentToStream(_writer, a, _interceptor.OtherSideInstanceId);
+						_writer.Write(typeOfInstance.AssemblyQualifiedName);
+						_writer.Write(string.Empty);
+						_writer.Write(string
+							.Empty); // we let the server resolve the correct ctor to use, based on the argument types
+						_writer.Write((int)0); // and no generic args, anyway
+						_writer.Write(args.Length); // but we need to provide the number of arguments that follow
+						foreach (var a in args)
+						{
+							_messageHandler.WriteArgumentToStream(_writer, a, _interceptor.OtherSideInstanceId);
+						}
 					}
 				}
 			}
@@ -497,12 +508,13 @@ namespace NewRemoting
 			lock (_accessLock)
 			{
 				RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.RequestServiceReference, sequence);
-				hd.WriteTo(_writer);
-				_writer.Write(typeOfInstance.AssemblyQualifiedName);
-				_writer.Write(string.Empty);
-				_writer.Write(string.Empty); // No ctor is being called
-				_writer.Write((int)0); // and no generic args, anyway
-
+				using (var lck = hd.WriteHeader(_writer))
+				{
+					_writer.Write(typeOfInstance.AssemblyQualifiedName);
+					_writer.Write(string.Empty);
+					_writer.Write(string.Empty); // No ctor is being called
+					_writer.Write((int)0); // and no generic args, anyway
+				}
 			}
 
 			_interceptor.WaitForReply(dummyInvocation, ctx);
@@ -523,8 +535,11 @@ namespace NewRemoting
 				_instanceManager.PerformGc(_writer, true);
 				int sequence = _interceptor.NextSequenceNumber();
 				RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.ClientDisconnecting, sequence);
-				hd.WriteTo(_writer);
-				_writer.Write(_instanceManager.InstanceIdentifier);
+				using (var lck = hd.WriteHeader(_writer))
+				{
+					_writer.Write(_instanceManager.InstanceIdentifier);
+				}
+
 				_disconnected = true;
 			}
 		}
