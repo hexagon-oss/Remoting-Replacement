@@ -23,7 +23,6 @@ namespace NewRemotingUnitTest
 		private Client _client;
 		private string _dataReceived;
 		private string _dataReceived2;
-		private string _dataReceived3;
 
 		[OneTimeSetUp]
 		public void OneTimeSetUp()
@@ -592,21 +591,51 @@ namespace NewRemotingUnitTest
 			ExecuteCallbacks(instance, 4, 10,  ref expectedCounter);
 		}
 
+		[Test]
+		public void ParallelGetObjectInstance()
+		{
+			var server = _client.CreateRemoteInstance<MarshallableClass>();
+			server.CreateCalc();
+			SimpleCalc localCalc = new SimpleCalc();
+			Parallel.For(0, 100, x =>
+			{
+				if (x != 0) // Not on the primary thread
+				{
+					var calc = server.DetermineCalc();
+					Assert.NotNull(calc);
+					double result = calc.Add(x, x);
+					Assert.AreEqual(2 * x, result, 1E-10);
+
+					_client.ForceGc();
+					calc.DooFoo(localCalc);
+				}
+			});
+		}
+
+		[Test]
+		public void TestSealedProxy()
+		{
+			var server = _client.CreateRemoteInstance<MarshallableClass>();
+			object instance = server.GetSealedClass();
+
+			IMyComponentInterface interf = (IMyComponentInterface)instance;
+			var data = interf.ProcessName();
+			IDisposable disp = (IDisposable)interf;
+			disp.Dispose();
+
+			Assert.False(string.IsNullOrWhiteSpace(data));
+		}
+
 		private void ExecuteCallbacks(IMarshallInterface instance, int overallIterations, int iterations,
 			ref int expectedCounter)
 		{
 			for (int j = 0; j < overallIterations; j++)
 			{
 				instance.AnEvent += CallbackMethod;
-				// instance.EventTwo += CallbackMethod2;
-				// instance.EventThree += CallbackMethod3;
 				for (int i = 0; i < iterations; i++)
 				{
 					instance.DoCallbackOnEvent("Utest" + ++expectedCounter);
-					// instance.DoCallbackOnOtherEvents("Utest" + expectedCounter);
 					Assert.AreEqual("Utest" + expectedCounter, _dataReceived);
-					// Assert.AreEqual("Utest" + expectedCounter, _dataReceived2);
-					// Assert.AreEqual("Utest" + expectedCounter, _dataReceived3);
 				}
 
 				if (j % 2 == 0)
@@ -615,8 +644,6 @@ namespace NewRemotingUnitTest
 				}
 
 				instance.AnEvent -= CallbackMethod;
-				// instance.EventTwo -= CallbackMethod2;
-				// instance.EventThree -= CallbackMethod3;
 			}
 		}
 
@@ -645,16 +672,6 @@ namespace NewRemotingUnitTest
 			}
 
 			_dataReceived = argument;
-		}
-
-		public void CallbackMethod2(string argument)
-		{
-			_dataReceived2 = argument;
-		}
-
-		public void CallbackMethod3(string argument)
-		{
-			_dataReceived3 = argument;
 		}
 
 		private sealed class CallbackImpl : MarshalByRefObject, ICallbackInterface

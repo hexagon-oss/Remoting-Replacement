@@ -151,7 +151,7 @@ namespace NewRemoting
 				remoteInstanceId = di.RemoteObjectReference;
 			}
 
-			hd.WriteTo(writer);
+			hd.WriteHeaderNoLock(writer);
 			writer.Write(remoteInstanceId);
 			// Also transmit the type of the calling object (if the method is called on an interface, this is different from the actual object)
 			if (me.DeclaringType != null)
@@ -204,17 +204,17 @@ namespace NewRemoting
 
 		private void SafeSendToServer(MemoryStream rawDataMessage)
 		{
-			lock (_messageHandler.CommunicationLinkLock)
+			try
 			{
-				try
+				rawDataMessage.Position = 0;
+				lock (_serverLink)
 				{
-					rawDataMessage.Position = 0;
 					rawDataMessage.CopyTo(_serverLink);
 				}
-				catch (IOException x)
-				{
-					throw new RemotingException("Error sending data to server. Link down?", x);
-				}
+			}
+			catch (IOException x)
+			{
+				throw new RemotingException("Error sending data to server. Link down?", x);
 			}
 		}
 
@@ -309,7 +309,7 @@ namespace NewRemoting
 			{
 				while (_receiving && !_terminator.IsCancellationRequested)
 				{
-					RemotingCallHeader hdReturnValue = default;
+					RemotingCallHeader hdReturnValue = new RemotingCallHeader();
 					// This read is blocking
 					if (!hdReturnValue.ReadFrom(_reader))
 					{

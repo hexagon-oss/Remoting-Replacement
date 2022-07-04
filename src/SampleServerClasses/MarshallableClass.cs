@@ -17,6 +17,7 @@ namespace SampleServerClasses
 		private string _name;
 
 		private string _callbackData;
+		private SimpleCalc _calculator;
 
 		private event Action<string, string> AnEventInternal;
 
@@ -257,6 +258,21 @@ namespace SampleServerClasses
 		public void RegisterForCallback(ICallbackInterface callbackInterface)
 		{
 			callbackInterface.Callback += InverseCallback;
+		}
+
+		public virtual void CreateCalc()
+		{
+			_calculator = new SimpleCalc();
+		}
+
+		public virtual SimpleCalc DetermineCalc()
+		{
+			return _calculator;
+		}
+
+		public virtual object GetSealedClass()
+		{
+			return new SealedClass();
 		}
 	}
 }

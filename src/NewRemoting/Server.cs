@@ -359,7 +359,7 @@ namespace NewRemoting
 						}
 					}
 
-					RemotingCallHeader hd = default;
+					RemotingCallHeader hd = new RemotingCallHeader();
 					if (!hd.ReadFrom(r))
 					{
 						throw new RemotingException("Incorrect data stream - sync lost");
@@ -414,7 +414,7 @@ namespace NewRemoting
 						}
 
 						RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
-						hdReturnValue1.WriteTo(answerWriter);
+						hdReturnValue1.WriteHeaderNoLock(answerWriter);
 						// Can this fail? Typically, this is a reference type, so it shouldn't.
 						_messageHandler.WriteArgumentToStream(answerWriter, newInstance, td.OtherSideInstanceId);
 
@@ -455,7 +455,7 @@ namespace NewRemoting
 						}
 
 						RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
-						hdReturnValue1.WriteTo(answerWriter);
+						hdReturnValue1.WriteHeaderNoLock(answerWriter);
 						_messageHandler.WriteArgumentToStream(answerWriter, newInstance, td.OtherSideInstanceId);
 
 						SendAnswer(td, ms);
@@ -473,7 +473,7 @@ namespace NewRemoting
 
 						object newInstance = ServiceContainer.GetService(t);
 						RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
-						hdReturnValue1.WriteTo(answerWriter);
+						hdReturnValue1.WriteHeaderNoLock(answerWriter);
 						_messageHandler.WriteArgumentToStream(answerWriter, newInstance, td.OtherSideInstanceId);
 
 						SendAnswer(td, ms);
@@ -664,7 +664,7 @@ namespace NewRemoting
 			lock (_channelWriterLock)
 			{
 				RemotingCallHeader hdReturnValue = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
-				hdReturnValue.WriteTo(w);
+				hdReturnValue.WriteHeaderNoLock(w);
 				// Return the result of a call: The return value and any ref or out parameter values
 				if (me.ReturnType != typeof(void))
 				{
@@ -972,7 +972,7 @@ namespace NewRemoting
 				MemoryStream ms = new MemoryStream();
 				BinaryWriter binaryWriter = new BinaryWriter(ms, Encoding.Unicode);
 				RemotingCallHeader hdReturnValue = new RemotingCallHeader(RemotingFunctionType.ServerShuttingDown, 0);
-				hdReturnValue.WriteTo(binaryWriter);
+				hdReturnValue.WriteHeaderNoLock(binaryWriter);
 				foreach (var thread in _threads)
 				{
 					try
