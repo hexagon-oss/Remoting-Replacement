@@ -1,17 +1,21 @@
 ﻿using System;
 using System.Threading;
+using System.Timers;
+using Timer = System.Timers.Timer;
 
 namespace NewRemoting.Toolkit
 {
 	public class CrossAppDomainCancellationTokenSource : MarshalByRefObject, IDisposable
 	{
 		private readonly CancellationTokenSource _cancellationTokenSource;
-		private long _cancellationTime;
+		private Timer _timer;
+		private bool _timerFired;
 
 		public CrossAppDomainCancellationTokenSource()
 		{
 			_cancellationTokenSource = new CancellationTokenSource();
-			_cancellationTime = -1;
+			_timer = null;
+			_timerFired = false;
 		}
 
 		public CrossAppDomainCancellationTokenSource(TimeSpan timeout)
@@ -22,7 +26,25 @@ namespace NewRemoting.Toolkit
 			}
 
 			_cancellationTokenSource = new CancellationTokenSource();
-			_cancellationTime = Environment.TickCount64 + (long)timeout.TotalMilliseconds;
+			_timerFired = false;
+
+			InitTimer(timeout);
+		}
+
+		public static ICrossAppDomainCancellationToken None
+		{
+			get
+			{
+				return new CrossAppDomainCancellationToken();
+			}
+		}
+
+		private void InitTimer(TimeSpan timeout)
+		{
+			_timer = new Timer(timeout.TotalMilliseconds);
+			_timer.AutoReset = false;
+			_timer.Elapsed += TimerElapsed;
+			_timer.Start();
 		}
 
 		public virtual event Action OnCancellation;
@@ -31,7 +53,7 @@ namespace NewRemoting.Toolkit
 		{
 			get
 			{
-				if (_cancellationTime >= 0 && Environment.TickCount64 >= _cancellationTime)
+				if (_timerFired)
 				{
 					Cancel();
 					return true;
@@ -39,6 +61,13 @@ namespace NewRemoting.Toolkit
 
 				return _cancellationTokenSource.IsCancellationRequested;
 			}
+		}
+
+		private void TimerElapsed(object sender, ElapsedEventArgs args)
+		{
+			_timerFired = true;
+			_timer?.Stop();
+			Cancel();
 		}
 
 		public virtual ICrossAppDomainCancellationToken Token
@@ -51,7 +80,16 @@ namespace NewRemoting.Toolkit
 
 		public void Dispose()
 		{
-			_cancellationTokenSource.Dispose();
+			Dispose(true);
+		}
+
+		protected virtual void Dispose(bool disposing)
+		{
+			if (disposing)
+			{
+				_cancellationTokenSource.Dispose();
+				_timer?.Dispose();
+			}
 		}
 
 		public virtual void Cancel()
@@ -68,17 +106,23 @@ namespace NewRemoting.Toolkit
 		/// <param name="timeSpan">The time after which the operation should be cancelled</param>
 		public virtual void CancelAfter(TimeSpan timeSpan)
 		{
+			_timer?.Dispose();
+			_timer = null;
+
 			if (timeSpan < TimeSpan.Zero)
 			{
-				_cancellationTime = -1;
 				return;
 			}
 
-			_cancellationTime = Environment.TickCount64 + (long)timeSpan.TotalMilliseconds;
+			InitTimer(timeSpan);
 		}
 
 		private sealed class CrossAppDomainCancellationToken : MarshalByRefObject, ICrossAppDomainCancellationToken
 		{
+			/// <summary>
+			/// The token source. Can be null if this is a remote proxy instance (the class is sealed) or
+			/// if this is a "None" token, one that can never be cancelled.
+			/// </summary>
 			private readonly CrossAppDomainCancellationTokenSource _source;
 
 			/// <summary>
@@ -94,7 +138,11 @@ namespace NewRemoting.Toolkit
 				_source = source;
 			}
 
-			public bool IsCancellationRequested => _source.IsCancellationRequested;
+			/// <summary>
+			/// Returns true if cancellation is requested. If source is null, this cannot be cancelled (or it's a proxy,
+			/// in which case the local instance should never be called because the call goes trough the interface)
+			/// </summary>
+			public bool IsCancellationRequested => _source == null ? false : _source.IsCancellationRequested;
 
 			public void ThrowIfCancellationRequested()
 			{
@@ -115,6 +163,11 @@ namespace NewRemoting.Toolkit
 				if (operation == null)
 				{
 					throw new ArgumentNullException(nameof(operation));
+				}
+
+				if (_source == null)
+				{
+					return;
 				}
 
 				_source.OnCancellation += () =>
