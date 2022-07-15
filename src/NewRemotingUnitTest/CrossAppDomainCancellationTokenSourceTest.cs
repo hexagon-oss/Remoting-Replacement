@@ -46,10 +46,10 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void SingleAppDomainCancellation()
 		{
-			using (ICrossAppDomainCancellationTokenSource cts = new CrossAppDomainCancellationTokenSource())
+			using (var cts = new CrossAppDomainCancellationTokenSource())
 			{
 				Assert.IsFalse(cts.IsCancellationRequested);
-				var localToken = cts.LocalToken;
+				var localToken = cts.Token.GetLocalCancellationToken();
 				Assert.AreNotEqual(CancellationToken.None, localToken);
 				Assert.IsFalse(localToken.IsCancellationRequested);
 				cts.Cancel();
@@ -62,12 +62,37 @@ namespace NewRemotingUnitTest
 		public void CrossAppDomainCancellation()
 		{
 			var dummy = _client.CreateRemoteInstance<DummyCancellableType>();
-			using (var cts = dummy.Factory.Create())
+			using (var cts = new CrossAppDomainCancellationTokenSource())
 			{
 				Assert.IsFalse(cts.IsCancellationRequested);
 				cts.Cancel();
-				Assert.Throws<OperationCanceledException>(() => dummy.DoSomething(cts));
+				Assert.Throws<OperationCanceledException>(() => dummy.DoSomething(cts.Token));
 				Assert.IsTrue(cts.IsCancellationRequested);
+			}
+		}
+
+		[Test]
+		public void CrossAppDomainCancellationWithTimeout()
+		{
+			var dummy = _client.CreateRemoteInstance<DummyCancellableType>();
+			using (var cts = new CrossAppDomainCancellationTokenSource())
+			{
+				Assert.IsFalse(cts.IsCancellationRequested);
+				cts.CancelAfter(TimeSpan.FromSeconds(0.2));
+				Assert.Throws<OperationCanceledException>(() => dummy.DoSomethingWithNormalToken(cts.Token));
+				Assert.IsTrue(cts.IsCancellationRequested);
+			}
+		}
+
+		[Test]
+		public void CrossAppDomainCancellationWithoutCancellation()
+		{
+			var dummy = _client.CreateRemoteInstance<DummyCancellableType>();
+			using (var cts = new CrossAppDomainCancellationTokenSource())
+			{
+				Assert.IsFalse(cts.IsCancellationRequested);
+				dummy.DoSomething(cts.Token);
+				Assert.False(cts.IsCancellationRequested);
 			}
 		}
 	}
