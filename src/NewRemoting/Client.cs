@@ -355,7 +355,7 @@ namespace NewRemoting
 
 		/// <summary>
 		/// Verifies the server uses a compatible configuration.
-		/// The configuration of the server is incompatible for instance if it doesn't run the exactly same CLR version.
+		/// The configuration of the server is incompatible for instance if it doesn't run the same CLR main version.
 		/// </summary>
 		/// <returns>Null on success, an error message otherwise. It's the callers responsibility to do something about it.</returns>
 		public string VerifyMatchingServer()
@@ -369,10 +369,10 @@ namespace NewRemoting
 			Version localVersion = Environment.Version;
 			Version remoteVersion = server.ClrVersion;
 
-			if (localVersion != remoteVersion)
+			if (localVersion.Major != remoteVersion.Major)
 			{
 				return
-					$"Remote CLR runtime version is {remoteVersion}, local runtime version is {localVersion}. They must be equal";
+					$"Remote CLR runtime version is {remoteVersion}, local runtime version is {localVersion}. The main version must be equal";
 			}
 
 			return null;
