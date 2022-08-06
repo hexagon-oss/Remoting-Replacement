@@ -326,7 +326,7 @@ namespace NewRemoting
 			_threadRunning = true;
 			Thread ts = new Thread(ServerStreamHandler);
 			ts.Name = "Server stream handler for client side";
-			var td = new ThreadData(ts, _preopenedStream, new BinaryReader(_preopenedStream, Encoding.Unicode), otherSideInstanceId);
+			var td = new ThreadData(ts, _preopenedStream, new BinaryReader(_preopenedStream, MessageHandler.DefaultStringEncoding), otherSideInstanceId);
 			_threads.Add(td);
 			ts.Start(td);
 		}
@@ -390,7 +390,7 @@ namespace NewRemoting
 					int methodGenericArgs = r.ReadInt32(); // number of generic arguments of method (not generic arguments of declaring class!)
 
 					MemoryStream ms = new MemoryStream(4096);
-					BinaryWriter answerWriter = new BinaryWriter(ms, Encoding.Unicode);
+					BinaryWriter answerWriter = new BinaryWriter(ms, MessageHandler.DefaultStringEncoding);
 
 					if (hd.Function == RemotingFunctionType.CreateInstanceWithDefaultCtor)
 					{
@@ -856,7 +856,7 @@ namespace NewRemoting
 						LogToBoth("Server authentication done", LogLevel.Information);
 					}
 
-					using var reader = new BinaryReader(stream, Encoding.Unicode, true);
+					using var reader = new BinaryReader(stream, MessageHandler.DefaultStringEncoding, true);
 
 					byte[] authenticationToken = new byte[100];
 
@@ -898,7 +898,7 @@ namespace NewRemoting
 
 					LogToBoth("Server received client authentication", LogLevel.Information);
 
-					string otherSideInstanceId = Encoding.Unicode.GetString(data);
+					string otherSideInstanceId = MessageHandler.DefaultStringEncoding.GetString(data);
 					int instanceHash = BitConverter.ToInt32(authenticationToken, 1);
 
 					SendAuthenticationReply(stream);
@@ -914,7 +914,7 @@ namespace NewRemoting
 
 					Thread ts = new Thread(ServerStreamHandler);
 					ts.Name = $"Remote server client {tcpClient.Client.RemoteEndPoint}";
-					var td = new ThreadData(ts, stream, new BinaryReader(stream, Encoding.Unicode),
+					var td = new ThreadData(ts, stream, new BinaryReader(stream, MessageHandler.DefaultStringEncoding),
 						otherSideInstanceId);
 					_threads.Add(td);
 					ts.Start(td);
@@ -944,7 +944,7 @@ namespace NewRemoting
 			byte[] successToken = BitConverter.GetBytes(AuthenticationSucceededToken);
 			stream.Write(successToken);
 
-			var instanceIdentifier = Encoding.Unicode.GetBytes(_instanceManager.InstanceIdentifier);
+			var instanceIdentifier = MessageHandler.DefaultStringEncoding.GetBytes(_instanceManager.InstanceIdentifier);
 			var lenBytes = BitConverter.GetBytes(instanceIdentifier.Length);
 			stream.Write(lenBytes);
 			stream.Write(instanceIdentifier);
@@ -970,7 +970,7 @@ namespace NewRemoting
 			if (!disconnected)
 			{
 				MemoryStream ms = new MemoryStream();
-				BinaryWriter binaryWriter = new BinaryWriter(ms, Encoding.Unicode);
+				BinaryWriter binaryWriter = new BinaryWriter(ms, MessageHandler.DefaultStringEncoding);
 				RemotingCallHeader hdReturnValue = new RemotingCallHeader(RemotingFunctionType.ServerShuttingDown, 0);
 				hdReturnValue.WriteHeaderNoLock(binaryWriter);
 				foreach (var thread in _threads)

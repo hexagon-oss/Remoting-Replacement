@@ -54,7 +54,7 @@ namespace NewRemoting
 			_logger = logger;
 			_pendingInvocations = new();
 			_terminator = new CancellationTokenSource();
-			_reader = new BinaryReader(_serverLink, Encoding.Unicode);
+			_reader = new BinaryReader(_serverLink, MessageHandler.DefaultStringEncoding);
 			_receiverThread = new Thread(ReceiverThread);
 			_receiverThread.Name = "ClientSideInterceptor - " + thisSideInstanceId;
 			_memoryCollectingThread = new Thread(MemoryCollectingThread);
@@ -108,7 +108,7 @@ namespace NewRemoting
 			int thisSeq = NextSequenceNumber();
 
 			using MemoryStream rawDataMessage = new MemoryStream(1024);
-			using BinaryWriter writer = new BinaryWriter(rawDataMessage, Encoding.Unicode);
+			using BinaryWriter writer = new BinaryWriter(rawDataMessage, MessageHandler.DefaultStringEncoding);
 
 			using CallContext ctx = CreateCallContext(invocation, thisSeq);
 
@@ -238,7 +238,7 @@ namespace NewRemoting
 				if (Interlocked.Increment(ref _numberOfCallsInspected) > NumberOfCallsForGc)
 				{
 					using MemoryStream rawDataMessage = new MemoryStream(1024);
-					using BinaryWriter writer = new BinaryWriter(rawDataMessage, Encoding.Unicode);
+					using BinaryWriter writer = new BinaryWriter(rawDataMessage, MessageHandler.DefaultStringEncoding);
 					_logger.LogInformation($"Starting GC on {ThisSideInstanceId}");
 					_messageHandler.InstanceManager.PerformGc(writer, false);
 					SafeSendToServer(rawDataMessage);

@@ -35,6 +35,8 @@ namespace NewRemoting
 			_interceptors = new();
 		}
 
+		public static Encoding DefaultStringEncoding => Encoding.UTF8;
+
 		public InstanceManager InstanceManager => _instanceManager;
 
 		public static bool HasDefaultCtor(Type t)
