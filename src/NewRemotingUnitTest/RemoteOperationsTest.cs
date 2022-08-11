@@ -626,6 +626,13 @@ namespace NewRemotingUnitTest
 			Assert.False(string.IsNullOrWhiteSpace(data));
 		}
 
+		[Test]
+		public void TestFastArgumentPassing()
+		{
+			var server = _client.CreateRemoteInstance<MarshallableClass>();
+			Assert.True(server.TakeSomeArguments(10, 2000, 2000, 10.0));
+		}
+
 		private void ExecuteCallbacks(IMarshallInterface instance, int overallIterations, int iterations,
 			ref int expectedCounter)
 		{

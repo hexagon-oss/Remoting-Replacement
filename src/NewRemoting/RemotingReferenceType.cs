@@ -6,7 +6,12 @@ using System.Threading.Tasks;
 
 namespace NewRemoting
 {
-	public enum RemotingReferenceType
+	/// <summary>
+	/// Header word in the data stream that identifies the parameter that follows.
+	/// The protocol does not use a length field or a tailer, so if the data size does not fit, the stream will loose
+	/// sync and the application will crash.
+	/// </summary>
+	internal enum RemotingReferenceType
 	{
 		Undefined = 0,
 		SerializedItem,
@@ -16,6 +21,16 @@ namespace NewRemoting
 		ArrayOfSystemType,
 		NullPointer,
 		ContainerType,
-		IpAddress
+		IpAddress,
+		Int8,
+		Uint8,
+		Int16,
+		Uint16,
+		Int32,
+		Int64,
+		Uint32,
+		Bool,
+		Float,
+		Double,
 	}
 }
