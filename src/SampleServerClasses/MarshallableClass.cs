@@ -274,5 +274,10 @@ namespace SampleServerClasses
 		{
 			return new SealedClass();
 		}
+
+		public virtual bool TakeSomeArguments(int a, Int16 b, UInt16 c, double d)
+		{
+			return Math.Abs(a + b - (c + d)) < 1E-12;
+		}
 	}
 }

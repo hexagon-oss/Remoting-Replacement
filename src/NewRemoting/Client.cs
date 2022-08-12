@@ -73,8 +73,8 @@ namespace NewRemoting
 				Logger.LogInformation("Client authentication done.");
 			}
 
-			_writer = new BinaryWriter(stream, Encoding.Unicode);
-			_reader = new BinaryReader(stream, Encoding.Unicode);
+			_writer = new BinaryWriter(stream, MessageHandler.DefaultStringEncoding);
+			_reader = new BinaryReader(stream, MessageHandler.DefaultStringEncoding);
 			_builder = new DefaultProxyBuilder();
 			_proxy = new ProxyGenerator(_builder);
 			_instanceManager = new InstanceManager(_proxy, instanceLogger);
@@ -121,7 +121,7 @@ namespace NewRemoting
 			// 1 - 4       | instance hash of this client
 			// 5 - 99      | reserved
 			// 100 - 103   | length of identifier
-			// 103 -       | our instance identifier in unicode
+			// 103 -       | our instance identifier in the default encoding
 			byte[] authenticationData = new byte[100];
 			authenticationData[0] = (byte)(callbackStream ? 1 : 0);
 
@@ -129,7 +129,7 @@ namespace NewRemoting
 			Array.Copy(BitConverter.GetBytes(instanceHash), 0, authenticationData, 1, 4);
 			destination.Write(authenticationData, 0, 100);
 
-			var instanceIdentifier = Encoding.Unicode.GetBytes(_instanceManager.InstanceIdentifier);
+			var instanceIdentifier = MessageHandler.DefaultStringEncoding.GetBytes(_instanceManager.InstanceIdentifier);
 			var lenBytes = BitConverter.GetBytes(instanceIdentifier.Length);
 
 			destination.Write(lenBytes);
@@ -163,7 +163,7 @@ namespace NewRemoting
 				return false;
 			}
 
-			_interceptor.OtherSideInstanceId = Encoding.Unicode.GetString(data);
+			_interceptor.OtherSideInstanceId = MessageHandler.DefaultStringEncoding.GetString(data);
 			return true;
 		}
 

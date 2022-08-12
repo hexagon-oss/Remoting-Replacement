@@ -35,6 +35,8 @@ namespace NewRemoting
 			_interceptors = new();
 		}
 
+		public static Encoding DefaultStringEncoding => Encoding.UTF8;
+
 		public InstanceManager InstanceManager => _instanceManager;
 
 		public static bool HasDefaultCtor(Type t)
@@ -163,7 +165,10 @@ namespace NewRemoting
 			}
 			else if (t.IsSerializable)
 			{
-				SendSerializedObject(w, data, referencesWillBeSentTo);
+				if (!TryUseFastSerialization(w, t, data))
+				{
+					SendAutoSerializedObject(w, data, referencesWillBeSentTo);
+				}
 			}
 			else if (t.IsAssignableTo(typeof(MarshalByRefObject)))
 			{
@@ -181,7 +186,92 @@ namespace NewRemoting
 			}
 		}
 
-		private void SendSerializedObject(BinaryWriter w, object data, string otherSideInstanceId)
+		private bool TryUseFastSerialization(BinaryWriter w, Type objectType, object data)
+		{
+			if (objectType == typeof(Int32))
+			{
+				int i = (int)data;
+				w.Write((int)RemotingReferenceType.Int32);
+				w.Write(i);
+				return true;
+			}
+
+			if (objectType == typeof(UInt32))
+			{
+				UInt32 i = (UInt32)data;
+				w.Write((int)RemotingReferenceType.Uint32);
+				w.Write(i);
+				return true;
+			}
+
+			if (objectType == typeof(bool))
+			{
+				bool b = (bool)data;
+				w.Write((int)RemotingReferenceType.Bool);
+				w.Write(b);
+				return true;
+			}
+
+			if (objectType == typeof(Int16))
+			{
+				Int16 s = (Int16)data;
+				w.Write((int)RemotingReferenceType.Int16);
+				w.Write(s);
+				return true;
+			}
+
+			if (objectType == typeof(UInt16))
+			{
+				UInt16 s = (UInt16)data;
+				w.Write((int)RemotingReferenceType.Uint16);
+				w.Write(s);
+				return true;
+			}
+
+			if (objectType == typeof(sbyte))
+			{
+				sbyte s = (sbyte)data;
+				w.Write((int)RemotingReferenceType.Int8);
+				w.Write(s);
+				return true;
+			}
+
+			if (objectType == typeof(byte))
+			{
+				byte b = (byte)data;
+				w.Write((int)RemotingReferenceType.Uint8);
+				w.Write(b);
+				return true;
+			}
+
+			if (objectType == typeof(float))
+			{
+				float f = (float)data;
+				w.Write((int)RemotingReferenceType.Float);
+				w.Write(f);
+				return true;
+			}
+
+			if (objectType == typeof(Int64))
+			{
+				Int64 i = (Int64)data;
+				w.Write((int)RemotingReferenceType.Int64);
+				w.Write(i);
+				return true;
+			}
+
+			if (objectType == typeof(double))
+			{
+				double d = (double)data;
+				w.Write((int)RemotingReferenceType.Double);
+				w.Write(d);
+				return true;
+			}
+
+			return false;
+		}
+
+		private void SendAutoSerializedObject(BinaryWriter w, object data, string otherSideInstanceId)
 		{
 			MemoryStream ms = new MemoryStream();
 
@@ -192,30 +282,6 @@ namespace NewRemoting
 			w.Write((int)RemotingReferenceType.SerializedItem);
 			w.Write((int)ms.Length);
 			var array = ms.ToArray();
-
-			/*
-			// The following is for testing purposes only (slow!)
-			// It tests that the serialized code doesn't contain any serialized proxies. This has false positives when
-			// copying files from/to a remote endpoint, because dlls may contain the requested string.
-			byte[] compare = Encoding.ASCII.GetBytes("DynamicProxyGenAss");
-			for (int i = 0; i < array.Length; i++)
-			{
-				int needleIdx = 0;
-				while (needleIdx < compare.Length && array[i + needleIdx] == compare[needleIdx])
-				{
-					needleIdx++;
-				}
-
-				if (needleIdx >= compare.Length)
-				{
-					ms.Position = 0;
-#pragma warning disable 618
-					_formatter.Serialize(ms, data);
-#pragma warning restore 618
-					throw new RemotingException("Should not have serialized a dynamic proxy with its internal name");
-				}
-			}
-			*/
 
 			w.Write(array, 0, (int)ms.Length);
 		}
@@ -453,6 +519,66 @@ namespace NewRemoting
 				{
 					string s = r.ReadString();
 					return IPAddress.Parse(s);
+				}
+
+				case RemotingReferenceType.Bool:
+				{
+					bool b = r.ReadBoolean();
+					return b;
+				}
+
+				case RemotingReferenceType.Int32:
+				{
+					int i = r.ReadInt32();
+					return i;
+				}
+
+				case RemotingReferenceType.Uint32:
+				{
+					var i = r.ReadUInt32();
+					return i;
+				}
+
+				case RemotingReferenceType.Int8:
+				{
+					var i = r.ReadSByte();
+					return i;
+				}
+
+				case RemotingReferenceType.Uint8:
+				{
+					var i = r.ReadByte();
+					return i;
+				}
+
+				case RemotingReferenceType.Int16:
+				{
+					var i = r.ReadInt16();
+					return i;
+				}
+
+				case RemotingReferenceType.Uint16:
+				{
+					var i = r.ReadUInt16();
+					return i;
+				}
+
+				case RemotingReferenceType.Int64:
+				{
+					var i = r.ReadInt64();
+					return i;
+				}
+
+				case RemotingReferenceType.Float:
+				{
+					var i = r.ReadSingle();
+					return i;
+				}
+
+				case RemotingReferenceType.Double:
+				{
+					var i = r.ReadDouble();
+					return i;
 				}
 
 				case RemotingReferenceType.MethodPointer:
