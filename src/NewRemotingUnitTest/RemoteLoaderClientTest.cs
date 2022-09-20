@@ -66,6 +66,28 @@ namespace NewRemotingUnitTest
 			}
 
 			/// <summary>
+			/// When a socket exception happens using a remote function, a RemotingException should be thrown instead
+			/// </summary>
+			[Test]
+			public void SocketExceptionsAreWrappedCorrectly()
+			{
+				IRemoteLoaderClient client = new RemoteLoaderWindowsClient(Credentials.None, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(0.1), string.Empty);
+				try
+				{
+					CancellationTokenSource errorTokenSource = new CancellationTokenSource();
+					errorTokenSource.CancelAfter(TimeSpan.FromSeconds(20));
+					client.Connect(errorTokenSource.Token, null);
+					Assert.False(errorTokenSource.IsCancellationRequested);
+					client.RemoteClient.Dispose(); // This should not normally be done, but we want RemoteLoaderWindowsClient to keep the valid reference here
+					Assert.Throws<RemotingException>(() => client.CreateObject<RemoteObjectWithSlowMethods>());
+				}
+				finally
+				{
+					client.Dispose();
+				}
+			}
+
+			/// <summary>
 			/// Needs to be public to be accessible from remote loader process
 			/// </summary>
 			public class RemoteObjectWithSlowMethods : MarshalByRefObject

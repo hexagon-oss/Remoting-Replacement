@@ -48,6 +48,9 @@ namespace NewRemoting
 			};
 		}
 
+		/// <summary>
+		/// The remote network port in use
+		/// </summary>
 		public int RemotePort
 		{
 			get;
