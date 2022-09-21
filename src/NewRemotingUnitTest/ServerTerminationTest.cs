@@ -69,6 +69,33 @@ namespace NewRemotingUnitTest
 			}
 
 			Assert.True(didThrow);
+			didThrow = false;
+
+			try
+			{
+				_client.RequestRemoteInstance<IRemoteServerService>();
+			}
+			catch (RemotingException)
+			{
+				didThrow = true;
+			}
+
+			Assert.True(didThrow);
+			didThrow = false;
+			try
+			{
+				_client.CreateRemoteInstance<TestDummy>();
+			}
+			catch (RemotingException)
+			{
+				didThrow = true;
+			}
+
+			Assert.True(didThrow);
+		}
+
+		public class TestDummy : MarshalByRefObject
+		{
 		}
 	}
 }

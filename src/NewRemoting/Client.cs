@@ -438,35 +438,42 @@ namespace NewRemoting
 			ManualInvocation dummyInvocation = new ManualInvocation(ctorType, args);
 			using ClientSideInterceptor.CallContext ctx = _interceptor.CreateCallContext(dummyInvocation, sequence);
 
-			if (args.Length == 0)
+			try
 			{
-				RemotingCallHeader hd =
-					new RemotingCallHeader(RemotingFunctionType.CreateInstanceWithDefaultCtor, sequence);
-				using (var lck = hd.WriteHeader(_writer))
+				if (args.Length == 0)
 				{
-					_writer.Write(typeOfInstance.AssemblyQualifiedName);
-					_writer.Write(string.Empty);
-					_writer.Write(string
-						.Empty); // Currently, we do not need the correct ctor identifier, since there can only be one default ctor
-					_writer.Write((int)0); // and no generic args, anyway
-				}
-			}
-			else
-			{
-				RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.CreateInstance, sequence);
-				using (var lck = hd.WriteHeader(_writer))
-				{
-					_writer.Write(typeOfInstance.AssemblyQualifiedName);
-					_writer.Write(string.Empty);
-					_writer.Write(string
-						.Empty); // we let the server resolve the correct ctor to use, based on the argument types
-					_writer.Write((int)0); // and no generic args, anyway
-					_writer.Write(args.Length); // but we need to provide the number of arguments that follow
-					foreach (var a in args)
+					RemotingCallHeader hd =
+						new RemotingCallHeader(RemotingFunctionType.CreateInstanceWithDefaultCtor, sequence);
+					using (var lck = hd.WriteHeader(_writer))
 					{
-						_messageHandler.WriteArgumentToStream(_writer, a, _interceptor.OtherSideInstanceId);
+						_writer.Write(typeOfInstance.AssemblyQualifiedName);
+						_writer.Write(string.Empty);
+						_writer.Write(string
+							.Empty); // Currently, we do not need the correct ctor identifier, since there can only be one default ctor
+						_writer.Write((int)0); // and no generic args, anyway
 					}
 				}
+				else
+				{
+					RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.CreateInstance, sequence);
+					using (var lck = hd.WriteHeader(_writer))
+					{
+						_writer.Write(typeOfInstance.AssemblyQualifiedName);
+						_writer.Write(string.Empty);
+						_writer.Write(string
+							.Empty); // we let the server resolve the correct ctor to use, based on the argument types
+						_writer.Write((int)0); // and no generic args, anyway
+						_writer.Write(args.Length); // but we need to provide the number of arguments that follow
+						foreach (var a in args)
+						{
+							_messageHandler.WriteArgumentToStream(_writer, a, _interceptor.OtherSideInstanceId);
+						}
+					}
+				}
+			}
+			catch (Exception x) when (x is IOException || x is ObjectDisposedException)
+			{
+				throw new RemotingException("Error writing to the transport connection. Possibly disconnected from remote side.", x);
 			}
 
 			// Just the reply is interesting for us
@@ -502,13 +509,20 @@ namespace NewRemoting
 			ManualInvocation dummyInvocation = new ManualInvocation(typeOfInstance);
 			using ClientSideInterceptor.CallContext ctx = _interceptor.CreateCallContext(dummyInvocation, sequence);
 
-			RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.RequestServiceReference, sequence);
-			using (var lck = hd.WriteHeader(_writer))
+			try
 			{
-				_writer.Write(typeOfInstance.AssemblyQualifiedName);
-				_writer.Write(string.Empty);
-				_writer.Write(string.Empty); // No ctor is being called
-				_writer.Write((int)0); // and no generic args, anyway
+				RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.RequestServiceReference, sequence);
+				using (var lck = hd.WriteHeader(_writer))
+				{
+					_writer.Write(typeOfInstance.AssemblyQualifiedName);
+					_writer.Write(string.Empty);
+					_writer.Write(string.Empty); // No ctor is being called
+					_writer.Write((int)0); // and no generic args, anyway
+				}
+			}
+			catch (Exception x) when (x is IOException || x is ObjectDisposedException)
+			{
+				throw new RemotingException("Error writing to the transport connection. Possibly disconnected from remote side.", x);
 			}
 
 			_interceptor.WaitForReply(dummyInvocation, ctx);
