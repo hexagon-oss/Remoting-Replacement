@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.IO;
 using Castle.Core.Internal;
 
 namespace NewRemoting
@@ -29,7 +30,7 @@ namespace NewRemoting
 			_remoteHost = remoteHost;
 		}
 
-		public Process CreateProcess(string commandLine, bool enableUserInterfaceInteraction = false, string fileListPath = null, string workingDirectory = null, bool redirectStandardOutput = false, bool redirectStandardError = false, bool redirectStandardInput = false, string moreArgs = null)
+		public Process CreateProcess(string commandLine, bool enableUserInterfaceInteraction = false, string fileListPath = null, string workingDirectory = null, bool redirectStandardOutput = false, bool redirectStandardError = false, bool redirectStandardInput = false, bool fireAndForget = false, bool useCsrc = false, string moreArgs = null)
 		{
 			var startInfo = new ProcessStartInfo();
 			startInfo.CreateNoWindow = true;
@@ -41,7 +42,6 @@ namespace NewRemoting
 			startInfo.FileName = PAEXEC_EXECUTABLE;
 			// -dfr parameter is needed to disable WOW64 File Redirection for the new process
 			var interactionArgument = enableUserInterfaceInteraction ? "-i " : string.Empty;
-			var copyArgments = string.IsNullOrEmpty(fileListPath) ? string.Empty : FormattableString.Invariant($"-c -f -clist {fileListPath} ");
 			var workingDirAgruments = string.IsNullOrEmpty(workingDirectory) ? string.Empty : FormattableString.Invariant($"-w \"{workingDirectory}\" ");
 			string additionalArgs = string.Empty;
 			if (!string.IsNullOrEmpty(moreArgs))
@@ -49,7 +49,27 @@ namespace NewRemoting
 				additionalArgs = moreArgs;
 			}
 
-			startInfo.Arguments = FormattableString.Invariant($@"\\{_remoteHost} -u {_remoteCredentials.DomainQualifiedUsername} -p {_remoteCredentials.Password} -dfr {interactionArgument}{workingDirAgruments}{copyArgments}{additionalArgs}{commandLine}");
+			var fireAndForgetArgument = fireAndForget ? "-d -cnodel " : string.Empty;
+			string copyArguments;
+			string commandLineToUse = commandLine;
+			if (string.IsNullOrEmpty(fileListPath))
+			{
+				if (useCsrc)
+				{
+					commandLineToUse = Path.GetFileName(commandLine);
+					copyArguments = FormattableString.Invariant($"-csrc {commandLine} -c ");
+				}
+				else
+				{
+					copyArguments = string.Empty;
+				}
+			}
+			else
+			{
+				copyArguments = FormattableString.Invariant($"-f -clist {fileListPath} -c ");
+			}
+
+			startInfo.Arguments = FormattableString.Invariant($@"\\{_remoteHost} -u {_remoteCredentials.DomainQualifiedUsername} -p {_remoteCredentials.Password} {fireAndForgetArgument}-dfr {interactionArgument}{workingDirAgruments}{copyArguments}{additionalArgs}{commandLineToUse}");
 
 			var unstartedProcess = new Process();
 			unstartedProcess.StartInfo = startInfo;
