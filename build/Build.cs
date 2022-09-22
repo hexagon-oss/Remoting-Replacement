@@ -163,16 +163,34 @@ class Build : NukeBuild
 				    .SetTargetPath(SourceDirectory / "RemotingServer" / "RemotingServer.nuspec")
 				    .SetOutputDirectory(ArtifactsDirectory)
 			    );
+	    });
 
-			//DotNetPack(s => s
-			//    .SetNoBuild(true)
-			//	.SetAssemblyVersion(GitVersion.AssemblySemVer)
-			//    .SetFileVersion(GitVersion.AssemblySemFileVer)
-			//    .SetVersion(GitVersion.SemVer)
-			//	.SetProject(SourceDirectory / "RemotingServer" / "RemotingServer.csproj")
-			//    .SetConfiguration(Configuration)
-			//    .SetProperty("NuspecBasePath", publishDir)
-			//    .SetProperty("PackageVersion", GitVersion.SemVer)
-		    // );
+    Target Push => _ => _
+	    .DependsOn(Pack)
+	    .Executes(() =>
+	    {
+		    var key = Environment.GetEnvironmentVariable("NUGET_API_KEY");
+		    if (string.IsNullOrWhiteSpace(key))
+		    {
+			    Serilog.Log.Error("Api key not set, cannot publish");
+			    return; // Don't fail the build, because will be the default build target in CI
+		    }
+
+		    if (Configuration == Configuration.Debug)
+		    {
+				Serilog.Log.Warning("Skipping dotnet push - not a release build");
+				return;
+		    }
+
+		    foreach (var p in ArtifactsDirectory.GlobFiles("*.nupkg"))
+		    {
+				// Only upload the current version
+			    if (p.Name.Contains(GitVersion.SemVer))
+			    {
+				    Serilog.Log.Information($"Uploading {p.Name}...");
+				    DotNetNuGetPush(s => s.SetApiKey(key)
+					    .SetTargetPath(p.Name));
+			    }
+		    }
 	    });
 }
