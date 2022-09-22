@@ -21,7 +21,6 @@ using static Nuke.Common.IO.PathConstruction;
 using static Nuke.Common.Tools.DotNet.DotNetTasks;
 using static Nuke.Common.Tools.NuGet.NuGetTasks;
 
-[CheckBuildProjectConfigurations]
 [ShutdownDotNetAfterServerBuild]
 class Build : NukeBuild
 {
@@ -97,6 +96,7 @@ class Build : NukeBuild
 				.SetAssemblyVersion(GitVersion.AssemblySemVer)
 			    .SetFileVersion(GitVersion.AssemblySemFileVer)
 			    .SetInformationalVersion(GitVersion.InformationalVersion)
+			    .SetConfiguration(Configuration)
 			    .SetFramework("net6.0-windows")
 		    );
 	    });
