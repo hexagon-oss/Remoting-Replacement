@@ -76,6 +76,7 @@
               "CopyOutputAround",
               "Pack",
               "PublishExecutable",
+              "Push",
               "Restore",
               "ShowOutput",
               "UnitTest"
@@ -97,6 +98,7 @@
               "CopyOutputAround",
               "Pack",
               "PublishExecutable",
+              "Push",
               "Restore",
               "ShowOutput",
               "UnitTest"
