@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Nuke.Common;
 using Nuke.Common.CI;
@@ -182,15 +183,21 @@ class Build : NukeBuild
 				return;
 		    }
 
-		    foreach (var p in ArtifactsDirectory.GlobFiles("*.nupkg"))
+			Serilog.Log.Warning($"Checking {ArtifactsDirectory}...");
+		    foreach (var p in Directory.GetFiles(ArtifactsDirectory, "*.nupkg", SearchOption.TopDirectoryOnly))
 		    {
 				// Only upload the current version
-			    if (p.Name.Contains(GitVersion.SemVer))
+			    if (p.Contains(GitVersion.SemVer))
 			    {
-				    Serilog.Log.Information($"Uploading {p.Name}...");
+				    Serilog.Log.Information($"Uploading {p}...");
 				    DotNetNuGetPush(s => s.SetApiKey(key)
-					    .SetTargetPath(p.Name));
+					    .SetTargetPath(p)
+					    .SetSource("https://api.nuget.org/v3/index.json"));
 			    }
+			    else
+			    {
+				    Serilog.Log.Warning($"Found package {p}, but this one is not of the expected version {GitVersion.SemVer}...");
+                }
 		    }
 	    });
 }
