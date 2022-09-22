@@ -38,15 +38,23 @@
 
 name: NewRemoting build
 
-on: [push, pull_request]
+on: 
+    push:
+        branches:
+            - main
+            - releases/**
+        tags: 
+           - releases/**
+           - v**
+    pull_request:
 
 jobs:
 
   build:
-
+    name: Building ${{ matrix.configuration }}
     strategy:
       matrix:
-        configuration: [Debug] # TODO: Add release
+        configuration: [Debug, Release]
 
     runs-on: windows-latest  # For a list of available runner types, refer to
                              # https://help.github.com/en/actions/reference/workflow-syntax-for-github-actions#jobsjob_idruns-on
