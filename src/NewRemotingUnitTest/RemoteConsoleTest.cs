@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using Moq;
 using NewRemoting;
 using NUnit.Framework;
 
@@ -12,51 +13,93 @@ namespace NewRemotingUnitTest
 		private const string TEST_HOST = "TestHost";
 		private const string DOMAIN = "TestDomain";
 
+		private Mock<IProcessWrapperFactory> _processWrapperFactoryMock;
+		private Mock<IProcess> _processMock;
+
 		private IRemoteConsole _remoteConsole;
 		private Credentials _testCredentials;
 
 		[SetUp]
 		public void Setup()
 		{
+			_processWrapperFactoryMock = new Mock<IProcessWrapperFactory>(MockBehavior.Strict);
+			_processMock = new Mock<IProcess>(MockBehavior.Strict);
+
 			_testCredentials = Credentials.Create(TEST_USER, TEST_PASSWORD, DOMAIN, string.Empty);
-			_remoteConsole = new RemoteConsole(TEST_HOST, _testCredentials);
+			_remoteConsole = new RemoteConsole(TEST_HOST, _testCredentials, _processWrapperFactoryMock.Object);
+		}
+
+		[TearDown]
+		public void TearDown()
+		{
+			_processWrapperFactoryMock.VerifyAll();
+			_processMock.VerifyAll();
 		}
 
 		[Test]
-		[TestCase(@"%temp%\test.exe", false, false, false, false, null, null, ExpectedResult = @"\\TestHost -u TestDomain\TestUser -p TestPw -dfr %temp%\test.exe")]
-		[TestCase(@"test.exe", true, true, false, false, null, null, ExpectedResult = @"\\TestHost -u TestDomain\TestUser -p TestPw -dfr -i test.exe")]
-		[TestCase(@"test.exe", true, false, true, false, null, null, ExpectedResult = @"\\TestHost -u TestDomain\TestUser -p TestPw -dfr -i test.exe")]
-		[TestCase(@"test.exe", true, false, false, true, null, null, ExpectedResult = @"\\TestHost -u TestDomain\TestUser -p TestPw -dfr -i test.exe")]
-		[TestCase(@"test.exe", false, true, true, true, null, null, ExpectedResult = @"\\TestHost -u TestDomain\TestUser -p TestPw -dfr test.exe")]
-		[TestCase(@"test.exe", false, true, true, true, "list.txt", "C:\\Temp", ExpectedResult = @"\\TestHost -u TestDomain\TestUser -p TestPw -dfr -w ""C:\Temp"" -f -clist list.txt -c test.exe")]
-		public string CreateProcess(string cmdLine, bool interactive, bool redirectStandardOutput, bool redirectStandardError, bool redirectStandardInput, string filesListPath, string workingDirectory)
+		[TestCase("ping", false, "\\\\TestHost -u TestDomain\\TestUser -p TestPw -dfr ping")]
+		[TestCase("ping", true, "\\\\TestHost -u TestDomain\\TestUser -p TestPw -dfr -i ping")]
+		public void LaunchProcess_Command_Interactive(string cmdLine, bool interactive, string expectedArguments)
 		{
-			var process = _remoteConsole.CreateProcess(cmdLine, interactive, filesListPath, workingDirectory, redirectStandardOutput, redirectStandardError, redirectStandardInput);
-			var startInfo = process.StartInfo;
+			_processWrapperFactoryMock.Setup(a => a.CreateProcess()).Returns(_processMock.Object);
+			_processMock.SetupSet(a => a.StartInfo = It.Is<ProcessStartInfo>(x => x.CreateNoWindow == true &&
+				x.Arguments.Equals(expectedArguments) &&
+				x.FileName.Equals(RemoteConsole.PAEXEC_EXECUTABLE) &&
+				x.WindowStyle == ProcessWindowStyle.Hidden &&
+				x.UseShellExecute == false &&
+				x.RedirectStandardOutput == false &&
+				x.RedirectStandardError == false &&
+				x.RedirectStandardInput == false));
+			_processMock.Setup(a => a.Start()).Returns(false);
 
-			Assert.IsTrue(startInfo.CreateNoWindow);
-			Assert.AreEqual(ProcessWindowStyle.Hidden, startInfo.WindowStyle);
-			Assert.AreEqual(RemoteConsole.PAEXEC_EXECUTABLE, startInfo.FileName);
-			Assert.IsFalse(startInfo.UseShellExecute);
-			Assert.AreEqual(redirectStandardOutput, startInfo.RedirectStandardOutput);
-			Assert.AreEqual(redirectStandardError, startInfo.RedirectStandardError);
-			Assert.AreEqual(redirectStandardInput, startInfo.RedirectStandardInput);
-			return startInfo.Arguments;
+			Assert.AreEqual(_processMock.Object,
+				_remoteConsole.LaunchProcess(cmdLine, interactive));
 		}
 
 		[Test]
-		[TestCase(@"%temp%\test.exe", true, null, "temp", ExpectedResult = @"\\TestHost -u TestDomain\TestUser -p TestPw -d -cnodel -dfr -w ""temp"" -csrc %temp%\test.exe -c test.exe")]
-		[TestCase(@"%temp%\test.exe", false, null, "temp", ExpectedResult = @"\\TestHost -u TestDomain\TestUser -p TestPw -d -cnodel -dfr -w ""temp"" %temp%\test.exe")]
-		public string CreateProcessConsole(string cmdLine, bool extraPath, string filesListPath, string workingDirectory)
+		[TestCase(@"%temp%\test.exe", false, false, false, false, null, null,
+			@"\\TestHost -u TestDomain\TestUser -p TestPw -dfr %temp%\test.exe")]
+		[TestCase(@"test.exe", true, true, false, false, null, null,
+			@"\\TestHost -u TestDomain\TestUser -p TestPw -dfr -i test.exe")]
+		[TestCase(@"test.exe", true, false, true, false, null, null,
+			@"\\TestHost -u TestDomain\TestUser -p TestPw -dfr -i test.exe")]
+		[TestCase(@"test.exe", true, false, false, true, null, null,
+			@"\\TestHost -u TestDomain\TestUser -p TestPw -dfr -i test.exe")]
+		[TestCase(@"test.exe", false, true, true, true, null, null,
+			@"\\TestHost -u TestDomain\TestUser -p TestPw -dfr test.exe")]
+		[TestCase(@"test.exe", false, true, true, true, "list.txt", "C:\\Temp",
+			@"\\TestHost -u TestDomain\TestUser -p TestPw -dfr -w ""C:\Temp"" -f -clist list.txt -c test.exe")]
+		public void CreateProcess(string cmdLine, bool interactive, bool redirectStandardOutput,
+			bool redirectStandardError, bool redirectStandardInput, string filesListPath, string workingDirectory,
+			string expectedArguments)
 		{
-			var process = _remoteConsole.CreateProcess(cmdLine, false, filesListPath, workingDirectory, false, false, false, true, extraPath);
-			var startInfo = process.StartInfo;
+			_processWrapperFactoryMock.Setup(a => a.CreateProcess()).Returns(_processMock.Object);
+			_processMock.SetupSet(a => a.StartInfo = It.Is<ProcessStartInfo>(x => x.CreateNoWindow == true &&
+				x.Arguments.Equals(expectedArguments) && x.FileName.Equals(RemoteConsole.PAEXEC_EXECUTABLE) &&
+				x.WindowStyle == ProcessWindowStyle.Hidden &&
+				x.UseShellExecute == false));
+			Assert.AreEqual(_processMock.Object,
+				_remoteConsole.CreateProcess(cmdLine, interactive, filesListPath, workingDirectory,
+					redirectStandardOutput, redirectStandardError, redirectStandardInput));
+		}
 
-			Assert.IsTrue(startInfo.CreateNoWindow);
-			Assert.AreEqual(ProcessWindowStyle.Hidden, startInfo.WindowStyle);
-			Assert.AreEqual(RemoteConsole.PAEXEC_EXECUTABLE, startInfo.FileName);
-			Assert.IsFalse(startInfo.UseShellExecute);
-			return startInfo.Arguments;
+		[Test]
+		[TestCase(@"%temp%\test.exe", true, null, "temp",
+			@"\\TestHost -u TestDomain\TestUser -p TestPw -d -cnodel -dfr -w ""temp"" -csrc %temp%\test.exe -c test.exe")]
+		[TestCase(@"%temp%\test.exe", false, null, "temp",
+			@"\\TestHost -u TestDomain\TestUser -p TestPw -d -cnodel -dfr -w ""temp"" %temp%\test.exe")]
+		public void CreateProcessConsole(string cmdLine, bool extraPath, string filesListPath, string workingDirectory,
+			string expectedArguments)
+		{
+			_processWrapperFactoryMock.Setup(a => a.CreateProcess()).Returns(_processMock.Object);
+			_processWrapperFactoryMock.Setup(a => a.CreateProcess()).Returns(_processMock.Object);
+			_processMock.SetupSet(a => a.StartInfo = It.Is<ProcessStartInfo>(x => x.CreateNoWindow == true &&
+				x.Arguments.Equals(expectedArguments) && x.FileName.Equals(RemoteConsole.PAEXEC_EXECUTABLE) &&
+				x.WindowStyle == ProcessWindowStyle.Hidden &&
+				x.UseShellExecute == false));
+			Assert.AreEqual(_processMock.Object,
+				_remoteConsole.CreateProcess(cmdLine, false, filesListPath, workingDirectory, false, false, false, true,
+					extraPath));
 		}
 	}
 }

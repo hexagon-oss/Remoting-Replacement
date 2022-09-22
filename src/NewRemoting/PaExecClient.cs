@@ -285,8 +285,7 @@ namespace NewRemoting
 			// Launch remote loader
 			var commandLaunch = FormattableString.Invariant($"\"{Path.Combine(workingDirectory, processName)}\" {arguments}");
 			_logger.LogInformation("Execute command {0} on {1}", commandLaunch, RemoteHost);
-			var process = remoteConsole.CreateProcess(commandLaunch, false, dependenciesFile, workingDirectory, true, true, false, false, false, paexec_args);
-			return new ProcessWrapper(process);
+			return remoteConsole.CreateProcess(commandLaunch, false, dependenciesFile, workingDirectory, true, true, false, false, false, paexec_args);
 		}
 
 		/// <summary>

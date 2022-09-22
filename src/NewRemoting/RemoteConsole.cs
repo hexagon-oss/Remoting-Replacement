@@ -11,26 +11,29 @@ namespace NewRemoting
 
 		private readonly Credentials _remoteCredentials;
 		private readonly string _remoteHost;
+		private readonly IProcessWrapperFactory _processWrapperFactory;
 
 		/// <exception cref="ArgumentNullException">Thrown if argument was null</exception>
 		/// <exception cref="ArgumentException">Thrown if argument was invalid</exception>
 		public RemoteConsole(string remoteHost, Credentials remoteCredentials)
+			: this(remoteHost, remoteCredentials, new ProcessWrapperFactory())
 		{
-			if (remoteCredentials == null)
-			{
-				throw new ArgumentNullException(nameof(remoteCredentials));
-			}
+		}
 
+		internal RemoteConsole(string remoteHost, Credentials remoteCredentials,
+			IProcessWrapperFactory processWrapperFactory)
+		{
 			if (string.IsNullOrWhiteSpace(remoteHost))
 			{
 				throw new ArgumentException("remote host is invalid", nameof(remoteCredentials));
 			}
 
-			_remoteCredentials = remoteCredentials;
+			_processWrapperFactory = processWrapperFactory ?? throw new ArgumentNullException(nameof(processWrapperFactory));
+			_remoteCredentials = remoteCredentials ?? throw new ArgumentNullException(nameof(remoteCredentials));
 			_remoteHost = remoteHost;
 		}
 
-		public Process CreateProcess(string commandLine, bool enableUserInterfaceInteraction = false, string fileListPath = null, string workingDirectory = null, bool redirectStandardOutput = false, bool redirectStandardError = false, bool redirectStandardInput = false, bool fireAndForget = false, bool useCsrc = false, string moreArgs = null)
+		public IProcess CreateProcess(string commandLine, bool enableUserInterfaceInteraction = false, string fileListPath = null, string workingDirectory = null, bool redirectStandardOutput = false, bool redirectStandardError = false, bool redirectStandardInput = false, bool fireAndForget = false, bool useCsrc = false, string moreArgs = null)
 		{
 			var startInfo = new ProcessStartInfo();
 			startInfo.CreateNoWindow = true;
@@ -71,12 +74,12 @@ namespace NewRemoting
 
 			startInfo.Arguments = FormattableString.Invariant($@"\\{_remoteHost} -u {_remoteCredentials.DomainQualifiedUsername} -p {_remoteCredentials.Password} {fireAndForgetArgument}-dfr {interactionArgument}{workingDirAgruments}{copyArguments}{additionalArgs}{commandLineToUse}");
 
-			var unstartedProcess = new Process();
+			var unstartedProcess = _processWrapperFactory.CreateProcess();
 			unstartedProcess.StartInfo = startInfo;
 			return unstartedProcess;
 		}
 
-		public Process LaunchProcess(string commandLine, bool enableUserInterfaceInteraction = false)
+		public IProcess LaunchProcess(string commandLine, bool enableUserInterfaceInteraction = false)
 		{
 			var process = CreateProcess(commandLine, enableUserInterfaceInteraction, null, null, false, false, false);
 			process.Start();
