@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using Nuke.Common;
 using Nuke.Common.CI;
+using Nuke.Common.CI.GitHubActions;
 using Nuke.Common.CI.TeamCity;
 using Nuke.Common.Execution;
 using Nuke.Common.Git;
@@ -68,6 +69,7 @@ class Build : NukeBuild
                 .SetConfiguration(Configuration)
                 .SetAssemblyVersion(GitVersion.AssemblySemVer)
                 .SetFileVersion(GitVersion.AssemblySemFileVer)
+                .SetContinuousIntegrationBuild(GitHubActions.Instance != null)
                 .SetInformationalVersion(GitVersion.InformationalVersion));
         });
 
@@ -98,7 +100,8 @@ class Build : NukeBuild
 			    .SetFileVersion(GitVersion.AssemblySemFileVer)
 			    .SetInformationalVersion(GitVersion.InformationalVersion)
 			    .SetConfiguration(Configuration)
-			    .SetFramework("net6.0-windows")
+			    .SetContinuousIntegrationBuild(GitHubActions.Instance != null)
+                .SetFramework("net6.0-windows")
 		    );
 	    });
 

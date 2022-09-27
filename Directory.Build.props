@@ -8,6 +8,7 @@
     <LangVersion>latest</LangVersion>
     <PackageId>LeicaGeosystemsAG.NewRemoting.$(MSBuildProjectName)</PackageId>
     <PackageOutputPath>$(MSBuildThisFileDirectory)artifacts</PackageOutputPath>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
   </PropertyGroup>
   
   <PropertyGroup Condition="'$(MSBuildProjectExtension)' == '.csproj' AND '$(Configuration)|$(Platform)' == 'Debug|x64'">
