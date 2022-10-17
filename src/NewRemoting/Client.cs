@@ -66,7 +66,7 @@ namespace NewRemoting
 
 			_serverLink = new TcpClient(server, port);
 			Stream stream = _client.GetStream();
-			if (!_certificateFilename.IsNullOrEmpty())
+			if (!String.IsNullOrEmpty(_certificateFilename))
 			{
 				Logger.LogInformation("Client authentication started.");
 				stream = Authenticate(_client, server);
@@ -93,7 +93,7 @@ namespace NewRemoting
 			Logger.LogInformation("Received basic client authentication reply");
 
 			Stream s = _serverLink.GetStream();
-			if (!_certificateFilename.IsNullOrEmpty())
+			if (!string.IsNullOrEmpty(_certificateFilename))
 			{
 				Logger.LogInformation("Starting server authentication");
 				s = Authenticate(_serverLink, server);
@@ -241,7 +241,7 @@ namespace NewRemoting
 		{
 			// todo remove the mismatch case
 			if (sslPolicyErrors == SslPolicyErrors.None || sslPolicyErrors == SslPolicyErrors.RemoteCertificateNameMismatch ||
-				sslPolicyErrors == SslPolicyErrors.RemoteCertificateChainErrors || !chain.ChainStatus.IsNullOrEmpty())
+				sslPolicyErrors == SslPolicyErrors.RemoteCertificateChainErrors || chain.ChainStatus.Length > 0)
 			{
 				return true;
 			}
