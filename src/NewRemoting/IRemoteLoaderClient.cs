@@ -42,6 +42,19 @@ namespace NewRemoting
 		void Connect(CancellationToken cancellationToken, ILogger clientConnectionLogger = null);
 
 		/// <summary>
+		/// Connects the remote loader to the remote system; Fails if an instance already exists.
+		/// The instance existence check is done on the remotingServer application name.
+		/// </summary>
+		/// <param name="checkExistingInstance">If true a check of existing process with same name is done on the remote host</param>
+		/// <param name="cancellationToken">Abort token for connection attempt</param>
+		/// <param name="clientConnectionLogger">A logger for logging all communication activities. Use for debugging only, as it has a
+		/// performance penalty</param>
+		/// <typeparam name="bool">Return true if a new instance of the remoting server is launched, false if an instance already exists</typeparam>
+		/// <exception cref="RemotingException">Thrown if connection to remote loader fails</exception>
+		/// <exception cref="OperationCancelledException">Thrown if timeout occurs or cancellation</exception>
+		bool Connect(bool checkExistingInstance, CancellationToken cancellationToken, ILogger clientConnectionLogger = null);
+
+		/// <summary>
 		/// Creates an object in a host process on a remote machine.
 		/// Provides mocking ability.
 		/// </summary>

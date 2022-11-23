@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
-using System.Net;
 using System.Threading;
 using System.Buffers;
 using System.Net.Sockets;
@@ -22,6 +20,7 @@ namespace NewRemoting
 		private readonly Func<FileInfo, bool> _shouldFileBeUploadedFunc;
 		private readonly FileHashCalculator _fileHashCalculator;
 		private readonly string _extraArguments;
+		private readonly TimeSpan _remoteProcessConnectionTimeout = TimeSpan.FromSeconds(10);
 
 		private IRemoteServerService _remoteServer;
 		private Client _remotingClient;
@@ -225,6 +224,74 @@ namespace NewRemoting
 			}
 
 			Logger.LogInformation("BinaryUpload finished after '{0}'ms", sw.ElapsedMilliseconds);
+		}
+
+		public bool Connect(bool checkExistingInstance, CancellationToken cancellationToken, ILogger clientConnectionLogger = null)
+		{
+			if (checkExistingInstance)
+			{
+				var isRemoteHostOnLocalMachine = NetworkUtil.IsLocalIpAddress(RemoteHost);
+				if (isRemoteHostOnLocalMachine)
+				{
+					// should not throw on windows plaform (if no machine name is used)
+					Process[] processes = Process.GetProcessesByName(Path.GetFileNameWithoutExtension(REMOTELOADER_EXECUTABLE));
+					if (processes.Length > 0)
+					{
+						clientConnectionLogger?.LogInformation($"{REMOTELOADER_EXECUTABLE} process already exist.");
+						return false;
+					}
+				}
+				else
+				{
+					var workingDir = Environment.GetFolderPath(Environment.SpecialFolder.System);
+					var powershell = "powershell";
+					// if the process count is greater than 0
+					var args = $"@(get-process -Name {Path.GetFileNameWithoutExtension(REMOTELOADER_EXECUTABLE)}).Count -gt 0";
+					var remoteConsole = new RemoteConsole(RemoteHost, Credentials);
+
+					using (CancellationTokenSource timeoutCts = new CancellationTokenSource(_remoteProcessConnectionTimeout))
+					{
+						CancellationTokenSource combinedCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
+						using (var proc = remoteConsole.CreateProcess(powershell + " " + args, enableUserInterfaceInteraction: false, fileListPath: null, workingDirectory: workingDir, redirectStandardOutput: true, redirectStandardError: true))
+						{
+							proc.Start();
+							while (!proc.HasExited && !combinedCancellation.IsCancellationRequested)
+							{
+								proc.WaitForExit(100);
+							}
+
+							cancellationToken.ThrowIfCancellationRequested();
+							timeoutCts.Token.ThrowIfCancellationRequested();
+
+							var err = proc.StandardError.ReadToEnd();
+
+							if (!string.IsNullOrEmpty(err))
+							{
+								clientConnectionLogger?.LogInformation($"Powershell standard error output {err}.");
+							}
+
+							if (proc.ExitCode == 0)
+							{
+								var output = proc.StandardOutput.ReadToEnd();
+								if (output.StartsWith("True"))
+								{
+									clientConnectionLogger?.LogInformation($"{REMOTELOADER_EXECUTABLE} process already exist on the remote machine.");
+									return false;
+								}
+							}
+							else
+							{
+								throw new RemotingException("Unable to run command line on remoting machine. Possible reason : remote machine does not exist.");
+							}
+						}
+					}
+				}
+			}
+
+			clientConnectionLogger?.LogInformation("Starting Connection to remote server.");
+			Connect(cancellationToken, clientConnectionLogger);
+			return true;
 		}
 
 		protected override void Dispose(bool disposing)
