@@ -49,9 +49,9 @@ namespace NewRemoting
 		/// <param name="cancellationToken">Abort token for connection attempt</param>
 		/// <param name="clientConnectionLogger">A logger for logging all communication activities. Use for debugging only, as it has a
 		/// performance penalty</param>
-		/// <typeparam name="bool">Return true if a new instance of the remoting server is launched, false if an instance already exists</typeparam>
-		/// <exception cref="RemotingException">Thrown if connection to remote loader fails</exception>
-		/// <exception cref="OperationCancelledException">Thrown if timeout occurs or cancellation</exception>
+		/// <returns>Return true if a new instance of the remoting server is launched, false if an instance already exists</returns>
+		/// <exception cref="RemotingException">Thrown if connection to remote loader fails. Or if the remote command to get the running process fails</exception>
+		/// <exception cref="OperationCanceledException">Thrown if timeout occurs or cancellation</exception>
 		bool Connect(bool checkExistingInstance, CancellationToken cancellationToken, ILogger clientConnectionLogger = null);
 
 		/// <summary>
