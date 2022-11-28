@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
+using System.Reflection.Metadata;
 using System.Threading;
 using Microsoft.Extensions.Logging.Abstractions;
 using NewRemoting;
@@ -84,6 +85,27 @@ namespace NewRemotingUnitTest
 				finally
 				{
 					client.Dispose();
+				}
+			}
+
+			[Test]
+			public void ConnectCheckExistingInstance()
+			{
+				using (IRemoteLoaderClient client = new RemoteLoaderWindowsClient(Credentials.None, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(2), string.Empty))
+				{
+					CancellationTokenSource errorTokenSource = new CancellationTokenSource();
+					Assert.IsTrue(client.Connect(true, errorTokenSource.Token, null));
+				}
+			}
+
+			[Test]
+			public void ConnectCheckExistingInstanceProcessExist()
+			{
+				using (IRemoteLoaderClient client = new RemoteLoaderWindowsClient(Credentials.None, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(2), string.Empty))
+				{
+					CancellationTokenSource errorTokenSource = new CancellationTokenSource();
+					Assert.IsTrue(client.Connect(true, errorTokenSource.Token, null));
+					Assert.IsFalse(client.Connect(true, errorTokenSource.Token, null));
 				}
 			}
 
@@ -198,6 +220,48 @@ namespace NewRemotingUnitTest
 						Assert.AreNotEqual(Process.GetCurrentProcess().Id, testObjectRemote2.ProcessId);
 						Assert.AreNotEqual(testObjectRemote1.ProcessId, testObjectRemote2.ProcessId);
 					}
+				}
+			}
+
+			[Test]
+			public void ConnectCheckExistingInstanceCancellation()
+			{
+				using (IRemoteLoaderClient client = new RemoteLoaderFactory().Create(RemoteCredentials, RemoteHost))
+				{
+					// check if cancellation works, timeout here is shorter than the 10 seconds one in Connect implementation
+					CancellationTokenSource timeoutCts = new CancellationTokenSource(100);
+					Assert.Throws<OperationCanceledException>(() => client.Connect(true, timeoutCts.Token, null));
+				}
+			}
+
+			[Test]
+			public void ConnectCheckExistingInstanceInvalidRemote()
+			{
+				using (IRemoteLoaderClient client = new RemoteLoaderFactory().Create(RemoteCredentials, "wrongRemote"))
+				{
+					CancellationTokenSource errorTokenSource = new CancellationTokenSource();
+					Assert.Throws<RemotingException>(() => client.Connect(true, errorTokenSource.Token, null));
+				}
+			}
+
+			[Test]
+			public void ConnectCheckExistingInstance()
+			{
+				using (IRemoteLoaderClient client = new RemoteLoaderFactory().Create(RemoteCredentials, RemoteHost))
+				{
+					CancellationTokenSource errorTokenSource = new CancellationTokenSource();
+					Assert.IsTrue(client.Connect(true, errorTokenSource.Token, null));
+				}
+			}
+
+			[Test]
+			public void ConnectCheckExistingInstanceProcessExist()
+			{
+				using (IRemoteLoaderClient client = new RemoteLoaderFactory().Create(RemoteCredentials, RemoteHost))
+				{
+					CancellationTokenSource errorTokenSource = new CancellationTokenSource();
+					Assert.IsTrue(client.Connect(true, errorTokenSource.Token, null));
+					Assert.IsFalse(client.Connect(true, errorTokenSource.Token, null));
 				}
 			}
 
