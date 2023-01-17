@@ -25,7 +25,7 @@ namespace NewRemotingUnitTest
 			_processWrapperFactoryMock = new Mock<IProcessWrapperFactory>(MockBehavior.Strict);
 			_processMock = new Mock<IProcess>(MockBehavior.Strict);
 
-			_testCredentials = Credentials.Create(TEST_USER, TEST_PASSWORD, DOMAIN, string.Empty);
+			_testCredentials = Credentials.Create(TEST_USER, TEST_PASSWORD, DOMAIN, null);
 			_remoteConsole = new RemoteConsole(TEST_HOST, _testCredentials, _processWrapperFactoryMock.Object);
 		}
 

@@ -33,6 +33,11 @@ namespace NewRemoting
 	/// </summary>
 	public sealed class Server : IDisposable
 	{
+		/// <summary>
+		/// the certificate
+		/// </summary>
+		private static X509Certificate _serverCertificate;
+
 		public const string ServerExecutableName = "RemotingServer.exe";
 		private const string RuntimeVersionRegex = "(\\d+\\.\\d)";
 		internal const int AuthenticationSucceededToken = 567223;
@@ -70,11 +75,6 @@ namespace NewRemoting
 		/// If this is non-null, this server instance lives within the client.
 		/// </summary>
 		private Stream _preopenedStream;
-
-		/// <summary>
-		/// the certificate
-		/// </summary>
-		private X509Certificate _serverCertificate;
 
 		public string CertificateFilename { get; }
 		public string CertificatePassword { get; }
@@ -286,7 +286,16 @@ namespace NewRemoting
 			SslStream sslStream = new SslStream(client.GetStream(), false);
 			try
 			{
-				sslStream.AuthenticateAsServer(certificate, clientCertificateRequired: false, checkCertificateRevocation: true);
+				SslServerAuthenticationOptions options = new SslServerAuthenticationOptions();
+				// we require the client authentication
+				options.ClientCertificateRequired = true;
+				// When using certificates, the system validates that the client certificate is not revoked,
+				// by checking that the client certificate is not in the revoked certificate list.
+				// we do not check for revocation of the client certificate
+				options.CertificateRevocationCheckMode = X509RevocationMode.NoCheck;
+				options.RemoteCertificateValidationCallback = new RemoteCertificateValidationCallback(ValidateClientCertificate);
+				options.ServerCertificate = certificate;
+				sslStream.AuthenticateAsServer(options);
 				return sslStream;
 			}
 			catch (AuthenticationException e)
@@ -297,6 +306,17 @@ namespace NewRemoting
 				client.Close();
 				throw e;
 			}
+		}
+
+		private static bool ValidateClientCertificate(object sender, X509Certificate remoteCertificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+		{
+			// we do not check the sslPolicyErrors because we do not require the client to install the certificate
+			if (remoteCertificate != null && remoteCertificate.ToString() == _serverCertificate.ToString())
+			{
+				return true;
+			}
+
+			return false;
 		}
 
 		public void StartListening()

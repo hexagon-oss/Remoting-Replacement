@@ -26,7 +26,7 @@ namespace NewRemotingUnitTest
 			Assert.IsNotNull(_serverProcess);
 
 			// Port is currently hardcoded
-			_client = new Client("localhost", Client.DefaultNetworkPort);
+			_client = new Client("localhost", Client.DefaultNetworkPort, null);
 			_client.Start();
 		}
 

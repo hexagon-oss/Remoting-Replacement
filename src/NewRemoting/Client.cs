@@ -30,6 +30,7 @@ namespace NewRemoting
 		private readonly MessageHandler _messageHandler;
 		private readonly InstanceManager _instanceManager;
 		private readonly FormatterFactory _formatterFactory;
+		private readonly AuthenticationInformation _clientAuthentication;
 
 		private TcpClient _client;
 		private BinaryWriter _writer;
@@ -42,7 +43,7 @@ namespace NewRemoting
 		private TcpClient _serverLink;
 		private bool _connectionConfigured;
 		private bool _disconnected;
-		private string _certificateFilename;
+		private X509Certificate2 _certificate;
 
 		/// <summary>
 		/// Creates a remoting client for the given server and opens the network connection
@@ -52,9 +53,9 @@ namespace NewRemoting
 		/// <param name="logger">Optional logging sink (for diagnostic messages)</param>
 		/// <param name="connectionLogger">Optional connection logging sink (for diagnostic messages)</param>
 		/// <param name="certificateFilename">the certificate filename usually a pfx file</param>
-		public Client(string server, int port, string certificateFilename = null, ILogger logger = null, ILogger connectionLogger = null)
+		public Client(string server, int port, AuthenticationInformation authenticationInformation, ILogger logger = null, ILogger connectionLogger = null)
 		{
-			_certificateFilename = certificateFilename;
+			_clientAuthentication = authenticationInformation;
 			var instanceLogger = logger ?? NullLogger.Instance;
 			Logger = connectionLogger ?? NullLogger.Instance;
 			_accessLock = new object();
@@ -66,7 +67,7 @@ namespace NewRemoting
 
 			_serverLink = new TcpClient(server, port);
 			Stream stream = _client.GetStream();
-			if (!String.IsNullOrEmpty(_certificateFilename))
+			if (authenticationInformation != null && !string.IsNullOrEmpty(authenticationInformation.CertificateFileName))
 			{
 				Logger.LogInformation("Client authentication started.");
 				stream = Authenticate(_client, server);
@@ -93,7 +94,7 @@ namespace NewRemoting
 			Logger.LogInformation("Received basic client authentication reply");
 
 			Stream s = _serverLink.GetStream();
-			if (!string.IsNullOrEmpty(_certificateFilename))
+			if (authenticationInformation != null && !string.IsNullOrEmpty(authenticationInformation.CertificateFileName))
 			{
 				Logger.LogInformation("Starting server authentication");
 				s = Authenticate(_serverLink, server);
@@ -173,8 +174,20 @@ namespace NewRemoting
 			// The server name must match the name on the server certificate.
 			try
 			{
-				sslStream.AuthenticateAsClient(targetHost);
-				Logger?.LogInformation("Client Authentication Done.");
+				if (!string.IsNullOrEmpty(_clientAuthentication.CertificateFileName))
+				{
+					_certificate = new X509Certificate2(_clientAuthentication.CertificateFileName, _clientAuthentication.CertificatePassword, X509KeyStorageFlags.MachineKeySet | X509KeyStorageFlags.UserKeySet);
+					SslClientAuthenticationOptions options = new SslClientAuthenticationOptions
+					{
+						TargetHost = targetHost,
+						ClientCertificates = new X509CertificateCollection { _certificate },
+						CertificateRevocationCheckMode = X509RevocationMode.NoCheck
+					};
+
+					sslStream.AuthenticateAsClient(options);
+					Logger?.LogInformation("Client Authentication Done.");
+				}
+
 				return sslStream;
 			}
 			catch (AuthenticationException e)
