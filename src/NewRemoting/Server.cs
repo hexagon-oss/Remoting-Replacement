@@ -50,6 +50,7 @@ namespace NewRemoting
 		private readonly InstanceManager _instanceManager;
 		private readonly MessageHandler _messageHandler;
 		private readonly FormatterFactory _formatterFactory;
+		private readonly AuthenticationInformation _authenticationInformation;
 
 		/// <summary>
 		/// This is the interceptor list for calls from the server to the client using a server-side proxy (i.e. an interface registered for a callback)
@@ -76,21 +77,16 @@ namespace NewRemoting
 		/// </summary>
 		private Stream _preopenedStream;
 
-		public string CertificateFilename { get; }
-		public string CertificatePassword { get; }
-
 		/// <summary>
 		/// Create a remoting server instance. Other processes (local or remote) will be able to perform remote calls to this process.
 		/// Start <see cref="StartListening"/> to actually start the server.
 		/// </summary>
 		/// <param name="networkPort">Network port to open server on</param>
-		/// <param name="certificatePassword">the certificate password</param>
+		/// <param name="authenticationInformation">the certificate filename, and password</param>
 		/// <param name="logger">Optional logger instance, for debugging purposes</param>
-		/// <param name="certificateFilename">the certificate filename</param>
-		public Server(int networkPort, string certificateFilename = null, string certificatePassword = null, ILogger logger = null)
+		public Server(int networkPort, AuthenticationInformation authenticationInformation, ILogger logger = null)
 		{
-			CertificateFilename = certificateFilename;
-			CertificatePassword = certificatePassword;
+			_authenticationInformation = authenticationInformation;
 			Logger = logger ?? NullLogger.Instance;
 			_interceptorLock = new object();
 			_networkPort = networkPort;
@@ -321,9 +317,9 @@ namespace NewRemoting
 
 		public void StartListening()
 		{
-			if (CertificateFilename != null && CertificatePassword != null)
+			if (_authenticationInformation != null && _authenticationInformation.CertificateFileName != null && _authenticationInformation.CertificatePassword != null)
 			{
-				_serverCertificate = new X509Certificate2(CertificateFilename, CertificatePassword, X509KeyStorageFlags.MachineKeySet);
+				_serverCertificate = new X509Certificate2(_authenticationInformation.CertificateFileName, _authenticationInformation.CertificatePassword, X509KeyStorageFlags.MachineKeySet);
 			}
 
 			_listener = new TcpListener(IPAddress.Any, _networkPort);
