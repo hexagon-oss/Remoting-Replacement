@@ -317,7 +317,7 @@ namespace NewRemoting
 
 		public void StartListening()
 		{
-			if (_authenticationInformation != null && _authenticationInformation.CertificateFileName != null && _authenticationInformation.CertificatePassword != null)
+			if (_authenticationInformation != null && !string.IsNullOrEmpty(_authenticationInformation.CertificateFileName) && !string.IsNullOrEmpty(_authenticationInformation.CertificatePassword))
 			{
 				_serverCertificate = new X509Certificate2(_authenticationInformation.CertificateFileName, _authenticationInformation.CertificatePassword, X509KeyStorageFlags.MachineKeySet);
 			}
