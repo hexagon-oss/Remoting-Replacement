@@ -8,26 +8,39 @@ using SampleServerClasses;
 
 namespace NewRemotingUnitTest
 {
-	[TestFixture]
+	[TestFixture(true)]
+	[TestFixture(false)]
 	internal sealed class CrossAppDomainCancellationTokenSourceTest
 	{
 		private Process _serverProcess;
 		private Client _client;
+		private AuthenticationHelper _helper;
+
+		public CrossAppDomainCancellationTokenSourceTest(bool withAuthentication)
+		{
+			if (withAuthentication)
+			{
+				_helper = new AuthenticationHelper();
+			}
+		}
 
 		[OneTimeSetUp]
 		public void OneTimeSetUp()
 		{
+			_helper?.SetUp();
 			_serverProcess = Process.Start("RemotingServer.exe");
 			Assert.IsNotNull(_serverProcess);
 
 			// Port is currently hardcoded
-			_client = new Client("localhost", Client.DefaultNetworkPort, null);
+			_client = new Client("localhost", Client.DefaultNetworkPort, _helper == null ? null : new AuthenticationInformation(_helper.CertificateFileName, _helper.CertificatePassword));
 			_client.Start();
 		}
 
 		[OneTimeTearDown]
 		public void OneTimeTearDown()
 		{
+			_helper?.TearDown();
+
 			if (_client != null)
 			{
 				_client.ShutdownServer();

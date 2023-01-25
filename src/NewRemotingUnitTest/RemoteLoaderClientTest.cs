@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
-using System.Reflection.Metadata;
+using System.Linq;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading;
-using Microsoft.Extensions.Logging.Abstractions;
 using NewRemoting;
 using NUnit.Framework;
 
@@ -15,9 +15,36 @@ namespace NewRemotingUnitTest
 		/// <summary>
 		/// Needs to be public to be accessible from remote loader process
 		/// </summary>
-		[TestFixture]
+		[TestFixture(true)]
+		[TestFixture(false)]
 		public sealed class LocalExecution
 		{
+			private static Credentials _remoteCredentials = Credentials.Create("Administrator", "Administrator", "localhost", null);
+			private AuthenticationHelper _helper;
+			private AuthenticationInformation _authenticationInfo;
+
+			public LocalExecution(bool withCertificate)
+			{
+				if (withCertificate)
+				{
+					_helper = new AuthenticationHelper();
+				}
+			}
+
+			[OneTimeSetUp]
+			public void OneTimeSetUp()
+			{
+				_helper?.SetUp();
+				_authenticationInfo = _helper == null ? null : new AuthenticationInformation(_helper.CertificateFileName, _helper.CertificatePassword);
+				_remoteCredentials = Credentials.Create("Administrator", "Administrator", "localhost", _authenticationInfo);
+			}
+
+			[OneTimeTearDown]
+			public void OneTimeTearDown()
+			{
+				_helper?.TearDown();
+			}
+
 			[Test]
 			public void CorrectlyHandleAlreadyExistingRemoteLoader()
 			{
@@ -30,7 +57,7 @@ namespace NewRemotingUnitTest
 
 				CancellationTokenSource errorTokenSource = new CancellationTokenSource();
 				errorTokenSource.CancelAfter(TimeSpan.FromSeconds(60));
-				IRemoteLoaderClient client = new RemoteLoaderWindowsClient(Credentials.None, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(2), string.Empty);
+				IRemoteLoaderClient client = new RemoteLoaderWindowsClient(_remoteCredentials, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(2), string.Empty);
 				client.Connect(errorTokenSource.Token, null);
 				// Should not be cancelled yet.
 				Assert.False(errorTokenSource.IsCancellationRequested);
@@ -48,7 +75,7 @@ namespace NewRemotingUnitTest
 			[Test]
 			public void NoCrashesWhenRemoteCallsAreExpensive()
 			{
-				IRemoteLoaderClient client = new RemoteLoaderWindowsClient(Credentials.None, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(0.1), string.Empty);
+				IRemoteLoaderClient client = new RemoteLoaderWindowsClient(_remoteCredentials, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(0.1), string.Empty);
 				try
 				{
 					CancellationTokenSource errorTokenSource = new CancellationTokenSource();
@@ -72,7 +99,7 @@ namespace NewRemotingUnitTest
 			[Test]
 			public void SocketExceptionsAreWrappedCorrectly()
 			{
-				IRemoteLoaderClient client = new RemoteLoaderWindowsClient(Credentials.None, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(0.1), string.Empty);
+				IRemoteLoaderClient client = new RemoteLoaderWindowsClient(_remoteCredentials, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(0.1), string.Empty);
 				try
 				{
 					CancellationTokenSource errorTokenSource = new CancellationTokenSource();
@@ -91,7 +118,7 @@ namespace NewRemotingUnitTest
 			[Test]
 			public void ConnectCheckExistingInstance()
 			{
-				using (IRemoteLoaderClient client = new RemoteLoaderWindowsClient(Credentials.None, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(2), string.Empty))
+				using (IRemoteLoaderClient client = new RemoteLoaderWindowsClient(_remoteCredentials, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(2), string.Empty))
 				{
 					CancellationTokenSource errorTokenSource = new CancellationTokenSource();
 					Assert.IsTrue(client.Connect(true, errorTokenSource.Token, null));
@@ -101,7 +128,7 @@ namespace NewRemotingUnitTest
 			[Test]
 			public void ConnectCheckExistingInstanceProcessExist()
 			{
-				using (IRemoteLoaderClient client = new RemoteLoaderWindowsClient(Credentials.None, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(2), string.Empty))
+				using (IRemoteLoaderClient client = new RemoteLoaderWindowsClient(_remoteCredentials, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(2), string.Empty))
 				{
 					CancellationTokenSource errorTokenSource = new CancellationTokenSource();
 					Assert.IsTrue(client.Connect(true, errorTokenSource.Token, null));
@@ -142,7 +169,9 @@ namespace NewRemotingUnitTest
 			/// "Failed to connect to Service Control Manager on XXX.XXX.XXX.XXX. Access is denied. [Err=0x5, 5]"
 			/// make sure you do not have a user on the remote system which has the same username than currently active on the local machine.
 			/// </summary>
-			private static readonly Credentials RemoteCredentials = Credentials.Create("Administrator", "Administrator", RemoteHost, null);
+			private static Credentials _remoteCredentials = Credentials.Create("Administrator", "Administrator", RemoteHost, null);
+
+			public static Credentials RemoteCredentials { get => _remoteCredentials; set => _remoteCredentials = value; }
 
 			[Test]
 			public void LocalHostDirectoryInfo()
@@ -202,11 +231,11 @@ namespace NewRemotingUnitTest
 			[Test]
 			public void AccessDifferentLocalRemotLoaderObjects()
 			{
-				using (IRemoteLoaderClient remoteLoaderClient1 = new RemoteLoaderFactory().Create(Credentials.None, "127.0.0.1"))
+				using (IRemoteLoaderClient remoteLoaderClient1 = new RemoteLoaderFactory().Create(_remoteCredentials, "127.0.0.1"))
 				{
 					remoteLoaderClient1.Connect(CancellationToken.None, null);
 
-					using (IRemoteLoaderClient remoteLoaderClient2 = new RemoteLoaderFactory().Create(Credentials.None, "127.0.0.1"))
+					using (IRemoteLoaderClient remoteLoaderClient2 = new RemoteLoaderFactory().Create(_remoteCredentials, "127.0.0.1"))
 					{
 						remoteLoaderClient2.Connect(CancellationToken.None, null);
 
