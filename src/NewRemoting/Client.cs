@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.Serialization;
 using System.Security.Authentication;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
@@ -176,12 +177,14 @@ namespace NewRemoting
 			{
 				if (!string.IsNullOrEmpty(_clientAuthentication.CertificateFileName))
 				{
-					_certificate = new X509Certificate2(_clientAuthentication.CertificateFileName, _clientAuthentication.CertificatePassword, X509KeyStorageFlags.MachineKeySet | X509KeyStorageFlags.UserKeySet);
+					_certificate = new X509Certificate2(_clientAuthentication.CertificateFileName,
+						_clientAuthentication.CertificatePassword,
+						X509KeyStorageFlags.MachineKeySet | X509KeyStorageFlags.UserKeySet);
 					SslClientAuthenticationOptions options = new SslClientAuthenticationOptions
 					{
 						TargetHost = targetHost,
 						ClientCertificates = new X509CertificateCollection { _certificate },
-						CertificateRevocationCheckMode = X509RevocationMode.NoCheck
+						CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
 					};
 
 					sslStream.AuthenticateAsClient(options);
@@ -190,9 +193,9 @@ namespace NewRemoting
 
 				return sslStream;
 			}
-			catch (AuthenticationException e)
+			catch (Exception e) when (e is AuthenticationException or CryptographicException)
 			{
-				Logger.LogError(e.ToString());
+				Logger?.LogError(e.ToString());
 				if (e.InnerException != null)
 				{
 					Console.WriteLine("Inner exception: {0}", e.InnerException.Message);
@@ -200,7 +203,7 @@ namespace NewRemoting
 
 				Logger.LogError("Authentication failed - closing the connection.");
 				client.Close();
-				throw e;
+				throw;
 			}
 		}
 
