@@ -10,6 +10,7 @@ namespace NewRemotingUnitTest
 {
 	[TestFixture(true)]
 	[TestFixture(false)]
+	[NonParallelizable]
 	internal sealed class CrossAppDomainCancellationTokenSourceTest
 	{
 		private Process _serverProcess;

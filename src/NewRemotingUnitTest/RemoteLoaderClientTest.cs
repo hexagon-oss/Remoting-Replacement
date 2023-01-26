@@ -17,6 +17,7 @@ namespace NewRemotingUnitTest
 		/// </summary>
 		[TestFixture(true)]
 		[TestFixture(false)]
+		[NonParallelizable]
 		public sealed class LocalExecution
 		{
 			private static Credentials _remoteCredentials = Credentials.Create("Administrator", "Administrator", "localhost", null);

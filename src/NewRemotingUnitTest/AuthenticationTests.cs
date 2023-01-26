@@ -13,6 +13,7 @@ using NUnit.Framework;
 namespace NewRemotingUnitTest
 {
 	[TestFixture]
+	[NonParallelizable]
 	public class AuthenticationTests
 	{
 		private AuthenticationHelper _helper = new();

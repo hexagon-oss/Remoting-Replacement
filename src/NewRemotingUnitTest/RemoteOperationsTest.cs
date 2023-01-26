@@ -14,6 +14,7 @@ namespace NewRemotingUnitTest
 {
 	[TestFixture(true)]
 	[TestFixture(false)]
+	[NonParallelizable]
 	public class RemoteOperationsTest
 	{
 		private Process _serverProcess;
