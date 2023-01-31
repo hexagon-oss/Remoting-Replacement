@@ -91,8 +91,14 @@ namespace NewRemoting
 		public void Intercept(IInvocation invocation)
 		{
 			string methodName = invocation.Method.ToString();
-			if (_receiverThread == null && methodName != "Void Dispose(Boolean)")
+
+			if (_receiverThread == null)
 			{
+				if (methodName == "Void Dispose(Boolean)")
+				{
+					return;
+				}
+
 				throw new ObjectDisposedException("Remoting infrastructure has been shut down. Remote proxies are no longer valid");
 			}
 
