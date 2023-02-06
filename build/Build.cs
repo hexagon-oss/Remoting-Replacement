@@ -82,8 +82,8 @@ class Build : NukeBuild
 			    .SetProjectFile(Solution)
 			    .EnableNoBuild()
 			    .EnableNoRestore()
-			    .SetResultsDirectory(RootDirectory /
-			                         string.Concat("TestResult.UnitTest.", Platform, ".", Configuration, ".", "net6.0"));
+			    .SetVerbosity(DotNetVerbosity.Normal)
+			    .SetResultsDirectory(RootDirectory / string.Concat("TestResult.UnitTest.", Platform, ".", Configuration, ".", "net6.0"));
 		    DotNetTest(settings);
 
 	    });

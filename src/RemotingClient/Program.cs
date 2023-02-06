@@ -38,10 +38,10 @@ namespace RemotingClient
 				ip = options.Ip;
 			}
 
-			DoSomeRemoting(certificate, ip);
+			DoSomeRemoting(new AuthenticationInformation(certificate, options.Password), ip);
 		}
 
-		public static void DoSomeRemoting(string certificate, string ip)
+		public static void DoSomeRemoting(AuthenticationInformation certificate, string ip)
 		{
 			using var client = GetClient(certificate, ip);
 			MarshallableClass cls = client.CreateRemoteInstance<MarshallableClass>();
@@ -168,7 +168,7 @@ namespace RemotingClient
 			Console.WriteLine($"It is now {obj.ToLongDateString()}");
 		}
 
-		private static Client GetClient(string certificate, string ip)
+		private static Client GetClient(AuthenticationInformation certificate, string ip)
 		{
 			int i = 5;
 			while (true)
@@ -204,6 +204,13 @@ namespace RemotingClient
 	{
 		[Option('c', "certificate", HelpText = "full filename of the certificate")]
 		public string Certificate
+		{
+			get;
+			set;
+		}
+
+		[Option('w', "password", HelpText = "certificate password")]
+		public string Password
 		{
 			get;
 			set;

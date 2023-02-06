@@ -9,6 +9,7 @@ using System.Reflection;
 using System.Runtime.ExceptionServices;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -89,12 +90,17 @@ namespace NewRemoting
 
 		public void Intercept(IInvocation invocation)
 		{
+			string methodName = invocation.Method.ToString();
+
 			if (_receiverThread == null)
 			{
+				if (methodName == "Void Dispose(Boolean)")
+				{
+					return;
+				}
+
 				throw new ObjectDisposedException("Remoting infrastructure has been shut down. Remote proxies are no longer valid");
 			}
-
-			string methodName = invocation.Method.ToString();
 
 			// Todo: Check this stuff
 			if (methodName == "ToString()" && DebuggerToStringBehavior != DebuggerToStringBehavior.EvaluateRemotely)

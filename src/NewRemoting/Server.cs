@@ -33,6 +33,11 @@ namespace NewRemoting
 	/// </summary>
 	public sealed class Server : IDisposable
 	{
+		/// <summary>
+		/// the certificate
+		/// </summary>
+		private static X509Certificate _serverCertificate;
+
 		public const string ServerExecutableName = "RemotingServer.exe";
 		private const string RuntimeVersionRegex = "(\\d+\\.\\d)";
 		internal const int AuthenticationSucceededToken = 567223;
@@ -45,6 +50,7 @@ namespace NewRemoting
 		private readonly InstanceManager _instanceManager;
 		private readonly MessageHandler _messageHandler;
 		private readonly FormatterFactory _formatterFactory;
+		private readonly AuthenticationInformation _authenticationInformation;
 
 		/// <summary>
 		/// This is the interceptor list for calls from the server to the client using a server-side proxy (i.e. an interface registered for a callback)
@@ -72,25 +78,15 @@ namespace NewRemoting
 		private Stream _preopenedStream;
 
 		/// <summary>
-		/// the certificate
-		/// </summary>
-		private X509Certificate _serverCertificate;
-
-		public string CertificateFilename { get; }
-		public string CertificatePassword { get; }
-
-		/// <summary>
 		/// Create a remoting server instance. Other processes (local or remote) will be able to perform remote calls to this process.
 		/// Start <see cref="StartListening"/> to actually start the server.
 		/// </summary>
 		/// <param name="networkPort">Network port to open server on</param>
-		/// <param name="certificatePassword">the certificate password</param>
+		/// <param name="authenticationInformation">the certificate filename, and password</param>
 		/// <param name="logger">Optional logger instance, for debugging purposes</param>
-		/// <param name="certificateFilename">the certificate filename</param>
-		public Server(int networkPort, string certificateFilename = null, string certificatePassword = null, ILogger logger = null)
+		public Server(int networkPort, AuthenticationInformation authenticationInformation, ILogger logger = null)
 		{
-			CertificateFilename = certificateFilename;
-			CertificatePassword = certificatePassword;
+			_authenticationInformation = authenticationInformation;
 			Logger = logger ?? NullLogger.Instance;
 			_interceptorLock = new object();
 			_networkPort = networkPort;
@@ -286,7 +282,16 @@ namespace NewRemoting
 			SslStream sslStream = new SslStream(client.GetStream(), false);
 			try
 			{
-				sslStream.AuthenticateAsServer(certificate, clientCertificateRequired: false, checkCertificateRevocation: true);
+				SslServerAuthenticationOptions options = new SslServerAuthenticationOptions();
+				// we require the client authentication
+				options.ClientCertificateRequired = true;
+				// When using certificates, the system validates that the client certificate is not revoked,
+				// by checking that the client certificate is not in the revoked certificate list.
+				// we do not check for revocation of the client certificate
+				options.CertificateRevocationCheckMode = X509RevocationMode.NoCheck;
+				options.RemoteCertificateValidationCallback = new RemoteCertificateValidationCallback(ValidateClientCertificate);
+				options.ServerCertificate = certificate;
+				sslStream.AuthenticateAsServer(options);
 				return sslStream;
 			}
 			catch (AuthenticationException e)
@@ -299,11 +304,22 @@ namespace NewRemoting
 			}
 		}
 
+		private static bool ValidateClientCertificate(object sender, X509Certificate remoteCertificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+		{
+			// we do not check the sslPolicyErrors because we do not require the client to install the certificate
+			if (remoteCertificate != null && remoteCertificate.ToString() == _serverCertificate.ToString())
+			{
+				return true;
+			}
+
+			return false;
+		}
+
 		public void StartListening()
 		{
-			if (CertificateFilename != null && CertificatePassword != null)
+			if (_authenticationInformation != null && !string.IsNullOrEmpty(_authenticationInformation.CertificateFileName) && !string.IsNullOrEmpty(_authenticationInformation.CertificatePassword))
 			{
-				_serverCertificate = new X509Certificate2(CertificateFilename, CertificatePassword, X509KeyStorageFlags.MachineKeySet);
+				_serverCertificate = new X509Certificate2(_authenticationInformation.CertificateFileName, _authenticationInformation.CertificatePassword, X509KeyStorageFlags.MachineKeySet);
 			}
 
 			_listener = new TcpListener(IPAddress.Any, _networkPort);

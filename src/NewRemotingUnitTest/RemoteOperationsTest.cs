@@ -2,47 +2,64 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
-using System.Management;
 using System.Reflection;
 using System.Runtime.Serialization;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Castle.DynamicProxy;
 using NewRemoting;
 using NUnit.Framework;
 using SampleServerClasses;
 
 namespace NewRemotingUnitTest
 {
-	[TestFixture]
+	[TestFixture(true)]
+	[TestFixture(false)]
+	[NonParallelizable]
 	public class RemoteOperationsTest
 	{
 		private Process _serverProcess;
 		private Client _client;
 		private string _dataReceived;
 		private string _dataReceived2;
+		private AuthenticationHelper _helper;
 
-		[OneTimeSetUp]
-		public void OneTimeSetUp()
+		public RemoteOperationsTest(bool withAuthentication)
+		{
+			if (withAuthentication)
+			{
+				_helper = new AuthenticationHelper();
+			}
+		}
+
+		public AuthenticationInformation CreateClientServer()
 		{
 			FileInfo fi = new FileInfo(Assembly.GetExecutingAssembly().Location);
 			var psi = new ProcessStartInfo(Path.Combine(fi.DirectoryName, "RemotingServer.exe"));
 
 			Console.WriteLine($"Attempting to start {psi.FileName}...");
 			Console.WriteLine($"Current directory is {Environment.CurrentDirectory}");
+			AuthenticationInformation authenticationInfo = _helper == null ? null : new AuthenticationInformation(_helper.CertificateFileName, _helper.CertificatePassword);
+
 			_serverProcess = Process.Start(psi);
 			Assert.IsNotNull(_serverProcess);
 
 			// Port is currently hardcoded
-			_client = new Client("localhost", Client.DefaultNetworkPort);
+			_client = new Client("localhost", Client.DefaultNetworkPort, authenticationInfo, null, null);
 			_client.Start();
+			return authenticationInfo;
 		}
 
-		[OneTimeTearDown]
-		public void OneTimeTearDown()
+		[SetUp]
+		public void SetUp()
 		{
+			_helper?.SetUp();
+		}
+
+		[TearDown]
+		public void TearDown()
+		{
+			_helper?.TearDown();
+
 			GC.Collect();
 			GC.WaitForPendingFinalizers();
 			if (_client != null)
@@ -54,7 +71,7 @@ namespace NewRemotingUnitTest
 
 			if (_serverProcess != null)
 			{
-				Assert.That(_serverProcess.WaitForExit(2000));
+				Assert.That(_serverProcess.WaitForExit(5000));
 				_serverProcess.Kill();
 				_serverProcess = null;
 			}
@@ -71,6 +88,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void GetInitialRemoteInstance()
 		{
+			CreateClientServer();
 			var instance = CreateRemoteInstance();
 			Assert.IsNotNull(instance);
 			Assert.That(Client.IsRemoteProxy(instance));
@@ -79,6 +97,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void RemoteInstanceCanBeCalled()
 		{
+			CreateClientServer();
 			var instance = CreateRemoteInstance();
 			int remotePid = instance.GetCurrentProcessId();
 			Assert.AreNotEqual(remotePid, Environment.ProcessId);
@@ -87,6 +106,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void TwoRemoteInstancesAreNotEqual()
 		{
+			CreateClientServer();
 			var instance1 = CreateRemoteInstance();
 			var instance2 = CreateRemoteInstance();
 			Assert.AreNotEqual(instance1.Name, instance2.Name);
@@ -95,6 +115,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void SameInstanceIsUsedInTwoCalls()
 		{
+			CreateClientServer();
 			var instance1 = CreateRemoteInstance();
 			string a = instance1.Name;
 			string b = instance1.Name;
@@ -104,6 +125,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void CanCreateInstanceWithNonDefaultCtor()
 		{
+			CreateClientServer();
 			var instance = _client.CreateRemoteInstance<MarshallableClass>("MyInstance");
 			Assert.AreEqual("MyInstance", instance.Name);
 		}
@@ -111,6 +133,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void CanMarshalSystemType()
 		{
+			CreateClientServer();
 			var instance = CreateRemoteInstance();
 			Assert.AreEqual("System.String", instance.GetTypeName(typeof(System.String)));
 		}
@@ -118,6 +141,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void CanMarshalNullReference()
 		{
+			CreateClientServer();
 			var instance = CreateRemoteInstance();
 			instance.RegisterCallback(null);
 		}
@@ -125,6 +149,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void CodeIsReallyExecutedRemotely()
 		{
+			CreateClientServer();
 			var server = CreateRemoteInstance();
 			var client = new MarshallableClass();
 			Assert.AreNotEqual(server.GetCurrentProcessId(), client.GetCurrentProcessId());
@@ -133,6 +158,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void RefArgumentWorks()
 		{
+			CreateClientServer();
 			var server = CreateRemoteInstance();
 			int aValue = 4;
 			server.UpdateArgument(ref aValue);
@@ -142,6 +168,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void CanRegisterCallbackInterface()
 		{
+			CreateClientServer();
 			var server = CreateRemoteInstance();
 			// Tests whether the return channel works, by providing an instance of a class to the server where
 			// the actual object lives on the client.
@@ -156,6 +183,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void DoesNotThrowExceptionIfAttemptingToRegisterPrivateMethodAsEventSink()
 		{
+			CreateClientServer();
 			var server = CreateRemoteInstance();
 			var objectWithEvent = server.GetInterface<IMyComponentInterface>();
 			_dataReceived = null;
@@ -165,6 +193,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void CanRegisterEvent()
 		{
+			CreateClientServer();
 			var server = CreateRemoteInstance();
 			var objectWithEvent = server.GetInterface<IMyComponentInterface>();
 			_dataReceived = null;
@@ -195,6 +224,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void CreateRemoteInstanceWithNonDefaultCtor()
 		{
+			CreateClientServer();
 			var arguments = new ConstructorArgument(new ReferencedComponent() { ComponentName = "ClientUnderTest" });
 			var service = _client.CreateRemoteInstance<ServiceClass>(arguments);
 
@@ -207,6 +237,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void UseMixedInstanceAsArgument()
 		{
+			CreateClientServer();
 			var server = CreateRemoteInstance();
 			var reference = new ReferencedComponent() { Data = 10 };
 			// This is a serializable class that has a MarshalByRef member
@@ -258,6 +289,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void UseRemoteSystemManagement()
 		{
+			CreateClientServer();
 			var bios = _client.CreateRemoteInstance<CheckBiosVersion>();
 
 			string[] versions = bios.GetBiosVersions();
@@ -267,6 +299,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void GetListOfMarshalByRefInstances()
 		{
+			CreateClientServer();
 			var c = CreateRemoteInstance();
 			var list = c.GetSomeComponents();
 			Assert.That(list is List<ReferencedComponent>);
@@ -277,6 +310,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void HandleRemoteException()
 		{
+			CreateClientServer();
 			var c = CreateRemoteInstance();
 			bool didThrow = true;
 			try
@@ -297,6 +331,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void GetRemotingServerService()
 		{
+			CreateClientServer();
 			var serverService = _client.RequestRemoteInstance<IRemoteServerService>();
 			Assert.That(serverService.Ping());
 		}
@@ -304,6 +339,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void SerializeUnserializableArgument()
 		{
+			CreateClientServer();
 			var cls = CreateRemoteInstance();
 			Assert.Throws<SerializationException>(() => cls.CallerError(new UnserializableObject()));
 		}
@@ -311,6 +347,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void SerializeUnserializableReturnType()
 		{
+			CreateClientServer();
 			var cls = CreateRemoteInstance();
 			Assert.Throws<SerializationException>(() => cls.ServerError());
 		}
@@ -318,7 +355,8 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void TwoClientsCanConnect()
 		{
-			var client2 = new Client("localhost", Client.DefaultNetworkPort);
+			AuthenticationInformation authenticationInfo = CreateClientServer();
+			var client2 = new Client("localhost", Client.DefaultNetworkPort, authenticationInfo);
 			client2.Start();
 
 			var firstInstance = _client.CreateRemoteInstance<MarshallableClass>();
@@ -344,6 +382,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void CanRegisterUnregisterEvents()
 		{
+			CreateClientServer();
 			IMarshallInterface instance = _client.CreateRemoteInstance<MarshallableClass>();
 
 			_dataReceived = null;
@@ -370,8 +409,10 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
+		[TestCase(false)]
 		public void CanRegisterUnregisterEventWithoutAffectingOtherInstance([Values]bool remote)
 		{
+			CreateClientServer();
 			IMarshallInterface instance = CreateInstance(remote, "instance0");
 			IMarshallInterface instance2 = CreateInstance(remote, "instance2");
 			_dataReceived = null;
@@ -389,8 +430,10 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
+		[TestCase(false)]
 		public void CanRegisterTwoCallbacks([Values] bool remote)
 		{
+			CreateClientServer();
 			IMarshallInterface instance = CreateInstance(remote, "instance0");
 			_dataReceived = null;
 			instance.DoCallbackOnEvent("Initial test string");
@@ -413,8 +456,10 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
+		[TestCase(false)]
 		public void RegisterForCallbackReverse([Values] bool remote)
 		{
+			CreateClientServer();
 			IMarshallInterface instance = CreateInstance(remote, "instance0");
 			_dataReceived = null;
 
@@ -425,8 +470,10 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
+		[TestCase(false)]
 		public void CanRegisterCallbackOnDifferentInstance([Values] bool remote)
 		{
+			CreateClientServer();
 			IMarshallInterface instance = CreateInstance(remote, "instance0");
 			instance.DoCallbackOnEvent("Initial test string");
 
@@ -444,8 +491,10 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
+		[TestCase(false)]
 		public void CanRegisterCallbackOnDifferentInstance2([Values] bool remote)
 		{
+			CreateClientServer();
 			IMarshallInterface instance = CreateInstance(remote, "instance0");
 			instance.DoCallbackOnEvent("Initial test string");
 
@@ -469,6 +518,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void RemovingAnAlreadyRemovedDelegateDoesNothing()
 		{
+			CreateClientServer();
 			EventHandling();
 			IMarshallInterface instance = _client.CreateRemoteInstance<MarshallableClass>(nameof(RemovingAnAlreadyRemovedDelegateDoesNothing));
 
@@ -514,6 +564,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void CopyStreamToServer()
 		{
+			CreateClientServer();
 			MemoryStream ms = new MemoryStream();
 			byte[] data = new byte[10 * 1024 * 1024];
 			data[1] = 2;
@@ -527,6 +578,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void FileStreamFromClientToServer()
 		{
+			CreateClientServer();
 			var server = CreateRemoteInstance();
 			string fileToOpen = Assembly.GetExecutingAssembly().Location;
 			using FileStream fs = new FileStream(fileToOpen, FileMode.Open, FileAccess.Read);
@@ -536,6 +588,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void CreateFileStreamOnRemoteServer()
 		{
+			CreateClientServer();
 			var server = CreateRemoteInstance();
 			string fileToOpen = Assembly.GetExecutingAssembly().Location;
 			using var stream = server.GetFileStream(fileToOpen);
@@ -552,6 +605,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void CanUseAnArgumentThatIsGeneric()
 		{
+			CreateClientServer();
 			var server = CreateRemoteInstance();
 			var list = new List<int>();
 			list.Add(1);
@@ -562,6 +616,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void DistributedGcTest1()
 		{
+			CreateClientServer();
 			var server = CreateRemoteInstance();
 			var component = server.GetComponent();
 			Assert.NotNull(component);
@@ -577,10 +632,10 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void VerifyMatchingServer()
 		{
+			CreateClientServer();
 			Assert.IsNull(_client.VerifyMatchingServer());
 		}
 
-		[Test]
 		public void EventHandling()
 		{
 			int expectedCounter = 0;
@@ -592,8 +647,16 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
+		public void EventHandlingTest()
+		{
+			CreateClientServer();
+			EventHandling();
+		}
+
+		[Test]
 		public void ParallelGetObjectInstance()
 		{
+			CreateClientServer();
 			var server = _client.CreateRemoteInstance<MarshallableClass>();
 			server.CreateCalc();
 			SimpleCalc localCalc = new SimpleCalc();
@@ -615,6 +678,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void TestSealedProxy()
 		{
+			CreateClientServer();
 			var server = _client.CreateRemoteInstance<MarshallableClass>();
 			object instance = server.GetSealedClass();
 
@@ -629,6 +693,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void TestFastArgumentPassing()
 		{
+			CreateClientServer();
 			var server = _client.CreateRemoteInstance<MarshallableClass>();
 			Assert.True(server.TakeSomeArguments(10, 2000, 2000, 10.0));
 		}
