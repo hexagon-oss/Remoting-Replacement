@@ -27,10 +27,12 @@ namespace NewRemoting
 		Int16,
 		Uint16,
 		Int32,
-		Int64,
 		Uint32,
+		Int64,
+		Uint64,
 		Bool,
 		Float,
 		Double,
+		Single
 	}
 }

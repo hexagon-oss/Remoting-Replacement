@@ -260,11 +260,27 @@ namespace NewRemoting
 				return true;
 			}
 
+			if (objectType == typeof(UInt64))
+			{
+				UInt64 i = (UInt64)data;
+				w.Write((int)RemotingReferenceType.Uint64);
+				w.Write(i);
+				return true;
+			}
+
 			if (objectType == typeof(double))
 			{
 				double d = (double)data;
 				w.Write((int)RemotingReferenceType.Double);
 				w.Write(d);
+				return true;
+			}
+
+			if (objectType == typeof(System.Single))
+			{
+				Single i = (Single)data;
+				w.Write((int)RemotingReferenceType.Single);
+				w.Write(i);
 				return true;
 			}
 
@@ -569,6 +585,12 @@ namespace NewRemoting
 					return i;
 				}
 
+				case RemotingReferenceType.Uint64:
+				{
+					var i = r.ReadUInt64();
+					return i;
+				}
+
 				case RemotingReferenceType.Float:
 				{
 					var i = r.ReadSingle();
@@ -578,6 +600,12 @@ namespace NewRemoting
 				case RemotingReferenceType.Double:
 				{
 					var i = r.ReadDouble();
+					return i;
+				}
+
+				case RemotingReferenceType.Single:
+				{
+					var i = r.ReadSingle();
 					return i;
 				}
 
