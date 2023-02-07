@@ -570,6 +570,7 @@ namespace NewRemoting
 
 		public void Dispose()
 		{
+			_messageHandler.PrintStats(Logger);
 			lock (_accessLock)
 			{
 				if (_server != null)

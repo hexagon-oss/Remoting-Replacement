@@ -12,7 +12,10 @@ using System.Runtime.ExceptionServices;
 using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
+using Castle.Core.Logging;
 using Castle.DynamicProxy;
+using Microsoft.Extensions.Logging;
+using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace NewRemoting
 {
@@ -26,6 +29,7 @@ namespace NewRemoting
 		private readonly FormatterFactory _formatterFactory;
 		private readonly Dictionary<string, ClientSideInterceptor> _interceptors;
 		private bool _initialized;
+		private ConcurrentDictionary<RemotingReferenceType, uint> _stats;
 
 		public MessageHandler(InstanceManager instanceManager, FormatterFactory formatterFactory)
 		{
@@ -33,6 +37,20 @@ namespace NewRemoting
 			_formatterFactory = formatterFactory;
 			_initialized = false;
 			_interceptors = new();
+			_stats = new ConcurrentDictionary<RemotingReferenceType, uint>();
+			foreach (RemotingReferenceType refType in Enum.GetValues(typeof(RemotingReferenceType)))
+			{
+				_stats[refType] = 0;
+			}
+		}
+
+		public void PrintStats(ILogger logger)
+		{
+			logger.LogInformation("Messagehandler usage stats:");
+			foreach (var stat in _stats)
+			{
+				logger.LogInformation(FormattableString.Invariant($"{stat.Key}: {stat.Value}"));
+			}
 		}
 
 		public static Encoding DefaultStringEncoding => Encoding.UTF8;
@@ -43,6 +61,11 @@ namespace NewRemoting
 		{
 			var ctor = t.GetConstructor(BindingFlags.Public | BindingFlags.Instance, null, CallingConventions.Any, new Type[0], null);
 			return ctor != null;
+		}
+
+		private void LogMsg(RemotingReferenceType msgType)
+		{
+			_stats[msgType]++;
 		}
 
 		/// <summary>
@@ -73,6 +96,7 @@ namespace NewRemoting
 				// has an exact match on the remote side.
 				w.Write((int)RemotingReferenceType.InstanceOfSystemType);
 				w.Write(type.AssemblyQualifiedName);
+				LogMsg(RemotingReferenceType.InstanceOfSystemType);
 			}
 			else if (data is IPAddress address)
 			{
@@ -80,11 +104,13 @@ namespace NewRemoting
 				w.Write((int)RemotingReferenceType.IpAddress);
 				string s = address.ToString();
 				w.Write(s);
+				LogMsg(RemotingReferenceType.IpAddress);
 			}
 			else if (data is Type[] typeArray)
 			{
 				w.Write((int)RemotingReferenceType.ArrayOfSystemType);
 				w.Write(typeArray.Length);
+				LogMsg(RemotingReferenceType.ArrayOfSystemType);
 				for (int i = 0; i < typeArray.Length; i++)
 				{
 					if (typeArray[i] == null)
@@ -101,6 +127,7 @@ namespace NewRemoting
 			{
 				var list = data as IEnumerable;
 				w.Write((int)RemotingReferenceType.ContainerType);
+				LogMsg(RemotingReferenceType.ContainerType);
 				w.Write(data.GetType().AssemblyQualifiedName);
 				w.Write(contentType.AssemblyQualifiedName);
 				foreach (object obj in list)
@@ -121,6 +148,7 @@ namespace NewRemoting
 
 				// The argument is a function pointer (typically the argument to a add_ or remove_ event)
 				w.Write((int)RemotingReferenceType.MethodPointer);
+				LogMsg(RemotingReferenceType.MethodPointer);
 				if (del.Target != null)
 				{
 					string instanceId = _instanceManager.GetDelegateTargetIdentifier(del.Method, del.Target);
@@ -157,6 +185,7 @@ namespace NewRemoting
 					throw new RemotingException("A proxy has no existing reference");
 				}
 
+				LogMsg(RemotingReferenceType.RemoteReference);
 				w.Write((int)RemotingReferenceType.RemoteReference);
 				w.Write(objectId);
 				// string originalTypeName = Client.GetUnproxiedType(data).AssemblyQualifiedName ?? String.Empty;
@@ -167,6 +196,7 @@ namespace NewRemoting
 			{
 				if (!TryUseFastSerialization(w, t, data))
 				{
+					LogMsg(RemotingReferenceType.Auto);
 					SendAutoSerializedObject(w, data, referencesWillBeSentTo);
 				}
 			}
@@ -174,6 +204,7 @@ namespace NewRemoting
 			{
 				string objectId = _instanceManager.GetIdForObject(data, referencesWillBeSentTo);
 				w.Write((int)RemotingReferenceType.RemoteReference);
+				LogMsg(RemotingReferenceType.RemoteReference);
 				w.Write(objectId);
 
 				// If this is not a proxy, this should always work correctly
@@ -192,6 +223,7 @@ namespace NewRemoting
 			{
 				int i = (int)data;
 				w.Write((int)RemotingReferenceType.Int32);
+				LogMsg(RemotingReferenceType.Int32);
 				w.Write(i);
 				return true;
 			}
@@ -200,6 +232,7 @@ namespace NewRemoting
 			{
 				UInt32 i = (UInt32)data;
 				w.Write((int)RemotingReferenceType.Uint32);
+				LogMsg(RemotingReferenceType.Uint32);
 				w.Write(i);
 				return true;
 			}
@@ -208,6 +241,7 @@ namespace NewRemoting
 			{
 				bool b = (bool)data;
 				w.Write((int)RemotingReferenceType.Bool);
+				LogMsg(RemotingReferenceType.Bool);
 				w.Write(b);
 				return true;
 			}
@@ -216,6 +250,7 @@ namespace NewRemoting
 			{
 				Int16 s = (Int16)data;
 				w.Write((int)RemotingReferenceType.Int16);
+				LogMsg(RemotingReferenceType.Int16);
 				w.Write(s);
 				return true;
 			}
@@ -224,6 +259,7 @@ namespace NewRemoting
 			{
 				UInt16 s = (UInt16)data;
 				w.Write((int)RemotingReferenceType.Uint16);
+				LogMsg(RemotingReferenceType.Uint16);
 				w.Write(s);
 				return true;
 			}
@@ -232,6 +268,7 @@ namespace NewRemoting
 			{
 				sbyte s = (sbyte)data;
 				w.Write((int)RemotingReferenceType.Int8);
+				LogMsg(RemotingReferenceType.Int8);
 				w.Write(s);
 				return true;
 			}
@@ -240,6 +277,7 @@ namespace NewRemoting
 			{
 				byte b = (byte)data;
 				w.Write((int)RemotingReferenceType.Uint8);
+				LogMsg(RemotingReferenceType.Uint8);
 				w.Write(b);
 				return true;
 			}
@@ -248,6 +286,7 @@ namespace NewRemoting
 			{
 				float f = (float)data;
 				w.Write((int)RemotingReferenceType.Float);
+				LogMsg(RemotingReferenceType.Float);
 				w.Write(f);
 				return true;
 			}
@@ -256,6 +295,7 @@ namespace NewRemoting
 			{
 				Int64 i = (Int64)data;
 				w.Write((int)RemotingReferenceType.Int64);
+				LogMsg(RemotingReferenceType.Int64);
 				w.Write(i);
 				return true;
 			}
@@ -264,6 +304,7 @@ namespace NewRemoting
 			{
 				UInt64 i = (UInt64)data;
 				w.Write((int)RemotingReferenceType.Uint64);
+				LogMsg(RemotingReferenceType.Uint64);
 				w.Write(i);
 				return true;
 			}
@@ -272,6 +313,7 @@ namespace NewRemoting
 			{
 				double d = (double)data;
 				w.Write((int)RemotingReferenceType.Double);
+				LogMsg(RemotingReferenceType.Double);
 				w.Write(d);
 				return true;
 			}
@@ -280,6 +322,7 @@ namespace NewRemoting
 			{
 				Single i = (Single)data;
 				w.Write((int)RemotingReferenceType.Single);
+				LogMsg(RemotingReferenceType.Single);
 				w.Write(i);
 				return true;
 			}

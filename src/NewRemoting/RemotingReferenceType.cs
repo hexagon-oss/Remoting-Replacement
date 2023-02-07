@@ -33,6 +33,7 @@ namespace NewRemoting
 		Bool,
 		Float,
 		Double,
-		Single
+		Single,
+		Auto
 	}
 }
