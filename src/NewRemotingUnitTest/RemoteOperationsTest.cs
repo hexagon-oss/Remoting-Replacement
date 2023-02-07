@@ -49,14 +49,14 @@ namespace NewRemotingUnitTest
 			return authenticationInfo;
 		}
 
-		[SetUp]
-		public void SetUp()
+		[OneTimeSetUp]
+		public void OneTimeSetUp()
 		{
 			_helper?.SetUp();
 		}
 
-		[TearDown]
-		public void TearDown()
+		[OneTimeTearDown]
+		public void OneTimeTearDown()
 		{
 			_helper?.TearDown();
 
