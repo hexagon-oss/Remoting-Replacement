@@ -491,7 +491,6 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
-		[TestCase(false)]
 		public void CanRegisterCallbackOnDifferentInstance2([Values] bool remote)
 		{
 			CreateClientServer();
