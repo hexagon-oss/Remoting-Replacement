@@ -149,17 +149,65 @@ namespace NewRemoting
 				// The argument is a function pointer (typically the argument to a add_ or remove_ event)
 				w.Write((int)RemotingReferenceType.MethodPointer);
 				LogMsg(RemotingReferenceType.MethodPointer);
-				if (del.Target != null)
+
+				if (del.Method.IsSpecialName && del.Method.Name.StartsWith("add_", StringComparison.Ordinal))
 				{
-					string instanceId = _instanceManager.GetDelegateTargetIdentifier(del.Method, del.Target);
-					_instanceManager.AddInstance(del, instanceId, referencesWillBeSentTo, del.GetType());
-					w.Write(instanceId);
+					if (del.Target != null)
+					{
+						string instanceId = _instanceManager.GetDelegateTargetIdentifier(del);
+
+						// Create a proxy class that provides a matching event for our delegate
+						var proxyType = typeof(DelegateProxyOnClient<>).MakeGenericType(del.Method.GetParameters()
+							.Select(x => x.GetType()).ToArray());
+						if (_instanceManager.TryGetObjectFromId(instanceId, out var existingDelegateProxy))
+						{
+							proxyType.InvokeMember("add_Event", BindingFlags.Public, null, existingDelegateProxy, new[] { del });
+						}
+						else
+						{
+							var proxy = Activator.CreateInstance(proxyType);
+							proxyType.InvokeMember("add_Event", BindingFlags.Public, null, proxy, new[] { del });
+							_instanceManager.AddInstance(proxy, instanceId, referencesWillBeSentTo, proxyType);
+						}
+
+						w.Write(instanceId);
+					}
+					else
+					{
+						// The delegate target is a static method
+						w.Write(string.Empty);
+					}
 				}
-				else
+				else if (del.Method.IsSpecialName && del.Method.Name.StartsWith("remove_", StringComparison.Ordinal))
 				{
-					// The delegate target is a static method
-					w.Write(string.Empty);
+					if (del.Target != null)
+					{
+						string instanceId = _instanceManager.GetDelegateTargetIdentifier(del);
+
+						if (_instanceManager.TryGetObjectFromId(instanceId, out var existingDelegateProxy))
+						{
+							// Create a proxy class that provides a matching event for our delegate
+							var proxyType = typeof(DelegateProxyOnClient<>).MakeGenericType(del.Method.GetParameters()
+								.Select(x => x.GetType()).ToArray());
+							proxyType.InvokeMember("remove_Event", BindingFlags.Public, null, existingDelegateProxy, new[] { del });
+							bool isEmpty = (bool)proxyType.InvokeMember("IsEmpty", BindingFlags.Public, null, existingDelegateProxy, null);
+							if (isEmpty)
+							{
+								_instanceManager.Remove(instanceId, _instanceManager.InstanceIdentifier);
+							}
+						}
+
+						w.Write(instanceId);
+					}
+					else
+					{
+						// The delegate target is a static method
+						w.Write(string.Empty);
+					}
 				}
+
+
+
 
 				w.Write(del.Method.DeclaringType.AssemblyQualifiedName);
 				w.Write(del.Method.MetadataToken);
