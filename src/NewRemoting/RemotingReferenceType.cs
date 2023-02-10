@@ -17,7 +17,6 @@ namespace NewRemoting
 		Auto,
 		SerializedItem,
 		RemoteReference,
-		MethodPointer,
 		InstanceOfSystemType,
 		ArrayOfSystemType,
 		NullPointer,

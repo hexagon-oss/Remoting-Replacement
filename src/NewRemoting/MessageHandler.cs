@@ -97,7 +97,8 @@ namespace NewRemoting
 					if (_instanceManager.TryGetObjectFromId(instanceId, out var existingDelegateProxy))
 					{
 						var proxyType = existingDelegateProxy.GetType();
-						proxyType.InvokeMember("add_Event", BindingFlags.Public, null, existingDelegateProxy, new[] { del });
+						var addEventMethod = proxyType.GetMethod("add_Event");
+						addEventMethod.Invoke(existingDelegateProxy, new[] { del });
 
 						// proxy is already registered on the server, whole message can be aborted here
 						return false;
@@ -107,13 +108,22 @@ namespace NewRemoting
 						Type proxyType;
 						var arguments = del.Method.GetParameters()
 							.Select(x => x.ParameterType).ToArray();
-						if (arguments.Length == 1)
+						switch (arguments.Length)
 						{
-							proxyType = typeof(DelegateProxyOnClient<>).MakeGenericType(arguments);
-						}
-						else
-						{
-							proxyType = typeof(DelegateProxyOnClient<,>).MakeGenericType(arguments);
+							case 1:
+								proxyType = typeof(DelegateProxyOnClient<>).MakeGenericType(arguments);
+								break;
+							case 2:
+								proxyType = typeof(DelegateProxyOnClient<,>).MakeGenericType(arguments);
+								break;
+							case 3:
+								proxyType = typeof(DelegateProxyOnClient<,,>).MakeGenericType(arguments);
+								break;
+							case 4:
+								proxyType = typeof(DelegateProxyOnClient<,,,>).MakeGenericType(arguments);
+								break;
+							default:
+								throw new NotSupportedException($"Unsupported number of arguments ({arguments.Length}");
 						}
 
 						var proxy = Activator.CreateInstance(proxyType);
@@ -124,9 +134,6 @@ namespace NewRemoting
 						w.Write((int)RemotingReferenceType.AddEvent);
 						LogMsg(RemotingReferenceType.AddEvent);
 						w.Write(instanceId);
-
-						w.Write(del.Method.DeclaringType.AssemblyQualifiedName);
-						w.Write(del.Method.MetadataToken);
 
 						// If the type of the delegate method is generic, we need to provide its type arguments
 						w.Write(arguments.Length);
@@ -742,8 +749,6 @@ namespace NewRemoting
 				case RemotingReferenceType.AddEvent:
 				{
 					string instanceId = r.ReadString();
-					string typeOfTargetName = r.ReadString();
-					int tokenOfTargetMethod = r.ReadInt32();
 					int methodGenericArgs = r.ReadInt32();
 					Type[] typeOfGenericArguments = new Type[methodGenericArgs];
 					for (int i = 0; i < methodGenericArgs; i++)
@@ -754,13 +759,25 @@ namespace NewRemoting
 					}
 
 					Type typeOfTarget = null;
-					if (typeOfGenericArguments.Length == 1)
+					switch (typeOfGenericArguments.Length)
 					{
-						typeOfTarget = typeof(DelegateProxyOnClient<>).MakeGenericType(typeOfGenericArguments[0]);
-					}
-					else if (typeOfGenericArguments.Length == 2)
-					{
-						typeOfTarget = typeof(DelegateProxyOnClient<,>).MakeGenericType(typeOfGenericArguments[0], typeOfGenericArguments[1]);
+						case 1:
+							typeOfTarget = typeof(DelegateProxyOnClient<>).MakeGenericType(typeOfGenericArguments[0]);
+							break;
+						case 2:
+							typeOfTarget = typeof(DelegateProxyOnClient<,>).MakeGenericType(typeOfGenericArguments[0],
+								typeOfGenericArguments[1]);
+							break;
+						case 3:
+							typeOfTarget = typeof(DelegateProxyOnClient<,>).MakeGenericType(typeOfGenericArguments[0],
+								typeOfGenericArguments[1], typeOfGenericArguments[2]);
+							break;
+						case 4:
+							typeOfTarget = typeof(DelegateProxyOnClient<,>).MakeGenericType(typeOfGenericArguments[0],
+								typeOfGenericArguments[1], typeOfGenericArguments[2], typeOfGenericArguments[3]);
+							break;
+						default:
+							throw new NotSupportedException($"Unsupported number of arguments ({typeOfGenericArguments.Length}");
 					}
 
 					var methodInfoOfTarget = typeOfTarget.GetMethod("FireEvent",
@@ -815,88 +832,15 @@ namespace NewRemoting
 					return newDelegate;
 				}
 
-				case RemotingReferenceType.MethodPointer:
+				case RemotingReferenceType.RemoveEvent:
 				{
 					string instanceId = r.ReadString();
-					string typeOfTargetName = r.ReadString();
-					int tokenOfTargetMethod = r.ReadInt32();
-					int methodGenericArgs = r.ReadInt32();
-					Type[] typeOfGenericArguments = new Type[methodGenericArgs];
-					for (int i = 0; i < methodGenericArgs; i++)
+					if (_instanceManager.TryGetObjectFromId(instanceId, out _))
 					{
-						var typeName = r.ReadString();
-						var t = Server.GetTypeFromAnyAssembly(typeName);
-						typeOfGenericArguments[i] = t;
+						_instanceManager.Remove(instanceId, _instanceManager.InstanceIdentifier);
 					}
 
-					Type typeOfTarget = Server.GetTypeFromAnyAssembly(typeOfTargetName);
-
-					var methods = typeOfTarget.GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-					MethodInfo methodInfoOfTarget = methods.First(x => x.MetadataToken == tokenOfTargetMethod);
-					if (methodGenericArgs > 0)
-					{
-						methodInfoOfTarget = methodInfoOfTarget.MakeGenericMethod(typeOfGenericArguments);
-					}
-
-					// TODO: This copying of arrays here is not really performance-friendly
-					var argumentsOfTarget = methodInfoOfTarget.GetParameters().Select(x => x.ParameterType).ToList();
-
-					var interceptor = InstanceManager.GetInterceptor(_interceptors, instanceId);
-					// This creates an instance of the DelegateInternalSink class, which acts as a proxy for delegate callbacks. Instead of the actual delegate
-					// target, we register a method from this class as a delegate target
-					DelegateInternalSink internalSink;
-					if (_instanceManager.TryGetObjectFromId(instanceId, out object sink))
-					{
-						internalSink = (DelegateInternalSink)sink;
-					}
-					else
-					{
-						internalSink = new DelegateInternalSink(interceptor, instanceId, methodInfoOfTarget);
-						_instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideInstanceId, internalSink.GetType());
-					}
-
-					IEnumerable<MethodInfo> possibleSinks = null;
-
-					MethodInfo localSinkTarget;
-					if (methodInfoOfTarget.ReturnType == typeof(void))
-					{
-						possibleSinks = internalSink.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public).Where(x => x.Name == "ActionSink");
-						localSinkTarget = possibleSinks.Single(x => x.GetGenericArguments().Length == argumentsOfTarget.Count);
-					}
-					else
-					{
-						possibleSinks = internalSink.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public).Where(x => x.Name == "FuncSink");
-						localSinkTarget = possibleSinks.Single(x => x.GetGenericArguments().Length == argumentsOfTarget.Count + 1);
-						argumentsOfTarget.Add(methodInfoOfTarget.ReturnType);
-					}
-
-					if (argumentsOfTarget.Count > 0)
-					{
-						localSinkTarget = localSinkTarget.MakeGenericMethod(argumentsOfTarget.ToArray());
-					}
-
-					string delegateId = instanceId + "." + methodInfoOfTarget.Name;
-					Delegate newDelegate;
-					if (callingMethod != null && callingMethod.IsSpecialName && callingMethod.Name.StartsWith("add_", StringComparison.Ordinal))
-					{
-						newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
-						_instanceManager.AddInstance(newDelegate, delegateId, otherSideInstanceId, newDelegate.GetType());
-						return newDelegate;
-					}
-					else if (callingMethod != null && callingMethod.IsSpecialName && callingMethod.Name.StartsWith("remove_", StringComparison.Ordinal))
-					{
-						// This may fail if the delegate was already removed. In this case, we just return a new instance, it will be GCed soon after
-						if (_instanceManager.TryGetObjectFromId(delegateId, out var obj))
-						{
-							// Remove delegate (and forget about it), it is not used here any more.
-							_instanceManager.Remove(delegateId, otherSideInstanceId);
-							return obj;
-						}
-					}
-
-					// No need to register - this is a delegate used as method argument in an "ordinary" call
-					newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
-					return newDelegate;
+					return null;
 				}
 
 				default:

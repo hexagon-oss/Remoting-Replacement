@@ -43,3 +43,41 @@ internal class DelegateProxyOnClient<T1, T2>
 		return Event == null;
 	}
 }
+
+internal class DelegateProxyOnClient<T1, T2, T3>
+{
+	public DelegateProxyOnClient()
+	{
+	}
+
+	public event Action<T1, T2, T3> Event;
+
+	public void FireEvent(T1 arg1, T2 arg2, T3 arg3)
+	{
+		Event?.Invoke(arg1, arg2, arg3);
+	}
+
+	public bool IsEmpty()
+	{
+		return Event == null;
+	}
+}
+
+internal class DelegateProxyOnClient<T1, T2, T3, T4>
+{
+	public DelegateProxyOnClient()
+	{
+	}
+
+	public event Action<T1, T2, T3, T4> Event;
+
+	public void FireEvent(T1 arg1, T2 arg2, T3 arg3, T4 arg4)
+	{
+		Event?.Invoke(arg1, arg2, arg3, arg4);
+	}
+
+	public bool IsEmpty()
+	{
+		return Event == null;
+	}
+}
