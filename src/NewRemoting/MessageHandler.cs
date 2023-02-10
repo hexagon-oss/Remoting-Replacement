@@ -71,6 +71,127 @@ namespace NewRemoting
 		/// <summary>
 		/// Write the given object to the target stream.
 		/// When it is a type that shall be transferred by value, it is serialized, otherwise a reference is added to the stream.
+		/// That reference is then converted to a proxy instance on the other side. Returns false if no data needs to be sent to the server - all handled locally
+		/// </summary>
+		/// <param name="w">The data sink</param>
+		/// <param name="data">The object to write</param>
+		/// <param name="referencesWillBeSentTo">Destination identifier (used to keep track of references that are eventually encoded in the stream)</param>
+		public bool WriteDelegateArgumentToStream(BinaryWriter w, Delegate del, MethodInfo calledMethod, string referencesWillBeSentTo)
+		{
+			if (calledMethod.IsStatic)
+			{
+				throw new RemotingException("Can only register instance methods as delegate targets");
+			}
+
+			// The argument is a function pointer (typically the argument to a add_ or remove_ event)
+			////w.Write((int)RemotingReferenceType.MethodPointer);
+			////LogMsg(RemotingReferenceType.MethodPointer);
+
+			if (calledMethod.IsSpecialName && calledMethod.Name.StartsWith("add_", StringComparison.Ordinal))
+			{
+				if (del.Target != null)
+				{
+					string instanceId = _instanceManager.GetDelegateTargetIdentifier(del);
+
+					// Create a proxy class that provides a matching event for our delegate
+					if (_instanceManager.TryGetObjectFromId(instanceId, out var existingDelegateProxy))
+					{
+						var proxyType = existingDelegateProxy.GetType();
+						proxyType.InvokeMember("add_Event", BindingFlags.Public, null, existingDelegateProxy, new[] { del });
+
+						// proxy is already registered on the server, whole message can be aborted here
+						return false;
+					}
+					else
+					{
+						Type proxyType;
+						var arguments = del.Method.GetParameters()
+							.Select(x => x.ParameterType).ToArray();
+						if (arguments.Length == 1)
+						{
+							proxyType = typeof(DelegateProxyOnClient<>).MakeGenericType(arguments);
+						}
+						else
+						{
+							proxyType = typeof(DelegateProxyOnClient<,>).MakeGenericType(arguments);
+						}
+
+						var proxy = Activator.CreateInstance(proxyType);
+						var addEventMethod = proxyType.GetMethod("add_Event");
+						addEventMethod.Invoke(proxy, new[] { del });
+						_instanceManager.AddInstance(proxy, instanceId, referencesWillBeSentTo, proxyType);
+
+						w.Write((int)RemotingReferenceType.AddEvent);
+						LogMsg(RemotingReferenceType.AddEvent);
+						w.Write(instanceId);
+
+						w.Write(del.Method.DeclaringType.AssemblyQualifiedName);
+						w.Write(del.Method.MetadataToken);
+
+						// If the type of the delegate method is generic, we need to provide its type arguments
+						w.Write(arguments.Length);
+						foreach (var argType in arguments)
+						{
+							string arg = argType.AssemblyQualifiedName;
+							if (arg == null)
+							{
+								throw new RemotingException("Unresolved generic type or some other undefined case");
+							}
+
+							w.Write(arg);
+						}
+					}
+				}
+				else
+				{
+					// The delegate target is a static method
+					////						w.Write(string.Empty);
+					throw new InvalidOperationException("The delegate target is a static method");
+				}
+			}
+			else if (calledMethod.IsSpecialName && calledMethod.Name.StartsWith("remove_", StringComparison.Ordinal))
+			{
+				if (del.Target != null)
+				{
+					string instanceId = _instanceManager.GetDelegateTargetIdentifier(del);
+
+					if (_instanceManager.TryGetObjectFromId(instanceId, out var existingDelegateProxy))
+					{
+						// Create a proxy class that provides a matching event for our delegate
+						var proxyType = existingDelegateProxy.GetType();
+						var removeEventMethod = proxyType.GetMethod("remove_Event");
+						removeEventMethod.Invoke(existingDelegateProxy, new[] { del });
+						var isEmptyMethod = proxyType.GetMethod("IsEmpty");
+						bool isEmpty = (bool)isEmptyMethod.Invoke(existingDelegateProxy, null);
+						if (isEmpty)
+						{
+							_instanceManager.Remove(instanceId, _instanceManager.InstanceIdentifier);
+						}
+						else
+						{
+							// proxy is still needed, whole message can be aborted here
+							return false;
+						}
+					}
+
+					w.Write((int)RemotingReferenceType.RemoveEvent);
+					LogMsg(RemotingReferenceType.RemoveEvent);
+					w.Write(instanceId);
+				}
+				else
+				{
+					// The delegate target is a static method
+					////						w.Write(string.Empty);
+					throw new InvalidOperationException("The delegate target is a static method");
+				}
+			}
+
+			return true;
+		}
+
+		/// <summary>
+		/// Write the given object to the target stream.
+		/// When it is a type that shall be transferred by value, it is serialized, otherwise a reference is added to the stream.
 		/// That reference is then converted to a proxy instance on the other side.
 		/// </summary>
 		/// <param name="w">The data sink</param>
@@ -134,96 +255,14 @@ namespace NewRemoting
 				{
 					// Recursively write the arguments
 					w.Write(true);
-					WriteArgumentToStream(w, obj, referencesWillBeSentTo);
+					WriteArgumentToStream(w, obj, referencesWillBeSentTo); // always returns true
 				}
 
 				w.Write(false); // Terminate the array
 			}
-			else if (data is Delegate del)
+			else if (data is Delegate)
 			{
-				if (del.Method.IsStatic)
-				{
-					throw new RemotingException("Can only register instance methods as delegate targets");
-				}
-
-				// The argument is a function pointer (typically the argument to a add_ or remove_ event)
-				w.Write((int)RemotingReferenceType.MethodPointer);
-				LogMsg(RemotingReferenceType.MethodPointer);
-
-				if (del.Method.IsSpecialName && del.Method.Name.StartsWith("add_", StringComparison.Ordinal))
-				{
-					if (del.Target != null)
-					{
-						string instanceId = _instanceManager.GetDelegateTargetIdentifier(del);
-
-						// Create a proxy class that provides a matching event for our delegate
-						var proxyType = typeof(DelegateProxyOnClient<>).MakeGenericType(del.Method.GetParameters()
-							.Select(x => x.GetType()).ToArray());
-						if (_instanceManager.TryGetObjectFromId(instanceId, out var existingDelegateProxy))
-						{
-							proxyType.InvokeMember("add_Event", BindingFlags.Public, null, existingDelegateProxy, new[] { del });
-						}
-						else
-						{
-							var proxy = Activator.CreateInstance(proxyType);
-							proxyType.InvokeMember("add_Event", BindingFlags.Public, null, proxy, new[] { del });
-							_instanceManager.AddInstance(proxy, instanceId, referencesWillBeSentTo, proxyType);
-						}
-
-						w.Write(instanceId);
-					}
-					else
-					{
-						// The delegate target is a static method
-						w.Write(string.Empty);
-					}
-				}
-				else if (del.Method.IsSpecialName && del.Method.Name.StartsWith("remove_", StringComparison.Ordinal))
-				{
-					if (del.Target != null)
-					{
-						string instanceId = _instanceManager.GetDelegateTargetIdentifier(del);
-
-						if (_instanceManager.TryGetObjectFromId(instanceId, out var existingDelegateProxy))
-						{
-							// Create a proxy class that provides a matching event for our delegate
-							var proxyType = typeof(DelegateProxyOnClient<>).MakeGenericType(del.Method.GetParameters()
-								.Select(x => x.GetType()).ToArray());
-							proxyType.InvokeMember("remove_Event", BindingFlags.Public, null, existingDelegateProxy, new[] { del });
-							bool isEmpty = (bool)proxyType.InvokeMember("IsEmpty", BindingFlags.Public, null, existingDelegateProxy, null);
-							if (isEmpty)
-							{
-								_instanceManager.Remove(instanceId, _instanceManager.InstanceIdentifier);
-							}
-						}
-
-						w.Write(instanceId);
-					}
-					else
-					{
-						// The delegate target is a static method
-						w.Write(string.Empty);
-					}
-				}
-
-
-
-
-				w.Write(del.Method.DeclaringType.AssemblyQualifiedName);
-				w.Write(del.Method.MetadataToken);
-				var generics = del.Method.GetGenericArguments();
-				// If the type of the delegate method is generic, we need to provide its type arguments
-				w.Write(generics.Length);
-				foreach (var genericType in generics)
-				{
-					string arg = genericType.AssemblyQualifiedName;
-					if (arg == null)
-					{
-						throw new RemotingException("Unresolved generic type or some other undefined case");
-					}
-
-					w.Write(arg);
-				}
+				throw new InvalidOperationException("Can not register delegate targets - use WriteDelegateArgumentToStream");
 			}
 			else if (Client.IsRemoteProxy(data))
 			{
@@ -537,7 +576,7 @@ namespace NewRemoting
 			{
 				w.Write(e.Name);
 				// This may contain inner exceptions, but since we're not throwing those, this shouldn't cause any issues on the remote side
-				WriteArgumentToStream(w, e.Value, otherSideInstanceId);
+				WriteArgumentToStream(w, e.Value, otherSideInstanceId); // always returns true
 			}
 
 			w.Write(exception.StackTrace ?? string.Empty);
@@ -698,6 +737,82 @@ namespace NewRemoting
 				{
 					var i = r.ReadSingle();
 					return i;
+				}
+
+				case RemotingReferenceType.AddEvent:
+				{
+					string instanceId = r.ReadString();
+					string typeOfTargetName = r.ReadString();
+					int tokenOfTargetMethod = r.ReadInt32();
+					int methodGenericArgs = r.ReadInt32();
+					Type[] typeOfGenericArguments = new Type[methodGenericArgs];
+					for (int i = 0; i < methodGenericArgs; i++)
+					{
+						var typeName = r.ReadString();
+						var t = Server.GetTypeFromAnyAssembly(typeName);
+						typeOfGenericArguments[i] = t;
+					}
+
+					Type typeOfTarget = null;
+					if (typeOfGenericArguments.Length == 1)
+					{
+						typeOfTarget = typeof(DelegateProxyOnClient<>).MakeGenericType(typeOfGenericArguments[0]);
+					}
+					else if (typeOfGenericArguments.Length == 2)
+					{
+						typeOfTarget = typeof(DelegateProxyOnClient<,>).MakeGenericType(typeOfGenericArguments[0], typeOfGenericArguments[1]);
+					}
+
+					var methodInfoOfTarget = typeOfTarget.GetMethod("FireEvent",
+						BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+					// This creates an instance of the DelegateInternalSink class, which acts as a proxy for delegate callbacks. Instead of the actual delegate
+					// target, we register a method from this class as a delegate target
+					DelegateInternalSink internalSink;
+					if (_instanceManager.TryGetObjectFromId(instanceId, out object sink))
+					{
+						internalSink = (DelegateInternalSink)sink;
+					}
+					else
+					{
+						var interceptor = InstanceManager.GetInterceptor(_interceptors, instanceId);
+						internalSink = new DelegateInternalSink(interceptor, instanceId, methodInfoOfTarget);
+						_instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideInstanceId,
+							internalSink.GetType());
+					}
+
+					// TODO: This copying of arrays here is not really performance-friendly
+					var argumentsOfTarget = methodInfoOfTarget.GetParameters().Select(x => x.ParameterType).ToList();
+
+					IEnumerable<MethodInfo> possibleSinks = null;
+
+					MethodInfo localSinkTarget;
+					if (methodInfoOfTarget.ReturnType == typeof(void))
+					{
+						possibleSinks = internalSink.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public)
+							.Where(x => x.Name == "ActionSink");
+						localSinkTarget =
+							possibleSinks.Single(x => x.GetGenericArguments().Length == argumentsOfTarget.Count);
+					}
+					else
+					{
+						possibleSinks = internalSink.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public)
+							.Where(x => x.Name == "FuncSink");
+						localSinkTarget = possibleSinks.Single(x =>
+							x.GetGenericArguments().Length == argumentsOfTarget.Count + 1);
+						argumentsOfTarget.Add(methodInfoOfTarget.ReturnType);
+					}
+
+					if (argumentsOfTarget.Count > 0)
+					{
+						localSinkTarget = localSinkTarget.MakeGenericMethod(argumentsOfTarget.ToArray());
+					}
+
+					// create the local server side delegate
+					string delegateId = instanceId + "." + methodInfoOfTarget.Name;
+					Delegate newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
+					_instanceManager.AddInstance(newDelegate, delegateId, otherSideInstanceId, newDelegate.GetType());
+					return newDelegate;
 				}
 
 				case RemotingReferenceType.MethodPointer:

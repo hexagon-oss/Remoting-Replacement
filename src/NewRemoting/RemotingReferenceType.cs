@@ -14,6 +14,7 @@ namespace NewRemoting
 	internal enum RemotingReferenceType
 	{
 		Undefined = 0,
+		Auto,
 		SerializedItem,
 		RemoteReference,
 		MethodPointer,
@@ -34,6 +35,7 @@ namespace NewRemoting
 		Float,
 		Double,
 		Single,
-		Auto
+		AddEvent,
+		RemoveEvent
 	}
 }

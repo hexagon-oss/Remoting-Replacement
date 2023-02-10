@@ -3,13 +3,13 @@ using System.Collections.Generic;
 
 namespace NewRemoting;
 
+/// <summary>
+/// Delegate proxy on client to handle remote events - used only per reflection, therefore no usages visible
+/// </summary>
 internal class DelegateProxyOnClient<T>
 {
-	public List<Delegate> Delegates { get; }
-
 	public DelegateProxyOnClient()
 	{
-		Delegates = new List<Delegate>();
 	}
 
 	public event Action<T> Event;
@@ -23,19 +23,23 @@ internal class DelegateProxyOnClient<T>
 	{
 		return Event == null;
 	}
+}
 
-	public void RegisterDelegate(Delegate del)
+internal class DelegateProxyOnClient<T1, T2>
+{
+	public DelegateProxyOnClient()
 	{
-		Delegates.Add(del);
 	}
 
-	public bool UnregisterDelegate(Delegate del)
-	{
-		if (Delegates.Contains(del))
-		{
-			Delegates.Remove(del);
-		}
+	public event Action<T1, T2> Event;
 
-		return Delegates.Count == 0;
+	public void FireEvent(T1 arg1, T2 arg2)
+	{
+		Event?.Invoke(arg1, arg2);
+	}
+
+	public bool IsEmpty()
+	{
+		return Event == null;
 	}
 }
