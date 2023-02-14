@@ -74,9 +74,12 @@ namespace NewRemoting
 		/// That reference is then converted to a proxy instance on the other side. Returns false if no data needs to be sent to the server - all handled locally
 		/// </summary>
 		/// <param name="w">The data sink</param>
-		/// <param name="data">The object to write</param>
-		/// <param name="referencesWillBeSentTo">Destination identifier (used to keep track of references that are eventually encoded in the stream)</param>
-		public bool WriteDelegateArgumentToStream(BinaryWriter w, Delegate del, MethodInfo calledMethod, string referencesWillBeSentTo)
+		/// <param name="del">The object to write</param>
+		/// <param name="calledMethod">The method that was called (typically add_(EventName) or remove_(EventName))</param>
+		/// <param name="referencesWillBeSentTo">Destination process identifier (used to keep track of references that are eventually encoded in the stream)</param>
+		/// <param name="remoteInstanceId">The instance of the remote object the delegate operation was called on</param>
+		/// <returns>True if the operation needs to be forwarded to the server (new delegate)</returns>
+		public bool WriteDelegateArgumentToStream(BinaryWriter w, Delegate del, MethodInfo calledMethod, string referencesWillBeSentTo, string remoteInstanceId)
 		{
 			if (calledMethod.IsStatic)
 			{
@@ -91,7 +94,7 @@ namespace NewRemoting
 			{
 				if (del.Target != null)
 				{
-					string instanceId = _instanceManager.GetDelegateTargetIdentifier(del);
+					string instanceId = _instanceManager.GetDelegateTargetIdentifier(del, remoteInstanceId);
 
 					// Create a proxy class that provides a matching event for our delegate
 					if (_instanceManager.TryGetObjectFromId(instanceId, out var existingDelegateProxy))
@@ -107,23 +110,58 @@ namespace NewRemoting
 					{
 						Type proxyType;
 						var arguments = del.Method.GetParameters()
-							.Select(x => x.ParameterType).ToArray();
-						switch (arguments.Length)
+							.Select(x => x.ParameterType).ToList();
+						bool hasReturnValue;
+						if (del.Method.ReturnType != typeof(void))
 						{
-							case 1:
-								proxyType = typeof(DelegateProxyOnClient<>).MakeGenericType(arguments);
-								break;
-							case 2:
-								proxyType = typeof(DelegateProxyOnClient<,>).MakeGenericType(arguments);
-								break;
-							case 3:
-								proxyType = typeof(DelegateProxyOnClient<,,>).MakeGenericType(arguments);
-								break;
-							case 4:
-								proxyType = typeof(DelegateProxyOnClient<,,,>).MakeGenericType(arguments);
-								break;
-							default:
-								throw new NotSupportedException($"Unsupported number of arguments ({arguments.Length}");
+							hasReturnValue = true;
+							arguments.Add((Type)del.Method.ReturnType);
+							switch (arguments.Count)
+							{
+								case 1:
+									proxyType = typeof(DelegateFuncProxyOnClient<>).MakeGenericType(arguments.ToArray());
+									break;
+								case 2:
+									proxyType = typeof(DelegateFuncProxyOnClient<,>).MakeGenericType(arguments.ToArray());
+									break;
+								case 3:
+									proxyType = typeof(DelegateFuncProxyOnClient<,,>).MakeGenericType(arguments.ToArray());
+									break;
+								case 4:
+									proxyType = typeof(DelegateFuncProxyOnClient<,,,>).MakeGenericType(arguments.ToArray());
+									break;
+								case 5:
+									proxyType = typeof(DelegateFuncProxyOnClient<,,,,>).MakeGenericType(arguments.ToArray());
+									break;
+								default:
+									throw new NotSupportedException(
+										$"Unsupported number of arguments for function ({arguments.Count}");
+							}
+						}
+						else
+						{
+							hasReturnValue = false;
+							switch (arguments.Count)
+							{
+								case 0:
+									proxyType = typeof(DelegateProxyOnClient).MakeGenericType();
+									break;
+								case 1:
+									proxyType = typeof(DelegateProxyOnClient<>).MakeGenericType(arguments.ToArray());
+									break;
+								case 2:
+									proxyType = typeof(DelegateProxyOnClient<,>).MakeGenericType(arguments.ToArray());
+									break;
+								case 3:
+									proxyType = typeof(DelegateProxyOnClient<,,>).MakeGenericType(arguments.ToArray());
+									break;
+								case 4:
+									proxyType = typeof(DelegateProxyOnClient<,,,>).MakeGenericType(arguments.ToArray());
+									break;
+								default:
+									throw new NotSupportedException(
+										$"Unsupported number of arguments for action ({arguments.Count}");
+							}
 						}
 
 						var proxy = Activator.CreateInstance(proxyType);
@@ -134,9 +172,9 @@ namespace NewRemoting
 						w.Write((int)RemotingReferenceType.AddEvent);
 						LogMsg(RemotingReferenceType.AddEvent);
 						w.Write(instanceId);
-
+						w.Write(hasReturnValue);
 						// If the type of the delegate method is generic, we need to provide its type arguments
-						w.Write(arguments.Length);
+						w.Write(arguments.Count);
 						foreach (var argType in arguments)
 						{
 							string arg = argType.AssemblyQualifiedName;
@@ -160,7 +198,7 @@ namespace NewRemoting
 			{
 				if (del.Target != null)
 				{
-					string instanceId = _instanceManager.GetDelegateTargetIdentifier(del);
+					string instanceId = _instanceManager.GetDelegateTargetIdentifier(del, remoteInstanceId);
 
 					if (_instanceManager.TryGetObjectFromId(instanceId, out var existingDelegateProxy))
 					{
@@ -749,6 +787,7 @@ namespace NewRemoting
 				case RemotingReferenceType.AddEvent:
 				{
 					string instanceId = r.ReadString();
+					bool hasReturnValue = r.ReadBoolean();
 					int methodGenericArgs = r.ReadInt32();
 					Type[] typeOfGenericArguments = new Type[methodGenericArgs];
 					for (int i = 0; i < methodGenericArgs; i++)
@@ -759,25 +798,70 @@ namespace NewRemoting
 					}
 
 					Type typeOfTarget = null;
-					switch (typeOfGenericArguments.Length)
+					if (hasReturnValue)
 					{
-						case 1:
-							typeOfTarget = typeof(DelegateProxyOnClient<>).MakeGenericType(typeOfGenericArguments[0]);
-							break;
-						case 2:
-							typeOfTarget = typeof(DelegateProxyOnClient<,>).MakeGenericType(typeOfGenericArguments[0],
-								typeOfGenericArguments[1]);
-							break;
-						case 3:
-							typeOfTarget = typeof(DelegateProxyOnClient<,>).MakeGenericType(typeOfGenericArguments[0],
-								typeOfGenericArguments[1], typeOfGenericArguments[2]);
-							break;
-						case 4:
-							typeOfTarget = typeof(DelegateProxyOnClient<,>).MakeGenericType(typeOfGenericArguments[0],
-								typeOfGenericArguments[1], typeOfGenericArguments[2], typeOfGenericArguments[3]);
-							break;
-						default:
-							throw new NotSupportedException($"Unsupported number of arguments ({typeOfGenericArguments.Length}");
+						switch (typeOfGenericArguments.Length)
+						{
+							case 1:
+								typeOfTarget =
+									typeof(DelegateFuncProxyOnClient<>).MakeGenericType(typeOfGenericArguments[0]);
+								break;
+							case 2:
+								typeOfTarget =
+									typeof(DelegateFuncProxyOnClient<,>).MakeGenericType(typeOfGenericArguments[0],
+										typeOfGenericArguments[1]);
+								break;
+							case 3:
+								typeOfTarget =
+									typeof(DelegateFuncProxyOnClient<,,>).MakeGenericType(typeOfGenericArguments[0],
+									typeOfGenericArguments[1], typeOfGenericArguments[2]);
+								break;
+							case 4:
+								typeOfTarget =
+									typeof(DelegateFuncProxyOnClient<,,>).MakeGenericType(typeOfGenericArguments[0],
+										typeOfGenericArguments[1], typeOfGenericArguments[2], typeOfGenericArguments[3]);
+								break;
+							case 5:
+								typeOfTarget =
+									typeof(DelegateFuncProxyOnClient<,,>).MakeGenericType(typeOfGenericArguments[0],
+										typeOfGenericArguments[1], typeOfGenericArguments[2], typeOfGenericArguments[3], typeOfGenericArguments[4]);
+								break;
+							default:
+								throw new NotSupportedException(
+									$"Unsupported number of arguments for function ({typeOfGenericArguments.Length}");
+						}
+					}
+					else
+					{
+						switch (typeOfGenericArguments.Length)
+						{
+							case 0:
+								typeOfTarget =
+									typeof(DelegateProxyOnClient).MakeGenericType();
+								break;
+							case 1:
+								typeOfTarget =
+									typeof(DelegateProxyOnClient<>).MakeGenericType(typeOfGenericArguments[0]);
+								break;
+							case 2:
+								typeOfTarget = typeof(DelegateProxyOnClient<,>).MakeGenericType(
+									typeOfGenericArguments[0],
+									typeOfGenericArguments[1]);
+								break;
+							case 3:
+								typeOfTarget = typeof(DelegateProxyOnClient<,>).MakeGenericType(
+									typeOfGenericArguments[0],
+									typeOfGenericArguments[1], typeOfGenericArguments[2]);
+								break;
+							case 4:
+								typeOfTarget = typeof(DelegateProxyOnClient<,>).MakeGenericType(
+									typeOfGenericArguments[0],
+									typeOfGenericArguments[1], typeOfGenericArguments[2], typeOfGenericArguments[3]);
+								break;
+							default:
+								throw new NotSupportedException(
+									$"Unsupported number of arguments for action ({typeOfGenericArguments.Length}");
+						}
 					}
 
 					var methodInfoOfTarget = typeOfTarget.GetMethod("FireEvent",
@@ -797,6 +881,8 @@ namespace NewRemoting
 						_instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideInstanceId,
 							internalSink.GetType());
 					}
+
+					internalSink.RegisterInstance(otherSideInstanceId);
 
 					// TODO: This copying of arrays here is not really performance-friendly
 					var argumentsOfTarget = methodInfoOfTarget.GetParameters().Select(x => x.ParameterType).ToList();
@@ -835,9 +921,12 @@ namespace NewRemoting
 				case RemotingReferenceType.RemoveEvent:
 				{
 					string instanceId = r.ReadString();
-					if (_instanceManager.TryGetObjectFromId(instanceId, out _))
+					if (_instanceManager.TryGetObjectFromId(instanceId, out var internalSink))
 					{
-						_instanceManager.Remove(instanceId, _instanceManager.InstanceIdentifier);
+						if (((DelegateInternalSink)internalSink).Unregister(otherSideInstanceId))
+						{
+							_instanceManager.Remove(instanceId, _instanceManager.InstanceIdentifier);
+						}
 					}
 
 					return null;

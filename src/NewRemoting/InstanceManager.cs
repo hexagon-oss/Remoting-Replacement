@@ -144,10 +144,11 @@ namespace NewRemoting
 		/// Create an identifier for a delegate target (method + instance)
 		/// </summary>
 		/// <param name="del">The delegate to identify</param>
+		/// <param name="remoteInstanceId">The instance of the target class to call</param>
 		/// <returns></returns>
-		public string GetDelegateTargetIdentifier(Delegate del)
+		public string GetDelegateTargetIdentifier(Delegate del, string remoteInstanceId)
 		{
-			StringBuilder id = new StringBuilder(FormattableString.Invariant($"{InstanceIdentifier}/{del.Method.GetType().FullName}/.Method/{del.Method.Name}"));
+			StringBuilder id = new StringBuilder(FormattableString.Invariant($"{InstanceIdentifier}/{del.Method.GetType().FullName}/.Method/{del.Method.Name}/I{remoteInstanceId}"));
 			foreach (var g in del.Method.GetGenericArguments())
 			{
 				id.Append($"/{g.FullName}");

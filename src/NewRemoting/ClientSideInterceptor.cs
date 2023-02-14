@@ -201,7 +201,7 @@ namespace NewRemoting
 			{
 				if (argument is Delegate del)
 				{
-					if (!_messageHandler.WriteDelegateArgumentToStream(writer, del, invocation.Method, OtherSideInstanceId))
+					if (!_messageHandler.WriteDelegateArgumentToStream(writer, del, invocation.Method, OtherSideInstanceId, remoteInstanceId))
 					{
 						return;
 					}

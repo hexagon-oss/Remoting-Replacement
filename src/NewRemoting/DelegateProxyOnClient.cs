@@ -6,6 +6,28 @@ namespace NewRemoting;
 /// <summary>
 /// Delegate proxy on client to handle remote events - used only per reflection, therefore no usages visible
 /// </summary>
+internal class DelegateProxyOnClient
+{
+	public DelegateProxyOnClient()
+	{
+	}
+
+	public event Action Event;
+
+	public void FireEvent()
+	{
+		Event?.Invoke();
+	}
+
+	public bool IsEmpty()
+	{
+		return Event == null;
+	}
+}
+
+/// <summary>
+/// Delegate proxy on client to handle remote events - used only per reflection, therefore no usages visible
+/// </summary>
 internal class DelegateProxyOnClient<T>
 {
 	public DelegateProxyOnClient()

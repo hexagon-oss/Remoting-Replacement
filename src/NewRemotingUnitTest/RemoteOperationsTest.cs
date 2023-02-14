@@ -409,7 +409,6 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
-		[TestCase(false)]
 		public void CanRegisterUnregisterEventWithoutAffectingOtherInstance([Values]bool remote)
 		{
 			CreateClientServer();
@@ -430,7 +429,6 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
-		[TestCase(false)]
 		public void CanRegisterTwoCallbacks([Values] bool remote)
 		{
 			CreateClientServer();
@@ -456,7 +454,6 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
-		[TestCase(false)]
 		public void RegisterForCallbackReverse([Values] bool remote)
 		{
 			CreateClientServer();
@@ -470,7 +467,6 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
-		[TestCase(false)]
 		public void CanRegisterCallbackOnDifferentInstance([Values] bool remote)
 		{
 			CreateClientServer();
