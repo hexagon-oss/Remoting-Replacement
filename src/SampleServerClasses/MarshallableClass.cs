@@ -18,6 +18,7 @@ namespace SampleServerClasses
 
 		private string _callbackData;
 		private SimpleCalc _calculator;
+		private Action<int> _progressFeedback;
 
 		private event Action<string, string> AnEventInternal;
 
@@ -258,6 +259,16 @@ namespace SampleServerClasses
 		public void RegisterForCallback(ICallbackInterface callbackInterface)
 		{
 			callbackInterface.Callback += InverseCallback;
+		}
+
+		public void RegisterEvent(Action<int> progressFeedback)
+		{
+			_progressFeedback = progressFeedback;
+		}
+
+		public void SetProgress(int progress)
+		{
+			_progressFeedback.Invoke(progress);
 		}
 
 		public virtual void CreateCalc()

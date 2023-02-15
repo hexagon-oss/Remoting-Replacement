@@ -22,6 +22,8 @@ namespace NewRemotingUnitTest
 		private string _dataReceived;
 		private string _dataReceived2;
 		private AuthenticationHelper _helper;
+		private int _currentProgress;
+		private int _currentProgress2;
 
 		public RemoteOperationsTest(bool withAuthentication)
 		{
@@ -29,6 +31,10 @@ namespace NewRemotingUnitTest
 			{
 				_helper = new AuthenticationHelper();
 			}
+		}
+
+		public static void TestStaticRoutine(int progress)
+		{
 		}
 
 		public AuthenticationInformation CreateClientServer()
@@ -396,6 +402,42 @@ namespace NewRemotingUnitTest
 			instance.AnEvent -= CallbackMethod;
 			instance.DoCallbackOnEvent("A final test string");
 			Assert.IsNull(_dataReceived);
+		}
+
+		public void ProgressFeedback(int progress)
+		{
+			_currentProgress = progress;
+		}
+
+		public void ProgressFeedback2(int progress)
+		{
+			_currentProgress2 = progress;
+		}
+
+		[Test]
+		public void ForwardCallback()
+		{
+			CreateClientServer();
+			IMarshallInterface instance = _client.CreateRemoteInstance<MarshallableClass>();
+			_currentProgress = 0;
+			_currentProgress2 = 0;
+			instance.RegisterEvent(ProgressFeedback);
+			instance.SetProgress(5);
+			Assert.AreEqual(5, _currentProgress);
+
+			// Test that replacing the progress feedback works
+			instance.RegisterEvent(ProgressFeedback2);
+			instance.SetProgress(50);
+			Assert.AreEqual(5, _currentProgress);
+			Assert.AreEqual(50, _currentProgress2);
+		}
+
+		[Test]
+		public void ForwardStaticCallbackThrows()
+		{
+			CreateClientServer();
+			IMarshallInterface instance = _client.CreateRemoteInstance<MarshallableClass>();
+			Assert.Throws<InvalidOperationException>(() => instance.RegisterEvent(TestStaticRoutine));
 		}
 
 		private void CallbackMethod4(string message, string caller)

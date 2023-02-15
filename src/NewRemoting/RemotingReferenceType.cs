@@ -35,6 +35,7 @@ namespace NewRemoting
 		Double,
 		Single,
 		AddEvent,
-		RemoveEvent
+		RemoveEvent,
+		MethodPointer
 	}
 }

@@ -34,6 +34,16 @@ namespace SampleServerClasses
 			throw new NotImplementedException();
 		}
 
+		public void RegisterEvent(Action<int> progressFeedback)
+		{
+			throw new NotImplementedException();
+		}
+
+		public void SetProgress(int progress)
+		{
+			throw new NotImplementedException();
+		}
+
 		public void Dispose()
 		{
 		}

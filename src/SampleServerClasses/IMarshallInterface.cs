@@ -16,5 +16,7 @@ namespace SampleServerClasses
 		void CleanEvents();
 		void RegisterForCallback(ICallbackInterface callbackInterface);
 		void EnsureCallbackWasUsed();
+		public void RegisterEvent(Action<int> progressFeedback);
+		public void SetProgress(int progress);
 	}
 }

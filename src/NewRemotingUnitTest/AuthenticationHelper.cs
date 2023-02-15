@@ -5,6 +5,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Security.Cryptography;
 using System.Security;
 using NewRemoting;
+using NUnit.Framework;
 
 namespace NewRemotingUnitTest
 {
@@ -134,10 +135,7 @@ namespace NewRemotingUnitTest
 			CreateCertificate(_mCertificateFileName, CertificatePassword, DateTimeOffset.UtcNow);
 
 			var configFile = Directory.EnumerateFiles(AppDomain.CurrentDomain.BaseDirectory, "RemotingServer.dll.config").ToList();
-			if (!configFile.Any())
-			{
-				throw new InvalidDataException();
-			}
+			Assert.IsTrue(configFile.Any(), "Remotingserver.dll.config missing");
 
 			_mConfigFile = configFile.First();
 			UpdateConfigurationFile(_mConfigFile, _mCertificateFileName, CertificatePassword);

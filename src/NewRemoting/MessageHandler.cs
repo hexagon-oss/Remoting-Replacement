@@ -59,7 +59,8 @@ namespace NewRemoting
 
 		public static bool HasDefaultCtor(Type t)
 		{
-			var ctor = t.GetConstructor(BindingFlags.Public | BindingFlags.Instance, null, CallingConventions.Any, new Type[0], null);
+			var ctor = t.GetConstructor(BindingFlags.Public | BindingFlags.Instance, null, CallingConventions.Any,
+				new Type[0], null);
 			return ctor != null;
 		}
 
@@ -79,7 +80,8 @@ namespace NewRemoting
 		/// <param name="referencesWillBeSentTo">Destination process identifier (used to keep track of references that are eventually encoded in the stream)</param>
 		/// <param name="remoteInstanceId">The instance of the remote object the delegate operation was called on</param>
 		/// <returns>True if the operation needs to be forwarded to the server (new delegate)</returns>
-		public bool WriteDelegateArgumentToStream(BinaryWriter w, Delegate del, MethodInfo calledMethod, string referencesWillBeSentTo, string remoteInstanceId)
+		public bool WriteDelegateArgumentToStream(BinaryWriter w, Delegate del, MethodInfo calledMethod,
+			string referencesWillBeSentTo, string remoteInstanceId)
 		{
 			if (calledMethod.IsStatic)
 			{
@@ -87,9 +89,6 @@ namespace NewRemoting
 			}
 
 			// The argument is a function pointer (typically the argument to a add_ or remove_ event)
-			////w.Write((int)RemotingReferenceType.MethodPointer);
-			////LogMsg(RemotingReferenceType.MethodPointer);
-
 			if (calledMethod.IsSpecialName && calledMethod.Name.StartsWith("add_", StringComparison.Ordinal))
 			{
 				if (del.Target != null)
@@ -119,19 +118,24 @@ namespace NewRemoting
 							switch (arguments.Count)
 							{
 								case 1:
-									proxyType = typeof(DelegateFuncProxyOnClient<>).MakeGenericType(arguments.ToArray());
+									proxyType = typeof(DelegateFuncProxyOnClient<>)
+										.MakeGenericType(arguments.ToArray());
 									break;
 								case 2:
-									proxyType = typeof(DelegateFuncProxyOnClient<,>).MakeGenericType(arguments.ToArray());
+									proxyType =
+										typeof(DelegateFuncProxyOnClient<,>).MakeGenericType(arguments.ToArray());
 									break;
 								case 3:
-									proxyType = typeof(DelegateFuncProxyOnClient<,,>).MakeGenericType(arguments.ToArray());
+									proxyType =
+										typeof(DelegateFuncProxyOnClient<,,>).MakeGenericType(arguments.ToArray());
 									break;
 								case 4:
-									proxyType = typeof(DelegateFuncProxyOnClient<,,,>).MakeGenericType(arguments.ToArray());
+									proxyType =
+										typeof(DelegateFuncProxyOnClient<,,,>).MakeGenericType(arguments.ToArray());
 									break;
 								case 5:
-									proxyType = typeof(DelegateFuncProxyOnClient<,,,,>).MakeGenericType(arguments.ToArray());
+									proxyType =
+										typeof(DelegateFuncProxyOnClient<,,,,>).MakeGenericType(arguments.ToArray());
 									break;
 								default:
 									throw new NotSupportedException(
@@ -226,8 +230,38 @@ namespace NewRemoting
 				else
 				{
 					// The delegate target is a static method
-					////						w.Write(string.Empty);
 					throw new InvalidOperationException("The delegate target is a static method");
+				}
+			}
+			else
+			{
+				w.Write((int)RemotingReferenceType.MethodPointer);
+				if (del.Target != null)
+				{
+					string instanceId = _instanceManager.GetDelegateTargetIdentifier(del, remoteInstanceId);
+					_instanceManager.AddInstance(del, instanceId, referencesWillBeSentTo, del.GetType());
+					w.Write(instanceId);
+				}
+				else
+				{
+					// The delegate target is a static method
+					throw new InvalidOperationException("The delegate target is a static method");
+				}
+
+				w.Write(del.Method.DeclaringType.AssemblyQualifiedName);
+				w.Write(del.Method.MetadataToken);
+				var generics = del.Method.GetGenericArguments();
+				// If the type of the delegate method is generic, we need to provide its type arguments
+				w.Write(generics.Length);
+				foreach (var genericType in generics)
+				{
+					string arg = genericType.AssemblyQualifiedName;
+					if (arg == null)
+					{
+						throw new RemotingException("Unresolved generic type or some other undefined case");
+					}
+
+					w.Write(arg);
 				}
 			}
 
@@ -307,7 +341,8 @@ namespace NewRemoting
 			}
 			else if (data is Delegate)
 			{
-				throw new InvalidOperationException("Can not register delegate targets - use WriteDelegateArgumentToStream");
+				throw new InvalidOperationException(
+					"Can not register delegate targets - use WriteDelegateArgumentToStream");
 			}
 			else if (Client.IsRemoteProxy(data))
 			{
@@ -508,7 +543,8 @@ namespace NewRemoting
 					type = null;
 					return false;
 				}
-				else if (paramType.IsArray && paramType.GetElementType().IsValueType && paramType.GetElementType().IsPrimitive)
+				else if (paramType.IsArray && paramType.GetElementType().IsValueType &&
+						 paramType.GetElementType().IsPrimitive)
 				{
 					type = null;
 					return false;
@@ -557,14 +593,16 @@ namespace NewRemoting
 			{
 				methodBase = mi.Constructor;
 
-				object returnValue = ReadArgumentFromStream(reader, methodBase, invocation, true, methodBase.DeclaringType, otherSideInstanceId);
+				object returnValue = ReadArgumentFromStream(reader, methodBase, invocation, true,
+					methodBase.DeclaringType, otherSideInstanceId);
 				invocation.ReturnValue = returnValue;
 				// out or ref arguments on ctors are rare, but not generally forbidden, so we continue here
 			}
 			else if (invocation is ManualInvocation mi2 && mi2.TargetType != null)
 			{
 				// This happens if we request a remote instance directly (by interface type)
-				object returnValue = ReadArgumentFromStream(reader, mi2.Method, invocation, true, mi2.TargetType, otherSideInstanceId);
+				object returnValue = ReadArgumentFromStream(reader, mi2.Method, invocation, true, mi2.TargetType,
+					otherSideInstanceId);
 				invocation.ReturnValue = returnValue;
 				return;
 			}
@@ -574,7 +612,8 @@ namespace NewRemoting
 				methodBase = me;
 				if (me.ReturnType != typeof(void))
 				{
-					object returnValue = ReadArgumentFromStream(reader, methodBase, invocation, true, me.ReturnType, otherSideInstanceId);
+					object returnValue = ReadArgumentFromStream(reader, methodBase, invocation, true, me.ReturnType,
+						otherSideInstanceId);
 					invocation.ReturnValue = returnValue;
 				}
 			}
@@ -586,7 +625,8 @@ namespace NewRemoting
 					methodBase.DeclaringType.IsSubclassOf(typeof(Stream)))
 				{
 					// Copy the contents of the array-to-be-filled
-					object byRefValue = ReadArgumentFromStream(reader, methodBase, invocation, false, byRefArguments.ParameterType, otherSideInstanceId);
+					object byRefValue = ReadArgumentFromStream(reader, methodBase, invocation, false,
+						byRefArguments.ParameterType, otherSideInstanceId);
 					Array source = (Array)byRefValue; // The data from the remote side
 					Array destination = ((Array)invocation.Arguments[index]); // The argument to be filled
 					if (source.Length != destination.Length)
@@ -598,7 +638,8 @@ namespace NewRemoting
 				}
 				else if (byRefArguments.ParameterType.IsByRef)
 				{
-					object byRefValue = ReadArgumentFromStream(reader, methodBase, invocation, false, byRefArguments.ParameterType, otherSideInstanceId);
+					object byRefValue = ReadArgumentFromStream(reader, methodBase, invocation, false,
+						byRefArguments.ParameterType, otherSideInstanceId);
 					invocation.Arguments[index] = byRefValue;
 				}
 
@@ -627,7 +668,8 @@ namespace NewRemoting
 			w.Write(exception.StackTrace ?? string.Empty);
 		}
 
-		public object ReadArgumentFromStream(BinaryReader r, MethodBase callingMethod, IInvocation invocation, bool canAttemptToInstantiate, Type typeOfArgument, string otherSideInstanceId)
+		public object ReadArgumentFromStream(BinaryReader r, MethodBase callingMethod, IInvocation invocation,
+			bool canAttemptToInstantiate, Type typeOfArgument, string otherSideInstanceId)
 		{
 			if (!_initialized)
 			{
@@ -657,7 +699,8 @@ namespace NewRemoting
 					string objectId = r.ReadString();
 					string typeName = r.ReadString();
 					object instance = null;
-					instance = InstanceManager.CreateOrGetProxyForObjectId(invocation, canAttemptToInstantiate, typeOfArgument, typeName, objectId);
+					instance = InstanceManager.CreateOrGetProxyForObjectId(invocation, canAttemptToInstantiate,
+						typeOfArgument, typeName, objectId);
 					return instance;
 				}
 
@@ -698,7 +741,8 @@ namespace NewRemoting
 					bool cont = r.ReadBoolean();
 					while (cont)
 					{
-						var nextElem = ReadArgumentFromStream(r, callingMethod, invocation, canAttemptToInstantiate, contentType, otherSideInstanceId);
+						var nextElem = ReadArgumentFromStream(r, callingMethod, invocation, canAttemptToInstantiate,
+							contentType, otherSideInstanceId);
 						list.Add(nextElem);
 						cont = r.ReadBoolean();
 					}
@@ -814,17 +858,19 @@ namespace NewRemoting
 							case 3:
 								typeOfTarget =
 									typeof(DelegateFuncProxyOnClient<,,>).MakeGenericType(typeOfGenericArguments[0],
-									typeOfGenericArguments[1], typeOfGenericArguments[2]);
+										typeOfGenericArguments[1], typeOfGenericArguments[2]);
 								break;
 							case 4:
 								typeOfTarget =
 									typeof(DelegateFuncProxyOnClient<,,>).MakeGenericType(typeOfGenericArguments[0],
-										typeOfGenericArguments[1], typeOfGenericArguments[2], typeOfGenericArguments[3]);
+										typeOfGenericArguments[1], typeOfGenericArguments[2],
+										typeOfGenericArguments[3]);
 								break;
 							case 5:
 								typeOfTarget =
 									typeof(DelegateFuncProxyOnClient<,,>).MakeGenericType(typeOfGenericArguments[0],
-										typeOfGenericArguments[1], typeOfGenericArguments[2], typeOfGenericArguments[3], typeOfGenericArguments[4]);
+										typeOfGenericArguments[1], typeOfGenericArguments[2], typeOfGenericArguments[3],
+										typeOfGenericArguments[4]);
 								break;
 							default:
 								throw new NotSupportedException(
@@ -930,6 +976,76 @@ namespace NewRemoting
 					}
 
 					return null;
+				}
+
+				case RemotingReferenceType.MethodPointer:
+				{
+					string instanceId = r.ReadString();
+					string typeOfTargetName = r.ReadString();
+					int tokenOfTargetMethod = r.ReadInt32();
+					int methodGenericArgs = r.ReadInt32();
+					Type[] typeOfGenericArguments = new Type[methodGenericArgs];
+					for (int i = 0; i < methodGenericArgs; i++)
+					{
+						var typeName = r.ReadString();
+						var t = Server.GetTypeFromAnyAssembly(typeName);
+						typeOfGenericArguments[i] = t;
+					}
+
+					Type typeOfTarget = Server.GetTypeFromAnyAssembly(typeOfTargetName);
+
+					var methods = typeOfTarget.GetMethods(BindingFlags.Instance | BindingFlags.Static |
+														  BindingFlags.Public | BindingFlags.NonPublic);
+					MethodInfo methodInfoOfTarget = methods.First(x => x.MetadataToken == tokenOfTargetMethod);
+					if (methodGenericArgs > 0)
+					{
+						methodInfoOfTarget = methodInfoOfTarget.MakeGenericMethod(typeOfGenericArguments);
+					}
+
+					// TODO: This copying of arrays here is not really performance-friendly
+					var argumentsOfTarget = methodInfoOfTarget.GetParameters().Select(x => x.ParameterType).ToList();
+
+					var interceptor = InstanceManager.GetInterceptor(_interceptors, instanceId);
+					// This creates an instance of the DelegateInternalSink class, which acts as a proxy for delegate callbacks. Instead of the actual delegate
+					// target, we register a method from this class as a delegate target
+					DelegateInternalSink internalSink;
+					if (_instanceManager.TryGetObjectFromId(instanceId, out object sink))
+					{
+						internalSink = (DelegateInternalSink)sink;
+					}
+					else
+					{
+						internalSink = new DelegateInternalSink(interceptor, instanceId, methodInfoOfTarget);
+						_instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideInstanceId,
+							internalSink.GetType());
+					}
+
+					IEnumerable<MethodInfo> possibleSinks = null;
+					MethodInfo localSinkTarget;
+					if (methodInfoOfTarget.ReturnType == typeof(void))
+					{
+						possibleSinks = internalSink.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public)
+							.Where(x => x.Name == "ActionSink");
+						localSinkTarget =
+							possibleSinks.Single(x => x.GetGenericArguments().Length == argumentsOfTarget.Count);
+					}
+					else
+					{
+						possibleSinks = internalSink.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public)
+							.Where(x => x.Name == "FuncSink");
+						localSinkTarget = possibleSinks.Single(x =>
+							x.GetGenericArguments().Length == argumentsOfTarget.Count + 1);
+						argumentsOfTarget.Add(methodInfoOfTarget.ReturnType);
+					}
+
+					if (argumentsOfTarget.Count > 0)
+					{
+						localSinkTarget = localSinkTarget.MakeGenericMethod(argumentsOfTarget.ToArray());
+					}
+
+					// No need to register - this is a delegate used as method argument in an "ordinary" call
+					var newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
+					return newDelegate;
 				}
 
 				default:
