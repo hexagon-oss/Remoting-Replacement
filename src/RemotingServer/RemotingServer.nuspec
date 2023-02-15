@@ -7,7 +7,7 @@
         <description>Standalone remote server executable for NewRemoting. Use this package if you want to start RPC servers remotely.</description>
         <authors>Leica Geosystems AG</authors>
         <owners>Leica Geosystems AG</owners>
-        <copyright>Copyright (C) 1999-2022 Leica Geosystems AG</copyright>
+        <copyright>Copyright (C) 1999-2023 Leica Geosystems AG</copyright>
  
         <!-- Optional elements -->
         <license type="expression">MIT</license>
