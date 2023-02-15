@@ -120,14 +120,14 @@ namespace NewRemotingUnitTest
 			instance.DoCallbackOnEvent("Test string");
 
 			Assert.IsNull(_dataReceived);
-			instance.AnEvent += CallbackMethod;
+			instance.AnEvent2 += CallbackMethod;
 			instance.DoCallbackOnEvent("Another test string");
 			Assert.False(string.IsNullOrWhiteSpace(_dataReceived));
 			_dataReceived = null;
-			instance.AnEvent -= CallbackMethod;
+			instance.AnEvent2 -= CallbackMethod;
 			instance.DoCallbackOnEvent("A third test string");
 			Assert.IsNull(_dataReceived);
-			instance.AnEvent -= CallbackMethod;
+			instance.AnEvent2 -= CallbackMethod;
 			instance.DoCallbackOnEvent("Test string 4");
 			Assert.IsNull(_dataReceived);
 		}

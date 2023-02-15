@@ -20,7 +20,12 @@ namespace SampleServerClasses
 		private SimpleCalc _calculator;
 		private Action<int> _progressFeedback;
 
-		private event Action<string, string> AnEventInternal;
+		public event Action AnEvent0;
+		public event Action<string> AnEvent1;
+		public event Action<string, string> AnEvent2;
+		public event Action<string, string, string> AnEvent3;
+		public event Action<string, string, string, string> AnEvent4;
+		public event Action<string, string, string, string, string> AnEvent5;
 
 		public MarshallableClass()
 		{
@@ -36,18 +41,6 @@ namespace SampleServerClasses
 			_cb = null;
 			_name = name;
 			_callbackData = null;
-		}
-
-		public virtual event Action<string, string> AnEvent
-		{
-			add
-			{
-				AnEventInternal += value;
-			}
-			remove
-			{
-				AnEventInternal -= value;
-			}
 		}
 
 		public virtual event Action<string> EventTwo;
@@ -105,7 +98,16 @@ namespace SampleServerClasses
 
 		public virtual void DoCallbackOnEvent(string msg)
 		{
-			AnEventInternal?.Invoke(msg, Name);
+			AnEvent4?.Invoke(msg, msg, msg, Name);
+			AnEvent3?.Invoke(msg, msg, Name);
+			AnEvent2?.Invoke(msg, Name);
+			AnEvent1?.Invoke(msg);
+			AnEvent0?.Invoke();
+		}
+
+		public void DoCallbackOnEvent5(string msg)
+		{
+			AnEvent5?.Invoke(string.Empty, string.Empty, string.Empty, string.Empty, string.Empty);
 		}
 
 		public virtual void DoCallbackOnOtherEvents(string msg)
@@ -116,7 +118,11 @@ namespace SampleServerClasses
 
 		public virtual void CleanEvents()
 		{
-			AnEventInternal = null;
+			AnEvent4 = null;
+			AnEvent3 = null;
+			AnEvent2 = null;
+			AnEvent1 = null;
+			AnEvent0 = null;
 			EventTwo = null;
 			EventThree = null;
 		}

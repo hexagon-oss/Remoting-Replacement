@@ -148,7 +148,7 @@ namespace NewRemoting
 							switch (arguments.Count)
 							{
 								case 0:
-									proxyType = typeof(DelegateProxyOnClient).MakeGenericType();
+									proxyType = typeof(DelegateProxyOnClient);
 									break;
 								case 1:
 									proxyType = typeof(DelegateProxyOnClient<>).MakeGenericType(arguments.ToArray());
@@ -883,7 +883,7 @@ namespace NewRemoting
 						{
 							case 0:
 								typeOfTarget =
-									typeof(DelegateProxyOnClient).MakeGenericType();
+									typeof(DelegateProxyOnClient);
 								break;
 							case 1:
 								typeOfTarget =

@@ -24,6 +24,7 @@ namespace NewRemotingUnitTest
 		private AuthenticationHelper _helper;
 		private int _currentProgress;
 		private int _currentProgress2;
+		private bool _callback0Triggered;
 
 		public RemoteOperationsTest(bool withAuthentication)
 		{
@@ -395,13 +396,24 @@ namespace NewRemotingUnitTest
 			instance.DoCallbackOnEvent("Test string");
 
 			Assert.IsNull(_dataReceived);
-			instance.AnEvent += CallbackMethod;
+			instance.AnEvent2 += CallbackMethod;
 			instance.DoCallbackOnEvent("Another test string");
 			Assert.AreEqual("Another test string", _dataReceived);
 			_dataReceived = null;
-			instance.AnEvent -= CallbackMethod;
+			instance.AnEvent2 -= CallbackMethod;
 			instance.DoCallbackOnEvent("A final test string");
 			Assert.IsNull(_dataReceived);
+
+			_callback0Triggered = false;
+			instance.AnEvent0 += CallbackMethod0;
+			instance.DoCallbackOnEvent(string.Empty);
+			Assert.IsTrue(_callback0Triggered);
+			_callback0Triggered = false;
+			instance.AnEvent0 -= CallbackMethod0;
+			instance.DoCallbackOnEvent(string.Empty);
+			Assert.IsFalse(_callback0Triggered);
+
+			Assert.Throws<NotSupportedException>(() => instance.AnEvent5 += CallbackMethod5);
 		}
 
 		public void ProgressFeedback(int progress)
@@ -460,10 +472,10 @@ namespace NewRemotingUnitTest
 			instance.DoCallbackOnEvent("Initial test string");
 
 			Assert.IsNull(_dataReceived);
-			instance.AnEvent += CallbackMethod4;
-			instance2.AnEvent += CallbackMethod4;
+			instance.AnEvent2 += CallbackMethod4;
+			instance2.AnEvent2 += CallbackMethod4;
 			_dataReceived = null;
-			instance.AnEvent -= CallbackMethod4;
+			instance.AnEvent2 -= CallbackMethod4;
 			instance.DoCallbackOnEvent("More testing");
 			Assert.IsNull(_dataReceived);
 			instance2.DoCallbackOnEvent("And yet another test");
@@ -479,8 +491,8 @@ namespace NewRemotingUnitTest
 			instance.DoCallbackOnEvent("Initial test string");
 
 			Assert.IsNull(_dataReceived);
-			instance.AnEvent += CallbackMethod4;
-			instance.AnEvent += CallbackMethod2a;
+			instance.AnEvent2 += CallbackMethod4;
+			instance.AnEvent2 += CallbackMethod2a;
 			_dataReceived = null;
 			_dataReceived2 = null;
 			instance.DoCallbackOnEvent("Some test string");
@@ -488,11 +500,11 @@ namespace NewRemotingUnitTest
 			Assert.IsNotNull(_dataReceived2);
 			_dataReceived = null;
 			_dataReceived2 = null;
-			instance.AnEvent -= CallbackMethod4;
+			instance.AnEvent2 -= CallbackMethod4;
 			instance.DoCallbackOnEvent("Simple test string");
 			Assert.IsNull(_dataReceived);
 			Assert.IsNotNull(_dataReceived2);
-			instance.AnEvent -= CallbackMethod2a;
+			instance.AnEvent2 -= CallbackMethod2a;
 		}
 
 		[Test]
@@ -517,13 +529,13 @@ namespace NewRemotingUnitTest
 
 			EventSink sink = new EventSink();
 
-			instance.AnEvent += sink.RegisterThis;
+			instance.AnEvent2 += sink.RegisterThis;
 
 			instance.DoCallbackOnEvent("Test");
 			Assert.AreEqual("Test from instance0", sink.Data);
 
 			sink.Data = null;
-			instance.AnEvent -= sink.RegisterThis;
+			instance.AnEvent2 -= sink.RegisterThis;
 			instance.DoCallbackOnEvent("No test");
 			Assert.IsNull(sink.Data);
 		}
@@ -538,15 +550,15 @@ namespace NewRemotingUnitTest
 			EventSink sink = new EventSink();
 			EventSink anotherSink = new EventSink();
 
-			instance.AnEvent += sink.RegisterThis;
-			instance.AnEvent += anotherSink.RegisterThis;
+			instance.AnEvent2 += sink.RegisterThis;
+			instance.AnEvent2 += anotherSink.RegisterThis;
 
 			instance.DoCallbackOnEvent("Test");
 			Assert.AreEqual("Test from instance0", sink.Data);
 			Assert.AreEqual("Test from instance0", anotherSink.Data);
 
 			sink.Data = null;
-			instance.AnEvent -= sink.RegisterThis;
+			instance.AnEvent2 -= sink.RegisterThis;
 			instance.DoCallbackOnEvent("Test2");
 			Assert.IsNull(sink.Data);
 			Assert.AreEqual("Test2 from instance0", anotherSink.Data);
@@ -563,14 +575,14 @@ namespace NewRemotingUnitTest
 			instance.DoCallbackOnEvent("Test string");
 
 			Assert.IsNull(_dataReceived);
-			instance.AnEvent += CallbackMethod;
+			instance.AnEvent2 += CallbackMethod;
 			instance.DoCallbackOnEvent("Another test string");
 			Assert.AreEqual("Another test string", _dataReceived);
 			_dataReceived = null;
-			instance.AnEvent -= CallbackMethod;
+			instance.AnEvent2 -= CallbackMethod;
 			instance.DoCallbackOnEvent("A third test string");
 			Assert.IsNull(_dataReceived);
-			instance.AnEvent -= CallbackMethod;
+			instance.AnEvent2 -= CallbackMethod;
 			instance.DoCallbackOnEvent("Test string 4");
 			Assert.IsNull(_dataReceived);
 		}
@@ -586,14 +598,14 @@ namespace NewRemotingUnitTest
 			_dataReceived = null;
 			instance.DoCallbackOnEvent("Test string");
 			Assert.IsNull(_dataReceived);
-			instance.AnEvent += CallbackMethod;
+			instance.AnEvent2 += CallbackMethod;
 			instance.DoCallbackOnEvent("Another test string");
 			Assert.AreEqual("Another test string", _dataReceived);
 			_dataReceived = null;
-			instance.AnEvent -= CallbackMethod;
+			instance.AnEvent2 -= CallbackMethod;
 			instance.DoCallbackOnEvent("A third test string");
 			Assert.IsNull(_dataReceived);
-			instance.AnEvent -= CallbackMethod;
+			instance.AnEvent2 -= CallbackMethod;
 			instance.DoCallbackOnEvent("Test string 4");
 			Assert.IsNull(_dataReceived);
 		}
@@ -740,7 +752,7 @@ namespace NewRemotingUnitTest
 		{
 			for (int j = 0; j < overallIterations; j++)
 			{
-				instance.AnEvent += CallbackMethod;
+				instance.AnEvent2 += CallbackMethod;
 				for (int i = 0; i < iterations; i++)
 				{
 					instance.DoCallbackOnEvent("Utest" + ++expectedCounter);
@@ -752,7 +764,7 @@ namespace NewRemotingUnitTest
 					_client.ForceGc();
 				}
 
-				instance.AnEvent -= CallbackMethod;
+				instance.AnEvent2 -= CallbackMethod;
 			}
 		}
 
@@ -781,6 +793,15 @@ namespace NewRemotingUnitTest
 			}
 
 			_dataReceived = argument;
+		}
+
+		public void CallbackMethod0()
+		{
+			_callback0Triggered = true;
+		}
+
+		public void CallbackMethod5(string argument1, string argument2, string argument3, string argument4, string argument5)
+		{
 		}
 
 		private sealed class CallbackImpl : MarshalByRefObject, ICallbackInterface
