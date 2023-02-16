@@ -70,9 +70,9 @@ namespace NewRemoting
 		}
 
 		/// <summary>
-		/// Write the given object to the target stream.
-		/// When it is a type that shall be transferred by value, it is serialized, otherwise a reference is added to the stream.
-		/// That reference is then converted to a proxy instance on the other side. Returns false if no data needs to be sent to the server - all handled locally
+		/// Handles the given delegate-type argument by using a local proxy in between. Addition of delegate - it does not exist, the proxy
+		/// is created and sent to the server, otherwise no action is needed aside from registering the delegate on the proxy.
+		/// Similarly removal of a delegates is handled.
 		/// </summary>
 		/// <param name="w">The data sink</param>
 		/// <param name="del">The object to write</param>
@@ -193,8 +193,6 @@ namespace NewRemoting
 				}
 				else
 				{
-					// The delegate target is a static method
-					////						w.Write(string.Empty);
 					throw new InvalidOperationException("The delegate target is a static method");
 				}
 			}
@@ -206,7 +204,7 @@ namespace NewRemoting
 
 					if (_instanceManager.TryGetObjectFromId(instanceId, out var existingDelegateProxy))
 					{
-						// Create a proxy class that provides a matching event for our delegate
+						// Remove proxy class if this was the last client
 						var proxyType = existingDelegateProxy.GetType();
 						var removeEventMethod = proxyType.GetMethod("remove_Event");
 						removeEventMethod.Invoke(existingDelegateProxy, new[] { del });
@@ -334,7 +332,7 @@ namespace NewRemoting
 				{
 					// Recursively write the arguments
 					w.Write(true);
-					WriteArgumentToStream(w, obj, referencesWillBeSentTo); // always returns true
+					WriteArgumentToStream(w, obj, referencesWillBeSentTo);
 				}
 
 				w.Write(false); // Terminate the array
@@ -662,7 +660,7 @@ namespace NewRemoting
 			{
 				w.Write(e.Name);
 				// This may contain inner exceptions, but since we're not throwing those, this shouldn't cause any issues on the remote side
-				WriteArgumentToStream(w, e.Value, otherSideInstanceId); // always returns true
+				WriteArgumentToStream(w, e.Value, otherSideInstanceId);
 			}
 
 			w.Write(exception.StackTrace ?? string.Empty);

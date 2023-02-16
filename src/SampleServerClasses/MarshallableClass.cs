@@ -1,12 +1,8 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SampleServerClasses
 {
@@ -42,9 +38,6 @@ namespace SampleServerClasses
 			_name = name;
 			_callbackData = null;
 		}
-
-		public virtual event Action<string> EventTwo;
-		public virtual event Action<string> EventThree;
 
 		public virtual string Name
 		{
@@ -107,13 +100,7 @@ namespace SampleServerClasses
 
 		public void DoCallbackOnEvent5(string msg)
 		{
-			AnEvent5?.Invoke(string.Empty, string.Empty, string.Empty, string.Empty, string.Empty);
-		}
-
-		public virtual void DoCallbackOnOtherEvents(string msg)
-		{
-			EventTwo?.Invoke(msg);
-			EventThree?.Invoke(msg);
+			AnEvent5?.Invoke(msg, msg, msg, msg, msg);
 		}
 
 		public virtual void CleanEvents()
@@ -123,8 +110,6 @@ namespace SampleServerClasses
 			AnEvent2 = null;
 			AnEvent1 = null;
 			AnEvent0 = null;
-			EventTwo = null;
-			EventThree = null;
 		}
 
 		public virtual ReferencedComponent GetComponent()
