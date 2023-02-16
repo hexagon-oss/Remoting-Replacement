@@ -46,7 +46,7 @@ namespace NewRemoting
 
 		public void PrintStats(ILogger logger)
 		{
-			logger.LogInformation("Messagehandler usage stats:");
+			logger.LogInformation("Remoting Messagehandler usage stats:");
 			foreach (var stat in _stats)
 			{
 				logger.LogInformation(FormattableString.Invariant($"{stat.Key}: {stat.Value}"));

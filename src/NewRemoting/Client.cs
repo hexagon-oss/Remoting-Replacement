@@ -556,6 +556,7 @@ namespace NewRemoting
 		{
 			lock (_accessLock)
 			{
+				_messageHandler.PrintStats(Logger); // Dispose is too late, log earlier
 				_instanceManager.PerformGc(_writer, true);
 				int sequence = _interceptor.NextSequenceNumber();
 				RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.ClientDisconnecting, sequence);
@@ -570,7 +571,6 @@ namespace NewRemoting
 
 		public void Dispose()
 		{
-			_messageHandler.PrintStats(Logger);
 			lock (_accessLock)
 			{
 				if (_server != null)
