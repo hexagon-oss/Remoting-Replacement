@@ -14,9 +14,9 @@ namespace NewRemoting
 	internal enum RemotingReferenceType
 	{
 		Undefined = 0,
+		Auto,
 		SerializedItem,
 		RemoteReference,
-		MethodPointer,
 		InstanceOfSystemType,
 		ArrayOfSystemType,
 		NullPointer,
@@ -27,10 +27,15 @@ namespace NewRemoting
 		Int16,
 		Uint16,
 		Int32,
-		Int64,
 		Uint32,
+		Int64,
+		Uint64,
 		Bool,
 		Float,
 		Double,
+		Single,
+		AddEvent,
+		RemoveEvent,
+		MethodPointer
 	}
 }

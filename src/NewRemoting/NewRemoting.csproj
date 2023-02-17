@@ -10,7 +10,7 @@
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <Authors>Leica Geosystems AG</Authors>
     <Description>A transparent remoting library for .NET 5.0 and above, replacing the legacy .NET Framework Remoting feature</Description>
-    <Copyright>Copyright (C) 2021-2022 Leica Geosystems AG</Copyright>
+    <Copyright>Copyright (C) 2021-2023 Leica Geosystems AG</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/hexagon-oss/Remoting-Replacement</PackageProjectUrl>
     <RepositoryUrl>https://github.com/hexagon-oss/Remoting-Replacement</RepositoryUrl>

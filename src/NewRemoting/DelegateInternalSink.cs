@@ -17,12 +17,35 @@ namespace NewRemoting
 		private readonly IInterceptor _interceptor;
 		private readonly string _remoteObjectReference;
 		private readonly MethodInfo _remoteMethodTarget;
+		private List<string> _activeInstances;
 
 		public DelegateInternalSink(IInterceptor interceptor, string remoteObjectReference, MethodInfo remoteMethodTarget)
 		{
 			_interceptor = interceptor;
 			_remoteObjectReference = remoteObjectReference;
 			_remoteMethodTarget = remoteMethodTarget;
+			_activeInstances = new List<string>();
+		}
+
+		public void RegisterInstance(string instance)
+		{
+			if (!_activeInstances.Contains(instance))
+			{
+				_activeInstances.Add(instance);
+			}
+		}
+
+		/// <summary>
+		/// returns true if no more active instances exist
+		/// </summary>
+		public bool Unregister(string instance)
+		{
+			if (_activeInstances.Contains(instance))
+			{
+				_activeInstances.Remove(instance);
+			}
+
+			return _activeInstances.Count == 0;
 		}
 
 		internal string RemoteObjectReference => _remoteObjectReference;

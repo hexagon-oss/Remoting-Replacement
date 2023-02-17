@@ -143,27 +143,27 @@ namespace NewRemoting
 		/// <summary>
 		/// Create an identifier for a delegate target (method + instance)
 		/// </summary>
-		/// <param name="me">The method to be called</param>
-		/// <param name="targetInstance">The instance on which the method shall be called</param>
+		/// <param name="del">The delegate to identify</param>
+		/// <param name="remoteInstanceId">The instance of the target class to call</param>
 		/// <returns></returns>
-		public string GetDelegateTargetIdentifier(MethodInfo me, object targetInstance)
+		public string GetDelegateTargetIdentifier(Delegate del, string remoteInstanceId)
 		{
-			StringBuilder id = new StringBuilder(FormattableString.Invariant($"{InstanceIdentifier}/{me.GetType().FullName}/.Method/{me.Name}"));
-			foreach (var g in me.GetGenericArguments())
+			StringBuilder id = new StringBuilder(FormattableString.Invariant($"{InstanceIdentifier}/{del.Method.GetType().FullName}/.Method/{del.Method.Name}/I{remoteInstanceId}"));
+			foreach (var g in del.Method.GetGenericArguments())
 			{
 				id.Append($"/{g.FullName}");
 			}
 
-			var parameters = me.GetParameters();
+			var parameters = del.Method.GetParameters();
 			id.Append($"?{parameters.Length}");
 			foreach (var p in parameters)
 			{
 				id.Append($"/{p.ParameterType.FullName}|{p.Name}");
 			}
 
-			if (targetInstance != null)
+			if (del.Target != null)
 			{
-				id.Append($"/{RuntimeHelpers.GetHashCode(targetInstance)}");
+				id.Append($"/{RuntimeHelpers.GetHashCode(del.Target)}");
 			}
 
 			return id.ToString();
@@ -219,6 +219,16 @@ namespace NewRemoting
 					{
 						// if marked as no longer needed, revive by setting the instance
 						existingInfo.Instance = instance;
+					}
+					else
+					{
+						if (!ReferenceEquals(existingInfo.Instance, instance))
+						{
+							var msg = FormattableString.Invariant(
+								$"Added new instance of {instance.GetType()} is not equals to {existingInfo.Identifier} to instance manager");
+							_logger.LogError(msg);
+							throw new InvalidOperationException(msg);
+						}
 					}
 
 					// Update existing living info object with new client information

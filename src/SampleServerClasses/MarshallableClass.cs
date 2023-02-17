@@ -1,12 +1,8 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SampleServerClasses
 {
@@ -18,8 +14,14 @@ namespace SampleServerClasses
 
 		private string _callbackData;
 		private SimpleCalc _calculator;
+		private Action<int> _progressFeedback;
 
-		private event Action<string, string> AnEventInternal;
+		public event Action AnEvent0;
+		public event Action<string> AnEvent1;
+		public event Action<string, string> AnEvent2;
+		public event Action<string, string, string> AnEvent3;
+		public event Action<string, string, string, string> AnEvent4;
+		public event Action<string, string, string, string, string> AnEvent5;
 
 		public MarshallableClass()
 		{
@@ -36,21 +38,6 @@ namespace SampleServerClasses
 			_name = name;
 			_callbackData = null;
 		}
-
-		public virtual event Action<string, string> AnEvent
-		{
-			add
-			{
-				AnEventInternal += value;
-			}
-			remove
-			{
-				AnEventInternal -= value;
-			}
-		}
-
-		public virtual event Action<string> EventTwo;
-		public virtual event Action<string> EventThree;
 
 		public virtual string Name
 		{
@@ -104,20 +91,25 @@ namespace SampleServerClasses
 
 		public virtual void DoCallbackOnEvent(string msg)
 		{
-			AnEventInternal?.Invoke(msg, Name);
+			AnEvent4?.Invoke(msg, msg, msg, Name);
+			AnEvent3?.Invoke(msg, msg, Name);
+			AnEvent2?.Invoke(msg, Name);
+			AnEvent1?.Invoke(msg);
+			AnEvent0?.Invoke();
 		}
 
-		public virtual void DoCallbackOnOtherEvents(string msg)
+		public void DoCallbackOnEvent5(string msg)
 		{
-			EventTwo?.Invoke(msg);
-			EventThree?.Invoke(msg);
+			AnEvent5?.Invoke(msg, msg, msg, msg, msg);
 		}
 
 		public virtual void CleanEvents()
 		{
-			AnEventInternal = null;
-			EventTwo = null;
-			EventThree = null;
+			AnEvent4 = null;
+			AnEvent3 = null;
+			AnEvent2 = null;
+			AnEvent1 = null;
+			AnEvent0 = null;
 		}
 
 		public virtual ReferencedComponent GetComponent()
@@ -258,6 +250,16 @@ namespace SampleServerClasses
 		public void RegisterForCallback(ICallbackInterface callbackInterface)
 		{
 			callbackInterface.Callback += InverseCallback;
+		}
+
+		public void RegisterEvent(Action<int> progressFeedback)
+		{
+			_progressFeedback = progressFeedback;
+		}
+
+		public void SetProgress(int progress)
+		{
+			_progressFeedback.Invoke(progress);
 		}
 
 		public virtual void CreateCalc()
