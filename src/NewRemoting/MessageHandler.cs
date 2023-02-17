@@ -85,7 +85,7 @@ namespace NewRemoting
 		{
 			if (calledMethod.IsStatic)
 			{
-				throw new RemotingException("Can only register instance methods as delegate targets");
+				throw new InvalidRemotingOperationException("Can only register instance methods as delegate targets");
 			}
 
 			// The argument is a function pointer (typically the argument to a add_ or remove_ event)
@@ -138,7 +138,7 @@ namespace NewRemoting
 										typeof(DelegateFuncProxyOnClient<,,,,>).MakeGenericType(arguments.ToArray());
 									break;
 								default:
-									throw new NotSupportedException(
+									throw new InvalidRemotingOperationException(
 										$"Unsupported number of arguments for function ({arguments.Count}");
 							}
 						}
@@ -163,7 +163,7 @@ namespace NewRemoting
 									proxyType = typeof(DelegateProxyOnClient<,,,>).MakeGenericType(arguments.ToArray());
 									break;
 								default:
-									throw new NotSupportedException(
+									throw new InvalidRemotingOperationException(
 										$"Unsupported number of arguments for action ({arguments.Count}");
 							}
 						}
@@ -184,7 +184,7 @@ namespace NewRemoting
 							string arg = argType.AssemblyQualifiedName;
 							if (arg == null)
 							{
-								throw new RemotingException("Unresolved generic type or some other undefined case");
+								throw new InvalidRemotingOperationException("Unresolved generic type or some other undefined case");
 							}
 
 							w.Write(arg);
@@ -193,7 +193,7 @@ namespace NewRemoting
 				}
 				else
 				{
-					throw new InvalidOperationException("The delegate target is a static method");
+					throw new InvalidRemotingOperationException("The delegate target is a static method");
 				}
 			}
 			else if (calledMethod.IsSpecialName && calledMethod.Name.StartsWith("remove_", StringComparison.Ordinal))
@@ -228,7 +228,7 @@ namespace NewRemoting
 				else
 				{
 					// The delegate target is a static method
-					throw new InvalidOperationException("The delegate target is a static method");
+					throw new InvalidRemotingOperationException("The delegate target is a static method");
 				}
 			}
 			else
@@ -243,7 +243,7 @@ namespace NewRemoting
 				else
 				{
 					// The delegate target is a static method
-					throw new InvalidOperationException("The delegate target is a static method");
+					throw new InvalidRemotingOperationException("The delegate target is a static method");
 				}
 
 				w.Write(del.Method.DeclaringType.AssemblyQualifiedName);
@@ -256,7 +256,7 @@ namespace NewRemoting
 					string arg = genericType.AssemblyQualifiedName;
 					if (arg == null)
 					{
-						throw new RemotingException("Unresolved generic type or some other undefined case");
+						throw new InvalidRemotingOperationException("Unresolved generic type or some other undefined case");
 					}
 
 					w.Write(arg);
@@ -278,7 +278,7 @@ namespace NewRemoting
 		{
 			if (!_initialized)
 			{
-				throw new InvalidOperationException("Instance is not initialized");
+				throw new RemotingException("Instance is not initialized");
 			}
 
 			if (ReferenceEquals(data, null))
@@ -339,7 +339,7 @@ namespace NewRemoting
 			}
 			else if (data is Delegate)
 			{
-				throw new InvalidOperationException(
+				throw new InvalidRemotingOperationException(
 					"Can not register delegate targets - use WriteDelegateArgumentToStream");
 			}
 			else if (Client.IsRemoteProxy(data))
@@ -378,7 +378,7 @@ namespace NewRemoting
 			}
 			else
 			{
-				throw new SerializationException($"Object {data} is neither serializable nor MarshalByRefObject");
+				throw new InvalidRemotingOperationException($"Object {data} is neither serializable nor MarshalByRefObject");
 			}
 		}
 
@@ -582,7 +582,7 @@ namespace NewRemoting
 		{
 			if (!_initialized)
 			{
-				throw new InvalidOperationException("Instance is not initialized");
+				throw new RemotingException("Instance is not initialized");
 			}
 
 			MethodBase methodBase;
@@ -671,7 +671,7 @@ namespace NewRemoting
 		{
 			if (!_initialized)
 			{
-				throw new InvalidOperationException("Instance is not initialized");
+				throw new RemotingException("Instance is not initialized");
 			}
 
 			RemotingReferenceType referenceType = (RemotingReferenceType)r.ReadInt32();
@@ -871,7 +871,7 @@ namespace NewRemoting
 										typeOfGenericArguments[4]);
 								break;
 							default:
-								throw new NotSupportedException(
+								throw new InvalidRemotingOperationException(
 									$"Unsupported number of arguments for function ({typeOfGenericArguments.Length}");
 						}
 					}
@@ -903,7 +903,7 @@ namespace NewRemoting
 									typeOfGenericArguments[1], typeOfGenericArguments[2], typeOfGenericArguments[3]);
 								break;
 							default:
-								throw new NotSupportedException(
+								throw new InvalidRemotingOperationException(
 									$"Unsupported number of arguments for action ({typeOfGenericArguments.Length}");
 						}
 					}
@@ -1047,7 +1047,7 @@ namespace NewRemoting
 				}
 
 				default:
-					throw new RemotingException("Unknown argument type");
+					throw new InvalidRemotingOperationException("Unknown argument type");
 			}
 		}
 
