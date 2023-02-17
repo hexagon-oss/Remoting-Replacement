@@ -413,7 +413,7 @@ namespace NewRemotingUnitTest
 			instance.DoCallbackOnEvent(string.Empty);
 			Assert.IsFalse(_callback0Triggered);
 
-			Assert.Throws<NotSupportedException>(() => instance.AnEvent5 += CallbackMethod5);
+			Assert.Throws<InvalidRemotingOperationException>(() => instance.AnEvent5 += CallbackMethod5);
 		}
 
 		public void ProgressFeedback(int progress)
@@ -449,7 +449,7 @@ namespace NewRemotingUnitTest
 		{
 			CreateClientServer();
 			IMarshallInterface instance = _client.CreateRemoteInstance<MarshallableClass>();
-			Assert.Throws<InvalidOperationException>(() => instance.RegisterEvent(TestStaticRoutine));
+			Assert.Throws<InvalidRemotingOperationException>(() => instance.RegisterEvent(TestStaticRoutine));
 		}
 
 		private void CallbackMethod4(string message, string caller)

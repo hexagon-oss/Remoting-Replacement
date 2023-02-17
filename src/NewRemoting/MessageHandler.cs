@@ -378,7 +378,7 @@ namespace NewRemoting
 			}
 			else
 			{
-				throw new InvalidRemotingOperationException($"Object {data} is neither serializable nor MarshalByRefObject");
+				throw new SerializationException($"Object {data} is neither serializable nor MarshalByRefObject");
 			}
 		}
 
