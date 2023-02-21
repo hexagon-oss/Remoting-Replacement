@@ -405,9 +405,17 @@ namespace NewRemoting
 			if (objectType == typeof(bool))
 			{
 				bool b = (bool)data;
-				w.Write((int)RemotingReferenceType.Bool);
-				LogMsg(RemotingReferenceType.Bool);
-				w.Write(b);
+				if (b)
+				{
+					w.Write((int)RemotingReferenceType.BoolTrue);
+					LogMsg(RemotingReferenceType.BoolTrue);
+				}
+				else
+				{
+					w.Write((int)RemotingReferenceType.BoolFalse);
+					LogMsg(RemotingReferenceType.BoolFalse);
+				}
+
 				return true;
 			}
 
@@ -754,10 +762,14 @@ namespace NewRemoting
 					return IPAddress.Parse(s);
 				}
 
-				case RemotingReferenceType.Bool:
+				case RemotingReferenceType.BoolTrue:
 				{
-					bool b = r.ReadBoolean();
-					return b;
+					return true;
+				}
+
+				case RemotingReferenceType.BoolFalse:
+				{
+					return false;
 				}
 
 				case RemotingReferenceType.Int32:

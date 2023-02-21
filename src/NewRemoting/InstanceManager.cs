@@ -554,6 +554,12 @@ namespace NewRemoting
 			// a specific instance
 			if (s_nextIndex > 8 * sizeof(UInt64))
 			{
+				_logger.LogWarning($"Too many instances registered {0}", s_nextIndex);
+				foreach (var i in s_knownRemoteInstances)
+				{
+					_logger.LogWarning(i.Key);
+				}
+
 				throw new InvalidOperationException("To many different instance identifiers seen - only up to 64 allowed right now");
 			}
 
