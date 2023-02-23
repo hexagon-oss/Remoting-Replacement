@@ -57,8 +57,8 @@ namespace NewRemotingUnitTest
 			FileInfo fi = new FileInfo(Assembly.GetExecutingAssembly().Location);
 			var psi = new ProcessStartInfo(Path.Combine(fi.DirectoryName, "RemotingServer.exe"));
 
-			Console.WriteLine($"Attempting to start {psi.FileName}...");
-			Console.WriteLine($"Current directory is {Environment.CurrentDirectory}");
+			Debug.WriteLine($"Attempting to start {psi.FileName}...");
+			Debug.WriteLine($"Current directory is {Environment.CurrentDirectory}");
 
 			using (var serverProcess = Process.Start(psi))
 			{
