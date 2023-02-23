@@ -133,10 +133,10 @@ namespace NewRemoting
 			return objectId.StartsWith(InstanceIdentifier);
 		}
 
-		public string GetIdForObject(object instance, string willBeSentTo)
+		public string RegisterRealObjectAndGetId(object instance, string willBeSentTo)
 		{
 			string id = CreateObjectInstanceId(instance);
-			AddInstance(instance, id, willBeSentTo, instance.GetType());
+			AddInstance(instance, id, willBeSentTo, instance.GetType(), true);
 			return id;
 		}
 
@@ -191,7 +191,7 @@ namespace NewRemoting
 			return false;
 		}
 
-		public void AddInstance(object instance, string objectId, string willBeSentTo, Type originalType)
+		public InstanceInfo AddInstance(object instance, string objectId, string willBeSentTo, Type originalType, bool doThrowOnDuplicate)
 		{
 			if (instance == null)
 			{
@@ -203,7 +203,7 @@ namespace NewRemoting
 				throw new ArgumentException("The original type cannot be a proxy", nameof(originalType));
 			}
 
-			s_objects.AddOrUpdate(objectId, s =>
+			return s_objects.AddOrUpdate(objectId, s =>
 			{
 				// Not found in list - insert new info object
 				var ii = new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), originalType, this);
@@ -222,13 +222,17 @@ namespace NewRemoting
 					}
 					else
 					{
-						if (!ReferenceEquals(existingInfo.Instance, instance))
+						if (doThrowOnDuplicate && !ReferenceEquals(existingInfo.Instance, instance))
 						{
 							var msg = FormattableString.Invariant(
-								$"Added new instance of {instance.GetType()} is not equals to {existingInfo.Identifier} to instance manager");
+								$"Added new instance of {instance.GetType()} is not equals to {existingInfo.Identifier} to instance manager, but no duplicate was expected");
 							_logger.LogError(msg);
 							throw new InvalidOperationException(msg);
 						}
+
+						// We have created the new instance twice due to a race condition
+						// drop it again and use the old one instead
+						_logger.LogInformation($"Race condition detected: Duplicate instance for object id {objectId} will be discarded.");
 					}
 
 					// Update existing living info object with new client information
@@ -498,9 +502,9 @@ namespace NewRemoting
 				instance = ProxyGenerator.CreateClassProxy(type, interfaces, interceptor);
 			}
 
-			AddInstance(instance, objectId, null, type);
+			InstanceInfo inst = AddInstance(instance, objectId, null, type, false);
 
-			return instance;
+			return inst.Instance;
 		}
 
 		public void Remove(string objectId, string remoteInstanceIdentifier)

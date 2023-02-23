@@ -43,8 +43,8 @@ namespace NewRemotingUnitTest
 		public void Create()
 		{
 			var myInstance = new MarshallableClass();
-			string name1 = _instanceManager.GetIdForObject(myInstance, "1");
-			string name2 = _instanceManager.GetIdForObject(myInstance, "1");
+			string name1 = _instanceManager.RegisterRealObjectAndGetId(myInstance, "1");
+			string name2 = _instanceManager.RegisterRealObjectAndGetId(myInstance, "1");
 			Assert.AreEqual(name1, name2);
 
 			var myInstance2 = _instanceManager.GetObjectFromId(name1);
@@ -55,8 +55,8 @@ namespace NewRemotingUnitTest
 		public void InstanceIsNotRemovedWhenAnotherGuyStillHasReference()
 		{
 			var myInstance = new MarshallableClass();
-			string name1 = _instanceManager.GetIdForObject(myInstance, "1");
-			string name2 = _instanceManager.GetIdForObject(myInstance, "2");
+			string name1 = _instanceManager.RegisterRealObjectAndGetId(myInstance, "1");
+			string name2 = _instanceManager.RegisterRealObjectAndGetId(myInstance, "2");
 			Assert.AreEqual(name1, name2);
 
 			_instanceManager.Remove(name1, "1");
@@ -65,22 +65,36 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
-		public void AddInstance()
+		public void AddInstanceFromDifferentClients()
 		{
 			var myInstance = new MarshallableClass();
 			var myInstanceId = _instanceManager.InstanceIdentifier + "id";
-			_instanceManager.AddInstance(myInstance, myInstanceId, "1", typeof(MarshallableClass));
+			_instanceManager.AddInstance(myInstance, myInstanceId, "1", typeof(MarshallableClass), true);
 #pragma warning disable CS0618
 			var ii = _instanceManager.QueryInstanceInfo(myInstanceId);
 #pragma warning restore CS0618
 			Assert.AreEqual(1, ii.ReferenceBitVector);
 			Assert.IsFalse(ii.IsReleased);
-			_instanceManager.AddInstance(myInstance, myInstanceId, "2", typeof(MarshallableClass));
+			_instanceManager.AddInstance(myInstance, myInstanceId, "2", typeof(MarshallableClass), true);
 #pragma warning disable CS0618
 			ii = _instanceManager.QueryInstanceInfo(myInstanceId);
 #pragma warning restore CS0618
 			Assert.AreEqual(3, ii.ReferenceBitVector);
 			Assert.IsFalse(ii.IsReleased);
+		}
+
+		[Test]
+		public void AddInstanceMultipleTimes()
+		{
+			var myInstance = new MarshallableClass("Instance1");
+			_instanceManager.AddInstance(myInstance, "A", "1", myInstance.GetType(), false);
+			var my2ndInstance = new MarshallableClass("Instance2");
+			var addedInstance = _instanceManager.AddInstance(my2ndInstance, "A", "1", my2ndInstance.GetType(), false);
+			Assert.IsTrue(ReferenceEquals(myInstance, addedInstance.Instance));
+			Assert.IsFalse(ReferenceEquals(my2ndInstance, addedInstance.Instance));
+
+			// If the last argument is true, the same operation throws
+			Assert.Throws<InvalidOperationException>(() => _instanceManager.AddInstance(my2ndInstance, "A", "1", my2ndInstance.GetType(), true));
 		}
 	}
 }
