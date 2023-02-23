@@ -745,6 +745,18 @@ namespace NewRemotingUnitTest
 			CreateClientServer();
 			var server = _client.CreateRemoteInstance<MarshallableClass>();
 			Assert.True(server.TakeSomeArguments(10, 2000, 2000, 10.0));
+			Assert.True(server.TakeSomeMoreArguments(10, 2000, 2000, 10.0f));
+		}
+
+		[Test]
+		public void TestTypeAsArguments()
+		{
+			CreateClientServer();
+			var server = _client.CreateRemoteInstance<MarshallableClass>();
+			var result = server.ProcessListOfTypes();
+			Assert.IsEmpty(result);
+			result = server.ProcessListOfTypes(typeof(string), typeof(Int32), typeof(bool), null);
+			Assert.False(string.IsNullOrWhiteSpace(result));
 		}
 
 		private void ExecuteCallbacks(IMarshallInterface instance, int overallIterations, int iterations,

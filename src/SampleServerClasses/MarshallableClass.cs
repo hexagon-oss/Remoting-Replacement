@@ -281,5 +281,15 @@ namespace SampleServerClasses
 		{
 			return Math.Abs(a + b - (c + d)) < 1E-12;
 		}
+
+		public virtual bool TakeSomeMoreArguments(byte a, short b, ushort c, float d)
+		{
+			return Math.Abs(a + b - (c + d)) < 1E-12;
+		}
+
+		public virtual string ProcessListOfTypes(params Type[] types)
+		{
+			return string.Join(", ", types.Select(x => x?.ToString()));
+		}
 	}
 }

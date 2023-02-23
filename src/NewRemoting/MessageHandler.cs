@@ -170,8 +170,19 @@ namespace NewRemoting
 
 						var proxy = Activator.CreateInstance(proxyType);
 						var addEventMethod = proxyType.GetMethod("add_Event");
-						addEventMethod.Invoke(proxy, new[] { del });
-						_instanceManager.AddInstance(proxy, instanceId, referencesWillBeSentTo, proxyType);
+
+						// Try to add proxy to instance manager - this may return another, existing instance due to a race condition
+						// In this case, we only need to register, like in the case where we already found the object in the list.
+						var usedInstance = _instanceManager.AddInstance(proxy, instanceId, referencesWillBeSentTo, proxyType, false);
+						var usedProxy = usedInstance.Instance;
+						// Make sure to do this after the AddInstance above, to be sure to register on the correct proxy
+						addEventMethod.Invoke(usedProxy, new[] { del });
+
+						// if they're not equal, AddInstance returns something old instead of the proxy we just created.
+						if (!ReferenceEquals(usedProxy, proxy))
+						{
+							return false;
+						}
 
 						w.Write((int)RemotingReferenceType.AddEvent);
 						LogMsg(RemotingReferenceType.AddEvent);
@@ -237,7 +248,7 @@ namespace NewRemoting
 				if (del.Target != null)
 				{
 					string instanceId = _instanceManager.GetDelegateTargetIdentifier(del, remoteInstanceId);
-					_instanceManager.AddInstance(del, instanceId, referencesWillBeSentTo, del.GetType());
+					_instanceManager.AddInstance(del, instanceId, referencesWillBeSentTo, del.GetType(), true);
 					w.Write(instanceId);
 				}
 				else
@@ -367,7 +378,7 @@ namespace NewRemoting
 			}
 			else if (t.IsAssignableTo(typeof(MarshalByRefObject)))
 			{
-				string objectId = _instanceManager.GetIdForObject(data, referencesWillBeSentTo);
+				string objectId = _instanceManager.RegisterRealObjectAndGetId(data, referencesWillBeSentTo);
 				w.Write((int)RemotingReferenceType.RemoteReference);
 				LogMsg(RemotingReferenceType.RemoteReference);
 				w.Write(objectId);
@@ -934,8 +945,10 @@ namespace NewRemoting
 					{
 						var interceptor = InstanceManager.GetInterceptor(_interceptors, instanceId);
 						internalSink = new DelegateInternalSink(interceptor, instanceId, methodInfoOfTarget);
-						_instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideInstanceId,
-							internalSink.GetType());
+						var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideInstanceId,
+							internalSink.GetType(), false);
+
+						internalSink = (DelegateInternalSink)usedInstance.Instance;
 					}
 
 					internalSink.RegisterInstance(otherSideInstanceId);
@@ -968,9 +981,9 @@ namespace NewRemoting
 					}
 
 					// create the local server side delegate
-					string delegateId = instanceId + "." + methodInfoOfTarget.Name;
 					Delegate newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
-					_instanceManager.AddInstance(newDelegate, delegateId, otherSideInstanceId, newDelegate.GetType());
+					string delegateId = _instanceManager.GetDelegateTargetIdentifier(newDelegate, otherSideInstanceId);
+					_instanceManager.AddInstance(newDelegate, delegateId, otherSideInstanceId, newDelegate.GetType(), true);
 					return newDelegate;
 				}
 
@@ -1026,8 +1039,9 @@ namespace NewRemoting
 					else
 					{
 						internalSink = new DelegateInternalSink(interceptor, instanceId, methodInfoOfTarget);
-						_instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideInstanceId,
-							internalSink.GetType());
+						var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideInstanceId,
+							internalSink.GetType(), false);
+						internalSink = (DelegateInternalSink)usedInstance.Instance;
 					}
 
 					IEnumerable<MethodInfo> possibleSinks = null;

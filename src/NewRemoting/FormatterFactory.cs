@@ -92,7 +92,7 @@ namespace NewRemoting
 				}
 				else
 				{
-					objectId = _instanceManager.GetIdForObject(obj, (string)context.Context);
+					objectId = _instanceManager.RegisterRealObjectAndGetId(obj, (string)context.Context);
 					info.AddValue("ObjectId", objectId);
 					info.AddValue("AssemblyQualifiedName", obj.GetType().AssemblyQualifiedName);
 				}
