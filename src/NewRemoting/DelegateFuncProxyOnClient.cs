@@ -16,7 +16,8 @@ internal class DelegateFuncProxyOnClient<TOut>
 
 	public TOut FireEvent()
 	{
-		return Event.Invoke();
+		var threadSafeEvent = Event;
+		return threadSafeEvent != null ? threadSafeEvent.Invoke() : default;
 	}
 
 	public bool IsEmpty()
@@ -38,7 +39,8 @@ internal class DelegateFuncProxyOnClient<T1, TOut>
 
 	public TOut FireEvent(T1 arg)
 	{
-		return Event.Invoke(arg);
+		var threadSafeEvent = Event;
+		return threadSafeEvent != null ? threadSafeEvent.Invoke(arg) : default;
 	}
 
 	public bool IsEmpty()
@@ -60,7 +62,8 @@ internal class DelegateFuncProxyOnClient<T1, T2, TOut>
 
 	public TOut FireEvent(T1 arg1, T2 arg2)
 	{
-		return Event.Invoke(arg1, arg2);
+		var threadSafeEvent = Event;
+		return threadSafeEvent != null ? threadSafeEvent.Invoke(arg1, arg2) : default;
 	}
 
 	public bool IsEmpty()
@@ -82,7 +85,8 @@ internal class DelegateFuncProxyOnClient<T1, T2, T3, TOut>
 
 	public TOut FireEvent(T1 arg1, T2 arg2, T3 arg3)
 	{
-		return Event.Invoke(arg1, arg2, arg3);
+		var threadSafeEvent = Event;
+		return threadSafeEvent != null ? threadSafeEvent.Invoke(arg1, arg2, arg3) : default;
 	}
 
 	public bool IsEmpty()
@@ -104,7 +108,8 @@ internal class DelegateFuncProxyOnClient<T1, T2, T3, T4, TOut>
 
 	public TOut FireEvent(T1 arg1, T2 arg2, T3 arg3, T4 arg4)
 	{
-		return Event.Invoke(arg1, arg2, arg3, arg4);
+		var threadSafeEvent = Event;
+		return threadSafeEvent != null ? threadSafeEvent.Invoke(arg1, arg2, arg3, arg4) : default;
 	}
 
 	public bool IsEmpty()
