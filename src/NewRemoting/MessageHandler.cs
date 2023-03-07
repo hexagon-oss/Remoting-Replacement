@@ -520,6 +520,13 @@ namespace NewRemoting
 				String s = (String)data;
 				w.Write((int)RemotingReferenceType.String);
 				LogMsg(RemotingReferenceType.String);
+				if (s.Length == 0)
+				{
+					// Don't write any data for the empty string, because attempting to read 0 bytes blocks.
+					w.Write(0);
+					return true;
+				}
+
 				var buffer = ArrayPool<byte>.Shared.Rent(_stringEncoding.GetMaxByteCount(s.Length));
 				Span<byte> bufferSpan = buffer.AsSpan();
 				int numBytesUsed = _stringEncoding.GetBytes(s.AsSpan(), bufferSpan);
@@ -870,6 +877,11 @@ namespace NewRemoting
 				case RemotingReferenceType.String:
 				{
 					int numBytesToRead = r.ReadInt32();
+					if (numBytesToRead == 0)
+					{
+						return string.Empty;
+					}
+
 					byte[] buffer = ArrayPool<byte>.Shared.Rent(numBytesToRead);
 					int numBytesRead = r.Read(buffer, 0, numBytesToRead);
 					if (numBytesRead != numBytesToRead)
