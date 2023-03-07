@@ -35,6 +35,7 @@ namespace NewRemoting
 		Float,
 		Double,
 		Single,
+		String,
 		AddEvent,
 		RemoveEvent,
 		MethodPointer

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -9,6 +10,7 @@ using System.Net;
 using System.Reflection;
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
+using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
@@ -30,9 +32,11 @@ namespace NewRemoting
 		private readonly Dictionary<string, ClientSideInterceptor> _interceptors;
 		private bool _initialized;
 		private ConcurrentDictionary<RemotingReferenceType, uint> _stats;
+		public Encoding _stringEncoding;
 
 		public MessageHandler(InstanceManager instanceManager, FormatterFactory formatterFactory)
 		{
+			_stringEncoding = Encoding.Unicode;
 			_instanceManager = instanceManager;
 			_formatterFactory = formatterFactory;
 			_initialized = false;
@@ -393,7 +397,7 @@ namespace NewRemoting
 			}
 		}
 
-		private bool TryUseFastSerialization(BinaryWriter w, Type objectType, object data)
+		internal bool TryUseFastSerialization(BinaryWriter w, Type objectType, object data)
 		{
 			if (objectType == typeof(Int32))
 			{
@@ -508,6 +512,20 @@ namespace NewRemoting
 				w.Write((int)RemotingReferenceType.Single);
 				LogMsg(RemotingReferenceType.Single);
 				w.Write(i);
+				return true;
+			}
+
+			if (objectType == typeof(System.String))
+			{
+				String s = (String)data;
+				w.Write((int)RemotingReferenceType.String);
+				LogMsg(RemotingReferenceType.String);
+				var buffer = ArrayPool<byte>.Shared.Rent(_stringEncoding.GetMaxByteCount(s.Length));
+				Span<byte> bufferSpan = buffer.AsSpan();
+				int numBytesUsed = _stringEncoding.GetBytes(s.AsSpan(), bufferSpan);
+				w.Write(numBytesUsed);
+				w.Write(bufferSpan.Slice(0, numBytesUsed));
+				ArrayPool<byte>.Shared.Return(buffer);
 				return true;
 			}
 
@@ -847,6 +865,21 @@ namespace NewRemoting
 				{
 					var i = r.ReadSingle();
 					return i;
+				}
+
+				case RemotingReferenceType.String:
+				{
+					int numBytesToRead = r.ReadInt32();
+					byte[] buffer = ArrayPool<byte>.Shared.Rent(numBytesToRead);
+					int numBytesRead = r.Read(buffer, 0, numBytesToRead);
+					if (numBytesRead != numBytesToRead)
+					{
+						throw new RemotingException("Unexpected end of stream or data corruption encountered");
+					}
+
+					String ret = _stringEncoding.GetString(buffer, 0, numBytesRead);
+					ArrayPool<byte>.Shared.Return(buffer);
+					return ret;
 				}
 
 				case RemotingReferenceType.AddEvent:
