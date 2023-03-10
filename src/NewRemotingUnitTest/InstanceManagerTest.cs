@@ -35,7 +35,7 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void Initialization()
 		{
-			Assert.IsNotNull(_instanceManager.InstanceIdentifier);
+			Assert.IsNotNull(_instanceManager.ProcessIdentifier);
 			Assert.IsNotNull(_instanceManager.ProxyGenerator);
 		}
 
@@ -68,7 +68,7 @@ namespace NewRemotingUnitTest
 		public void AddInstanceFromDifferentClients()
 		{
 			var myInstance = new MarshallableClass();
-			var myInstanceId = _instanceManager.InstanceIdentifier + "id";
+			var myInstanceId = _instanceManager.ProcessIdentifier + "id";
 			_instanceManager.AddInstance(myInstance, myInstanceId, "1", typeof(MarshallableClass), true);
 #pragma warning disable CS0618
 			var ii = _instanceManager.QueryInstanceInfo(myInstanceId);

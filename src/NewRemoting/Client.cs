@@ -85,7 +85,7 @@ namespace NewRemoting
 			_messageHandler = new MessageHandler(_instanceManager, _formatterFactory);
 
 			// A client side has only one server, so there's also only one interceptor and only one server side
-			_interceptor = new ClientSideInterceptor(string.Empty, _instanceManager.InstanceIdentifier, true, stream, _messageHandler, Logger);
+			_interceptor = new ClientSideInterceptor(string.Empty, _instanceManager.ProcessIdentifier, true, stream, _messageHandler, Logger);
 			_instanceManager.AddInterceptor(_interceptor);
 			_messageHandler.AddInterceptor(_interceptor);
 
@@ -107,7 +107,7 @@ namespace NewRemoting
 			WaitForConnectionReply(s);
 			Logger.LogInformation("Received basic server authentication reply");
 
-			_formatter = _formatterFactory.CreateOrGetFormatter(_interceptor.OtherSideInstanceId);
+			_formatter = _formatterFactory.CreateOrGetFormatter(_interceptor.OtherSideProcessId);
 			_interceptor.Start();
 			Logger.LogInformation("Interceptor started");
 
@@ -127,11 +127,11 @@ namespace NewRemoting
 			byte[] authenticationData = new byte[100];
 			authenticationData[0] = (byte)(callbackStream ? 1 : 0);
 
-			int instanceHash = _instanceManager.InstanceIdentifier.GetHashCode(StringComparison.Ordinal);
+			int instanceHash = _instanceManager.ProcessIdentifier.GetHashCode(StringComparison.Ordinal);
 			Array.Copy(BitConverter.GetBytes(instanceHash), 0, authenticationData, 1, 4);
 			destination.Write(authenticationData, 0, 100);
 
-			var instanceIdentifier = MessageHandler.DefaultStringEncoding.GetBytes(_instanceManager.InstanceIdentifier);
+			var instanceIdentifier = MessageHandler.DefaultStringEncoding.GetBytes(_instanceManager.ProcessIdentifier);
 			var lenBytes = BitConverter.GetBytes(instanceIdentifier.Length);
 
 			destination.Write(lenBytes);
@@ -165,7 +165,7 @@ namespace NewRemoting
 				return false;
 			}
 
-			_interceptor.OtherSideInstanceId = MessageHandler.DefaultStringEncoding.GetString(data);
+			_interceptor.OtherSideProcessId = MessageHandler.DefaultStringEncoding.GetString(data);
 			return true;
 		}
 
@@ -317,7 +317,7 @@ namespace NewRemoting
 		/// </summary>
 		public (string Local, string Remote) InstanceIdentifiers()
 		{
-			return (_instanceManager.InstanceIdentifier, _interceptor.OtherSideInstanceId);
+			return (_instanceManager.ProcessIdentifier, _interceptor.OtherSideProcessId);
 		}
 
 		/// <summary>
@@ -329,7 +329,7 @@ namespace NewRemoting
 			{
 				if (!_connectionConfigured)
 				{
-					_server.StartProcessing(_interceptor.OtherSideInstanceId);
+					_server.StartProcessing(_interceptor.OtherSideProcessId);
 					RemotingCallHeader openReturnChannel =
 						new RemotingCallHeader(RemotingFunctionType.OpenReverseChannel, 0);
 					using var lck = openReturnChannel.WriteHeader(_writer);
@@ -337,8 +337,8 @@ namespace NewRemoting
 					var addressToUse = addresses.First(x => x.AddressFamily == AddressFamily.InterNetwork);
 					_writer.Write(addressToUse.ToString());
 					_writer.Write(_server.NetworkPort);
-					_writer.Write(_instanceManager.InstanceIdentifier);
-					_writer.Write(_instanceManager.InstanceIdentifier.GetHashCode(StringComparison.Ordinal));
+					_writer.Write(_instanceManager.ProcessIdentifier);
+					_writer.Write(_instanceManager.ProcessIdentifier.GetHashCode(StringComparison.Ordinal));
 					_connectionConfigured = true;
 				}
 			}
@@ -482,7 +482,7 @@ namespace NewRemoting
 						_writer.Write(args.Length); // but we need to provide the number of arguments that follow
 						foreach (var a in args)
 						{
-							_messageHandler.WriteArgumentToStream(_writer, a, _interceptor.OtherSideInstanceId);
+							_messageHandler.WriteArgumentToStream(_writer, a, _interceptor.OtherSideProcessId);
 						}
 					}
 				}
@@ -562,7 +562,7 @@ namespace NewRemoting
 				RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.ClientDisconnecting, sequence);
 				using (var lck = hd.WriteHeader(_writer))
 				{
-					_writer.Write(_instanceManager.InstanceIdentifier);
+					_writer.Write(_instanceManager.ProcessIdentifier);
 				}
 
 				_disconnected = true;

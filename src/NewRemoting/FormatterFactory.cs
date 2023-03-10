@@ -25,16 +25,16 @@ namespace NewRemoting
 			_cusBinaryFormatters = new ConcurrentDictionary<string, BinaryFormatter>();
 		}
 
-		public IFormatter CreateOrGetFormatter(string otherSideInstanceId)
+		public IFormatter CreateOrGetFormatter(string otherSideProcessId)
 		{
-			if (_cusBinaryFormatters.TryGetValue(otherSideInstanceId, out var formatter))
+			if (_cusBinaryFormatters.TryGetValue(otherSideProcessId, out var formatter))
 			{
 				return formatter;
 			}
 
 			// Doing this twice doesn't hurt (except for a very minor performance penalty)
-			var bf = new BinaryFormatter(this, new StreamingContext(StreamingContextStates.All, otherSideInstanceId));
-			_cusBinaryFormatters.TryAdd(otherSideInstanceId, bf);
+			var bf = new BinaryFormatter(this, new StreamingContext(StreamingContextStates.All, otherSideProcessId));
+			_cusBinaryFormatters.TryAdd(otherSideProcessId, bf);
 			return bf;
 		}
 

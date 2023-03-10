@@ -42,12 +42,12 @@ namespace NewRemoting
 		/// </summary>
 		private BinaryReader _reader;
 
-		public ClientSideInterceptor(string otherSideInstanceId, string thisSideInstanceId, bool clientSide, Stream serverLink, MessageHandler messageHandler, ILogger logger)
+		public ClientSideInterceptor(string otherSideProcessId, string thisSideProcessId, bool clientSide, Stream serverLink, MessageHandler messageHandler, ILogger logger)
 		{
 			_receiving = true;
 			_numberOfCallsInspected = 0;
-			OtherSideInstanceId = otherSideInstanceId;
-			ThisSideInstanceId = thisSideInstanceId;
+			OtherSideProcessId = otherSideProcessId;
+			ThisSideProcessId = thisSideProcessId;
 			DebuggerToStringBehavior = DebuggerToStringBehavior.ReturnProxyName;
 			_sequence = clientSide ? 1 : 10000;
 			_serverLink = serverLink;
@@ -57,9 +57,9 @@ namespace NewRemoting
 			_terminator = new CancellationTokenSource();
 			_reader = new BinaryReader(_serverLink, MessageHandler.DefaultStringEncoding);
 			_receiverThread = new Thread(ReceiverThread);
-			_receiverThread.Name = "ClientSideInterceptor - " + thisSideInstanceId;
+			_receiverThread.Name = "ClientSideInterceptor - " + thisSideProcessId;
 			_memoryCollectingThread = new Thread(MemoryCollectingThread);
-			_memoryCollectingThread.Name = "Memory collector - " + thisSideInstanceId;
+			_memoryCollectingThread.Name = "Memory collector - " + thisSideProcessId;
 			_gcEvent = new AutoResetEvent(false);
 		}
 
@@ -69,13 +69,13 @@ namespace NewRemoting
 			set;
 		}
 
-		public string OtherSideInstanceId
+		public string OtherSideProcessId
 		{
 			get;
 			set;
 		}
 
-		public string ThisSideInstanceId { get; }
+		public string ThisSideProcessId { get; }
 
 		internal int NextSequenceNumber()
 		{
@@ -118,7 +118,7 @@ namespace NewRemoting
 
 			using CallContext ctx = CreateCallContext(invocation, thisSeq);
 
-			_logger.Log(LogLevel.Debug, $"{ThisSideInstanceId}: Intercepting {invocation.Method}, sequence {thisSeq}");
+			_logger.Log(LogLevel.Debug, $"{ThisSideProcessId}: Intercepting {invocation.Method}, sequence {thisSeq}");
 
 			MethodInfo me = invocation.Method;
 			RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.MethodCall, thisSeq);
@@ -201,14 +201,14 @@ namespace NewRemoting
 			{
 				if (argument is Delegate del)
 				{
-					if (!_messageHandler.WriteDelegateArgumentToStream(writer, del, invocation.Method, OtherSideInstanceId, remoteInstanceId))
+					if (!_messageHandler.WriteDelegateArgumentToStream(writer, del, invocation.Method, OtherSideProcessId, remoteInstanceId))
 					{
 						return;
 					}
 				}
 				else
 				{
-					_messageHandler.WriteArgumentToStream(writer, argument, OtherSideInstanceId);
+					_messageHandler.WriteArgumentToStream(writer, argument, OtherSideProcessId);
 				}
 			}
 
@@ -255,7 +255,7 @@ namespace NewRemoting
 				{
 					using MemoryStream rawDataMessage = new MemoryStream(1024);
 					using BinaryWriter writer = new BinaryWriter(rawDataMessage, MessageHandler.DefaultStringEncoding);
-					_logger.LogInformation($"Starting GC on {ThisSideInstanceId}");
+					_logger.LogInformation($"Starting GC on {ThisSideProcessId}");
 					_messageHandler.InstanceManager.PerformGc(writer, false);
 					SafeSendToServer(rawDataMessage);
 					Interlocked.Exchange(ref _numberOfCallsInspected, 0);
@@ -306,7 +306,7 @@ namespace NewRemoting
 			ctx.Wait();
 			if (ctx.Exception != null)
 			{
-				_logger.LogDebug($"{ThisSideInstanceId}: {methodName} caused an exception to be thrown: {ctx.Exception.Message}.");
+				_logger.LogDebug($"{ThisSideProcessId}: {methodName} caused an exception to be thrown: {ctx.Exception.Message}.");
 				if (ctx.IsInTerminationMethod())
 				{
 					return;
@@ -316,7 +316,7 @@ namespace NewRemoting
 				ExceptionDispatchInfo.Capture(ctx.Exception).Throw();
 			}
 
-			_logger.Log(LogLevel.Debug, $"{ThisSideInstanceId}: {methodName} returns.");
+			_logger.Log(LogLevel.Debug, $"{ThisSideProcessId}: {methodName} returns.");
 		}
 
 		private void ReceiverThread()
@@ -332,7 +332,7 @@ namespace NewRemoting
 						throw new RemotingException("Unexpected reply or stream out of sync");
 					}
 
-					_logger.Log(LogLevel.Debug, $"{ThisSideInstanceId}: Decoding message {hdReturnValue.Sequence} of type {hdReturnValue.Function}");
+					_logger.Log(LogLevel.Debug, $"{ThisSideProcessId}: Decoding message {hdReturnValue.Sequence} of type {hdReturnValue.Function}");
 
 					if (hdReturnValue.Function == RemotingFunctionType.ServerShuttingDown)
 					{
@@ -357,15 +357,15 @@ namespace NewRemoting
 					{
 						if (hdReturnValue.Function == RemotingFunctionType.ExceptionReturn)
 						{
-							_logger.Log(LogLevel.Debug, $"{ThisSideInstanceId}: Receiving exception in reply to {ctx.Invocation.Method}");
-							var exception = _messageHandler.DecodeException(_reader, OtherSideInstanceId);
+							_logger.Log(LogLevel.Debug, $"{ThisSideProcessId}: Receiving exception in reply to {ctx.Invocation.Method}");
+							var exception = _messageHandler.DecodeException(_reader, OtherSideProcessId);
 							ctx.Exception = exception;
 							ctx.Set();
 						}
 						else
 						{
-							_logger.Log(LogLevel.Debug, $"{ThisSideInstanceId}: Receiving reply for {ctx.Invocation.Method}");
-							_messageHandler.ProcessCallResponse(ctx.Invocation, _reader, ThisSideInstanceId);
+							_logger.Log(LogLevel.Debug, $"{ThisSideProcessId}: Receiving reply for {ctx.Invocation.Method}");
+							_messageHandler.ProcessCallResponse(ctx.Invocation, _reader, ThisSideProcessId);
 							ctx.Set();
 						}
 					}

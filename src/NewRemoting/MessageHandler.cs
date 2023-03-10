@@ -227,7 +227,7 @@ namespace NewRemoting
 						bool isEmpty = (bool)isEmptyMethod.Invoke(existingDelegateProxy, null);
 						if (isEmpty)
 						{
-							_instanceManager.Remove(instanceId, _instanceManager.InstanceIdentifier);
+							_instanceManager.Remove(instanceId, _instanceManager.ProcessIdentifier);
 						}
 						else
 						{
@@ -529,12 +529,12 @@ namespace NewRemoting
 			return false;
 		}
 
-		private void SendAutoSerializedObject(BinaryWriter w, object data, string otherSideInstanceId)
+		private void SendAutoSerializedObject(BinaryWriter w, object data, string otherSideProcessId)
 		{
 			MemoryStream ms = new MemoryStream();
 
 #pragma warning disable 618
-			var formatter = _formatterFactory.CreateOrGetFormatter(otherSideInstanceId);
+			var formatter = _formatterFactory.CreateOrGetFormatter(otherSideProcessId);
 			formatter.Serialize(ms, data);
 #pragma warning restore 618
 			w.Write((int)RemotingReferenceType.SerializedItem);
@@ -612,7 +612,7 @@ namespace NewRemoting
 			return false;
 		}
 
-		public void ProcessCallResponse(IInvocation invocation, BinaryReader reader, string otherSideInstanceId)
+		public void ProcessCallResponse(IInvocation invocation, BinaryReader reader, string otherSideProcessId)
 		{
 			if (!_initialized)
 			{
@@ -626,7 +626,7 @@ namespace NewRemoting
 				methodBase = mi.Constructor;
 
 				object returnValue = ReadArgumentFromStream(reader, methodBase, invocation, true,
-					methodBase.DeclaringType, otherSideInstanceId);
+					methodBase.DeclaringType, otherSideProcessId);
 				invocation.ReturnValue = returnValue;
 				// out or ref arguments on ctors are rare, but not generally forbidden, so we continue here
 			}
@@ -634,7 +634,7 @@ namespace NewRemoting
 			{
 				// This happens if we request a remote instance directly (by interface type)
 				object returnValue = ReadArgumentFromStream(reader, mi2.Method, invocation, true, mi2.TargetType,
-					otherSideInstanceId);
+					otherSideProcessId);
 				invocation.ReturnValue = returnValue;
 				return;
 			}
@@ -645,7 +645,7 @@ namespace NewRemoting
 				if (me.ReturnType != typeof(void))
 				{
 					object returnValue = ReadArgumentFromStream(reader, methodBase, invocation, true, me.ReturnType,
-						otherSideInstanceId);
+						otherSideProcessId);
 					invocation.ReturnValue = returnValue;
 				}
 			}
@@ -658,7 +658,7 @@ namespace NewRemoting
 				{
 					// Copy the contents of the array-to-be-filled
 					object byRefValue = ReadArgumentFromStream(reader, methodBase, invocation, false,
-						byRefArguments.ParameterType, otherSideInstanceId);
+						byRefArguments.ParameterType, otherSideProcessId);
 					Array source = (Array)byRefValue; // The data from the remote side
 					Array destination = ((Array)invocation.Arguments[index]); // The argument to be filled
 					if (source.Length != destination.Length)
@@ -671,7 +671,7 @@ namespace NewRemoting
 				else if (byRefArguments.ParameterType.IsByRef)
 				{
 					object byRefValue = ReadArgumentFromStream(reader, methodBase, invocation, false,
-						byRefArguments.ParameterType, otherSideInstanceId);
+						byRefArguments.ParameterType, otherSideProcessId);
 					invocation.Arguments[index] = byRefValue;
 				}
 
@@ -679,7 +679,7 @@ namespace NewRemoting
 			}
 		}
 
-		public void SendExceptionReply(Exception exception, BinaryWriter w, int sequence, string otherSideInstanceId)
+		public void SendExceptionReply(Exception exception, BinaryWriter w, int sequence, string otherSideProcessId)
 		{
 			RemotingCallHeader hdReturnValue = new RemotingCallHeader(RemotingFunctionType.ExceptionReturn, sequence);
 			using var lck = hdReturnValue.WriteHeader(w);
@@ -694,14 +694,14 @@ namespace NewRemoting
 			{
 				w.Write(e.Name);
 				// This may contain inner exceptions, but since we're not throwing those, this shouldn't cause any issues on the remote side
-				WriteArgumentToStream(w, e.Value, otherSideInstanceId);
+				WriteArgumentToStream(w, e.Value, otherSideProcessId);
 			}
 
 			w.Write(exception.StackTrace ?? string.Empty);
 		}
 
 		public object ReadArgumentFromStream(BinaryReader r, MethodBase callingMethod, IInvocation invocation,
-			bool canAttemptToInstantiate, Type typeOfArgument, string otherSideInstanceId)
+			bool canAttemptToInstantiate, Type typeOfArgument, string otherSideProcessId)
 		{
 			if (!_initialized)
 			{
@@ -719,7 +719,7 @@ namespace NewRemoting
 					byte[] argumentData = r.ReadBytes(argumentLen);
 					MemoryStream ms = new MemoryStream(argumentData, false);
 #pragma warning disable 618
-					var formatter = _formatterFactory.CreateOrGetFormatter(otherSideInstanceId);
+					var formatter = _formatterFactory.CreateOrGetFormatter(otherSideProcessId);
 					object decodedArg = formatter.Deserialize(ms);
 #pragma warning restore 618
 					return decodedArg;
@@ -774,7 +774,7 @@ namespace NewRemoting
 					while (cont)
 					{
 						var nextElem = ReadArgumentFromStream(r, callingMethod, invocation, canAttemptToInstantiate,
-							contentType, otherSideInstanceId);
+							contentType, otherSideProcessId);
 						list.Add(nextElem);
 						cont = r.ReadBoolean();
 					}
@@ -980,13 +980,13 @@ namespace NewRemoting
 					{
 						var interceptor = InstanceManager.GetInterceptor(_interceptors, instanceId);
 						internalSink = new DelegateInternalSink(interceptor, instanceId, methodInfoOfTarget);
-						var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideInstanceId,
+						var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideProcessId,
 							internalSink.GetType(), false);
 
 						internalSink = (DelegateInternalSink)usedInstance.Instance;
 					}
 
-					internalSink.RegisterInstance(otherSideInstanceId);
+					internalSink.RegisterInstance(otherSideProcessId);
 
 					// TODO: This copying of arrays here is not really performance-friendly
 					var argumentsOfTarget = methodInfoOfTarget.GetParameters().Select(x => x.ParameterType).ToList();
@@ -1017,8 +1017,8 @@ namespace NewRemoting
 
 					// create the local server side delegate
 					Delegate newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
-					string delegateId = _instanceManager.GetDelegateTargetIdentifier(newDelegate, otherSideInstanceId);
-					_instanceManager.AddInstance(newDelegate, delegateId, otherSideInstanceId, newDelegate.GetType(), true);
+					string delegateId = _instanceManager.GetDelegateTargetIdentifier(newDelegate, otherSideProcessId);
+					_instanceManager.AddInstance(newDelegate, delegateId, otherSideProcessId, newDelegate.GetType(), true);
 					return newDelegate;
 				}
 
@@ -1027,9 +1027,9 @@ namespace NewRemoting
 					string instanceId = r.ReadString();
 					if (_instanceManager.TryGetObjectFromId(instanceId, out var internalSink))
 					{
-						if (((DelegateInternalSink)internalSink).Unregister(otherSideInstanceId))
+						if (((DelegateInternalSink)internalSink).Unregister(otherSideProcessId))
 						{
-							_instanceManager.Remove(instanceId, _instanceManager.InstanceIdentifier);
+							_instanceManager.Remove(instanceId, _instanceManager.ProcessIdentifier);
 						}
 					}
 
@@ -1074,7 +1074,7 @@ namespace NewRemoting
 					else
 					{
 						internalSink = new DelegateInternalSink(interceptor, instanceId, methodInfoOfTarget);
-						var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideInstanceId,
+						var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideProcessId,
 							internalSink.GetType(), false);
 						internalSink = (DelegateInternalSink)usedInstance.Instance;
 					}
@@ -1112,7 +1112,7 @@ namespace NewRemoting
 			}
 		}
 
-		public Exception DecodeException(BinaryReader reader, string otherSideInstanceId)
+		public Exception DecodeException(BinaryReader reader, string otherSideProcessId)
 		{
 			string exceptionTypeName = reader.ReadString();
 			Dictionary<string, object> stringValuePairs = new Dictionary<string, object>();
@@ -1122,7 +1122,7 @@ namespace NewRemoting
 				string name = reader.ReadString();
 				// The values found here should all be serializable again
 				object data = ReadArgumentFromStream(reader, null, null, false, typeof(object),
-					otherSideInstanceId);
+					otherSideProcessId);
 				stringValuePairs.Add(name, data);
 			}
 
@@ -1199,7 +1199,7 @@ namespace NewRemoting
 
 		public void AddInterceptor(ClientSideInterceptor newInterceptor)
 		{
-			_interceptors.Add(newInterceptor.OtherSideInstanceId, newInterceptor);
+			_interceptors.Add(newInterceptor.OtherSideProcessId, newInterceptor);
 			_initialized = true; // at least one entry exists
 		}
 	}

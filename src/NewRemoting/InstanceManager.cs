@@ -50,7 +50,7 @@ namespace NewRemoting
 			_logger = logger;
 			ProxyGenerator = proxyGenerator;
 			_interceptors = new();
-			InstanceIdentifier = Environment.MachineName + ":" + Environment.ProcessId.ToString("X", CultureInfo.CurrentCulture) + "." + s_numberOfInstancesUsed++;
+			ProcessIdentifier = Environment.MachineName + ":" + Environment.ProcessId.ToString("X", CultureInfo.CurrentCulture) + "." + s_numberOfInstancesUsed++;
 		}
 
 		/// <summary>
@@ -61,7 +61,7 @@ namespace NewRemoting
 			Dispose(false);
 		}
 
-		public string InstanceIdentifier
+		public string ProcessIdentifier
 		{
 			get;
 		}
@@ -136,7 +136,7 @@ namespace NewRemoting
 		/// </summary>
 		public bool IsLocalInstanceId(string objectId)
 		{
-			return objectId.StartsWith(InstanceIdentifier);
+			return objectId.StartsWith(ProcessIdentifier);
 		}
 
 		public string RegisterRealObjectAndGetId(object instance, string willBeSentTo)
@@ -154,7 +154,7 @@ namespace NewRemoting
 		/// <returns></returns>
 		public string GetDelegateTargetIdentifier(Delegate del, string remoteInstanceId)
 		{
-			StringBuilder id = new StringBuilder(FormattableString.Invariant($"{InstanceIdentifier}/{del.Method.GetType().FullName}/.Method/{del.Method.Name}/I{remoteInstanceId}"));
+			StringBuilder id = new StringBuilder(FormattableString.Invariant($"{ProcessIdentifier}/{del.Method.GetType().FullName}/.Method/{del.Method.Name}/I{remoteInstanceId}"));
 			foreach (var g in del.Method.GetGenericArguments())
 			{
 				id.Append($"/{g.FullName}");
@@ -279,7 +279,7 @@ namespace NewRemoting
 		{
 			if (!TryGetObjectFromId(id, out object instance))
 			{
-				throw new InvalidOperationException($"Could not locate instance with ID {id} or it is not local. Local identifier: {InstanceIdentifier}");
+				throw new InvalidOperationException($"Could not locate instance with ID {id} or it is not local. Local identifier: {ProcessIdentifier}");
 			}
 
 			return instance;
@@ -287,7 +287,7 @@ namespace NewRemoting
 
 		private string CreateObjectInstanceId(object obj)
 		{
-			string objectReference = FormattableString.Invariant($"{InstanceIdentifier}/{obj.GetType().FullName}/{RuntimeHelpers.GetHashCode(obj)}");
+			string objectReference = FormattableString.Invariant($"{ProcessIdentifier}/{obj.GetType().FullName}/{RuntimeHelpers.GetHashCode(obj)}");
 			return objectReference;
 		}
 
@@ -539,7 +539,7 @@ namespace NewRemoting
 
 		public void AddInterceptor(ClientSideInterceptor interceptor)
 		{
-			_interceptors.Add(interceptor.OtherSideInstanceId, interceptor);
+			_interceptors.Add(interceptor.OtherSideProcessId, interceptor);
 		}
 
 		private void MarkInstanceAsInUseBy(string willBeSentTo, InstanceInfo instanceInfo)
