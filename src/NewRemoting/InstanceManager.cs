@@ -50,7 +50,7 @@ namespace NewRemoting
 			_logger = logger;
 			ProxyGenerator = proxyGenerator;
 			_interceptors = new();
-			InstanceIdentifier = Environment.MachineName + ":" + Environment.ProcessId.ToString(CultureInfo.CurrentCulture) + "." + s_numberOfInstancesUsed++;
+			InstanceIdentifier = Environment.MachineName + ":" + Environment.ProcessId.ToString("X", CultureInfo.CurrentCulture) + "." + s_numberOfInstancesUsed++;
 		}
 
 		/// <summary>
@@ -114,12 +114,18 @@ namespace NewRemoting
 
 			var parameters = me.GetParameters();
 			id.Append('(');
-			id.AppendJoin(',', parameters.Select(p => $"{p.ParameterType.FullName} {p.Name}"));
-			foreach (var p in parameters)
+			id.AppendJoin(',', parameters.Select(p =>
 			{
-				id.Append($"/{p.ParameterType.FullName}|{p.Name}");
-			}
+				var pt = p.ParameterType;
+				if (pt.GenericTypeArguments.Any())
+				{
+					// If the argument is Action<T,...> or similar, construct manually, otherwise the string gets very long
+					return $"{pt.Name}[{string.Join(',', (System.Collections.Generic.IEnumerable<Type>)pt.GenericTypeArguments)}]";
+				}
 
+				// Normally, the FullName does not include the assembly or the private key, which is good
+				return $"{p.ParameterType.FullName} {p.Name}";
+			}));
 			id.Append(')');
 
 			return id.ToString();
