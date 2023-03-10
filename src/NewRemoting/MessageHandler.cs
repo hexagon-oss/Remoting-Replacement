@@ -30,9 +30,9 @@ namespace NewRemoting
 		private readonly InstanceManager _instanceManager;
 		private readonly FormatterFactory _formatterFactory;
 		private readonly Dictionary<string, ClientSideInterceptor> _interceptors;
+		private readonly Encoding _stringEncoding;
 		private bool _initialized;
 		private ConcurrentDictionary<RemotingReferenceType, uint> _stats;
-		public Encoding _stringEncoding;
 
 		public MessageHandler(InstanceManager instanceManager, FormatterFactory formatterFactory)
 		{
@@ -399,141 +399,131 @@ namespace NewRemoting
 
 		internal bool TryUseFastSerialization(BinaryWriter w, Type objectType, object data)
 		{
-			if (objectType == typeof(Int32))
+			switch (data)
 			{
-				int i = (int)data;
-				w.Write((int)RemotingReferenceType.Int32);
-				LogMsg(RemotingReferenceType.Int32);
-				w.Write(i);
-				return true;
-			}
-
-			if (objectType == typeof(UInt32))
-			{
-				UInt32 i = (UInt32)data;
-				w.Write((int)RemotingReferenceType.Uint32);
-				LogMsg(RemotingReferenceType.Uint32);
-				w.Write(i);
-				return true;
-			}
-
-			if (objectType == typeof(bool))
-			{
-				bool b = (bool)data;
-				if (b)
+				case Int32 i32:
 				{
-					w.Write((int)RemotingReferenceType.BoolTrue);
-					LogMsg(RemotingReferenceType.BoolTrue);
-				}
-				else
-				{
-					w.Write((int)RemotingReferenceType.BoolFalse);
-					LogMsg(RemotingReferenceType.BoolFalse);
-				}
-
-				return true;
-			}
-
-			if (objectType == typeof(Int16))
-			{
-				Int16 s = (Int16)data;
-				w.Write((int)RemotingReferenceType.Int16);
-				LogMsg(RemotingReferenceType.Int16);
-				w.Write(s);
-				return true;
-			}
-
-			if (objectType == typeof(UInt16))
-			{
-				UInt16 s = (UInt16)data;
-				w.Write((int)RemotingReferenceType.Uint16);
-				LogMsg(RemotingReferenceType.Uint16);
-				w.Write(s);
-				return true;
-			}
-
-			if (objectType == typeof(sbyte))
-			{
-				sbyte s = (sbyte)data;
-				w.Write((int)RemotingReferenceType.Int8);
-				LogMsg(RemotingReferenceType.Int8);
-				w.Write(s);
-				return true;
-			}
-
-			if (objectType == typeof(byte))
-			{
-				byte b = (byte)data;
-				w.Write((int)RemotingReferenceType.Uint8);
-				LogMsg(RemotingReferenceType.Uint8);
-				w.Write(b);
-				return true;
-			}
-
-			if (objectType == typeof(float))
-			{
-				float f = (float)data;
-				w.Write((int)RemotingReferenceType.Float);
-				LogMsg(RemotingReferenceType.Float);
-				w.Write(f);
-				return true;
-			}
-
-			if (objectType == typeof(Int64))
-			{
-				Int64 i = (Int64)data;
-				w.Write((int)RemotingReferenceType.Int64);
-				LogMsg(RemotingReferenceType.Int64);
-				w.Write(i);
-				return true;
-			}
-
-			if (objectType == typeof(UInt64))
-			{
-				UInt64 i = (UInt64)data;
-				w.Write((int)RemotingReferenceType.Uint64);
-				LogMsg(RemotingReferenceType.Uint64);
-				w.Write(i);
-				return true;
-			}
-
-			if (objectType == typeof(double))
-			{
-				double d = (double)data;
-				w.Write((int)RemotingReferenceType.Double);
-				LogMsg(RemotingReferenceType.Double);
-				w.Write(d);
-				return true;
-			}
-
-			if (objectType == typeof(System.Single))
-			{
-				Single i = (Single)data;
-				w.Write((int)RemotingReferenceType.Single);
-				LogMsg(RemotingReferenceType.Single);
-				w.Write(i);
-				return true;
-			}
-
-			if (objectType == typeof(System.String))
-			{
-				String s = (String)data;
-				w.Write((int)RemotingReferenceType.String);
-				LogMsg(RemotingReferenceType.String);
-				if (s.Length == 0)
-				{
-					// Don't write any data for the empty string, because attempting to read 0 bytes blocks.
-					w.Write(0);
+					w.Write((int)RemotingReferenceType.Int32);
+					LogMsg(RemotingReferenceType.Int32);
+					w.Write(i32);
 					return true;
 				}
 
-				var buffer = ArrayPool<byte>.Shared.Rent(_stringEncoding.GetMaxByteCount(s.Length));
-				Span<byte> bufferSpan = buffer.AsSpan();
-				int numBytesUsed = _stringEncoding.GetBytes(s.AsSpan(), bufferSpan);
-				w.Write(numBytesUsed);
-				w.Write(bufferSpan.Slice(0, numBytesUsed));
-				ArrayPool<byte>.Shared.Return(buffer);
-				return true;
+				case UInt32 u32:
+				{
+					w.Write((int)RemotingReferenceType.Uint32);
+					LogMsg(RemotingReferenceType.Uint32);
+					w.Write(u32);
+					return true;
+				}
+
+				case bool b:
+				{
+					if (b)
+					{
+						w.Write((int)RemotingReferenceType.BoolTrue);
+						LogMsg(RemotingReferenceType.BoolTrue);
+					}
+					else
+					{
+						w.Write((int)RemotingReferenceType.BoolFalse);
+						LogMsg(RemotingReferenceType.BoolFalse);
+					}
+
+					return true;
+				}
+
+				case Int16 s16:
+				{
+					w.Write((int)RemotingReferenceType.Int16);
+					LogMsg(RemotingReferenceType.Int16);
+					w.Write(s16);
+					return true;
+				}
+
+				case UInt16 u16:
+				{
+					w.Write((int)RemotingReferenceType.Uint16);
+					LogMsg(RemotingReferenceType.Uint16);
+					w.Write(u16);
+					return true;
+				}
+
+				case sbyte i8:
+				{
+					w.Write((int)RemotingReferenceType.Int8);
+					LogMsg(RemotingReferenceType.Int8);
+					w.Write(i8);
+					return true;
+				}
+
+				case byte u8:
+				{
+					w.Write((int)RemotingReferenceType.Uint8);
+					LogMsg(RemotingReferenceType.Uint8);
+					w.Write(u8);
+					return true;
+				}
+
+				case float f32:
+				{
+					w.Write((int)RemotingReferenceType.Float);
+					LogMsg(RemotingReferenceType.Float);
+					w.Write(f32);
+					return true;
+				}
+
+				case Int64 i64:
+				{
+					w.Write((int)RemotingReferenceType.Int64);
+					LogMsg(RemotingReferenceType.Int64);
+					w.Write(i64);
+					return true;
+				}
+
+				case UInt64 u64:
+				{
+					w.Write((int)RemotingReferenceType.Uint64);
+					LogMsg(RemotingReferenceType.Uint64);
+					w.Write(u64);
+					return true;
+				}
+
+				case double f64:
+				{
+					w.Write((int)RemotingReferenceType.Double);
+					LogMsg(RemotingReferenceType.Double);
+					w.Write(f64);
+					return true;
+				}
+
+				case Half f16:
+				{
+					w.Write((int)RemotingReferenceType.Half);
+					LogMsg(RemotingReferenceType.Half);
+					w.Write(f16);
+					return true;
+				}
+
+				case string s:
+				{
+					w.Write((int)RemotingReferenceType.String);
+					LogMsg(RemotingReferenceType.String);
+					if (s.Length == 0)
+					{
+						// Don't write any data for the empty string, because attempting to read 0 bytes blocks.
+						w.Write(0);
+						return true;
+					}
+
+					var buffer = ArrayPool<byte>.Shared.Rent(_stringEncoding.GetMaxByteCount(s.Length));
+					Span<byte> bufferSpan = buffer.AsSpan();
+					int numBytesUsed = _stringEncoding.GetBytes(s.AsSpan(), bufferSpan);
+					w.Write(numBytesUsed);
+					w.Write(bufferSpan.Slice(0, numBytesUsed));
+					ArrayPool<byte>.Shared.Return(buffer);
+					return true;
+				}
 			}
 
 			return false;
@@ -868,9 +858,9 @@ namespace NewRemoting
 					return i;
 				}
 
-				case RemotingReferenceType.Single:
+				case RemotingReferenceType.Half:
 				{
-					var i = r.ReadSingle();
+					var i = r.ReadHalf();
 					return i;
 				}
 
