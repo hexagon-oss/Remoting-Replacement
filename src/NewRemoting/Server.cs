@@ -729,7 +729,6 @@ namespace NewRemoting
 				{
 					// Wait until the matching connection is available - when several clients connect simultaneously, they may interfere here
 					Thread.Sleep(20);
-					// throw new RemotingException("Server not ready for reverse connection. Startup sequence error", RemotingExceptionKind.ProtocolError);
 				}
 
 				var newInterceptor = new ClientSideInterceptor(initialOtherSideProcessId, _instanceManager.ProcessIdentifier, false, streamToUse, _messageHandler, Logger);
