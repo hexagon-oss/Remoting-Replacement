@@ -34,7 +34,8 @@ namespace NewRemoting
 		BoolFalse,
 		Float,
 		Double,
-		Single,
+		Half,
+		String,
 		AddEvent,
 		RemoveEvent,
 		MethodPointer

@@ -27,6 +27,12 @@ namespace NewRemoting
 		private static readonly ConcurrentDictionary<string, InstanceInfo> s_objects;
 
 		/// <summary>
+		/// This serves as reverse lookup to the above. To make sure this consists only
+		/// of weak references, we use a ConditionalWeakTable.
+		/// </summary>
+		private static readonly ConditionalWeakTable<object, ReverseInstanceInfo> s_instanceNames;
+
+		/// <summary>
 		/// The list of known remote identifiers we have given references to.
 		/// Key: Identifier, Value: Index
 		/// </summary>
@@ -41,6 +47,7 @@ namespace NewRemoting
 		static InstanceManager()
 		{
 			s_objects = new ConcurrentDictionary<string, InstanceInfo>();
+			s_instanceNames = new ConditionalWeakTable<object, ReverseInstanceInfo>();
 			s_knownRemoteInstances = new ConcurrentDictionary<string, int>();
 			s_nextIndex = -1;
 		}
@@ -50,7 +57,7 @@ namespace NewRemoting
 			_logger = logger;
 			ProxyGenerator = proxyGenerator;
 			_interceptors = new();
-			InstanceIdentifier = Environment.MachineName + ":" + Environment.ProcessId.ToString(CultureInfo.CurrentCulture) + "." + s_numberOfInstancesUsed++;
+			ProcessIdentifier = Environment.MachineName + ":" + Environment.ProcessId.ToString("X", CultureInfo.CurrentCulture) + "." + s_numberOfInstancesUsed++;
 		}
 
 		/// <summary>
@@ -61,7 +68,7 @@ namespace NewRemoting
 			Dispose(false);
 		}
 
-		public string InstanceIdentifier
+		public string ProcessIdentifier
 		{
 			get;
 		}
@@ -114,12 +121,18 @@ namespace NewRemoting
 
 			var parameters = me.GetParameters();
 			id.Append('(');
-			id.AppendJoin(',', parameters.Select(p => $"{p.ParameterType.FullName} {p.Name}"));
-			foreach (var p in parameters)
+			id.AppendJoin(',', parameters.Select(p =>
 			{
-				id.Append($"/{p.ParameterType.FullName}|{p.Name}");
-			}
+				var pt = p.ParameterType;
+				if (pt.GenericTypeArguments.Any())
+				{
+					// If the argument is Action<T,...> or similar, construct manually, otherwise the string gets very long
+					return $"{pt.Name}[{string.Join(',', (System.Collections.Generic.IEnumerable<Type>)pt.GenericTypeArguments)}]";
+				}
 
+				// Normally, the FullName does not include the assembly or the private key, which is good
+				return $"{p.ParameterType.FullName} {p.Name}";
+			}));
 			id.Append(')');
 
 			return id.ToString();
@@ -130,7 +143,7 @@ namespace NewRemoting
 		/// </summary>
 		public bool IsLocalInstanceId(string objectId)
 		{
-			return objectId.StartsWith(InstanceIdentifier);
+			return objectId.StartsWith(ProcessIdentifier);
 		}
 
 		public string RegisterRealObjectAndGetId(object instance, string willBeSentTo)
@@ -148,7 +161,7 @@ namespace NewRemoting
 		/// <returns></returns>
 		public string GetDelegateTargetIdentifier(Delegate del, string remoteInstanceId)
 		{
-			StringBuilder id = new StringBuilder(FormattableString.Invariant($"{InstanceIdentifier}/{del.Method.GetType().FullName}/.Method/{del.Method.Name}/I{remoteInstanceId}"));
+			StringBuilder id = new StringBuilder(FormattableString.Invariant($"{ProcessIdentifier}/{del.Method.GetType().FullName}/.Method/{del.Method.Name}/I{remoteInstanceId}"));
 			foreach (var g in del.Method.GetGenericArguments())
 			{
 				id.Append($"/{g.FullName}");
@@ -203,7 +216,7 @@ namespace NewRemoting
 				throw new ArgumentException("The original type cannot be a proxy", nameof(originalType));
 			}
 
-			return s_objects.AddOrUpdate(objectId, s =>
+			var ret = s_objects.AddOrUpdate(objectId, s =>
 			{
 				// Not found in list - insert new info object
 				var ii = new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), originalType, this);
@@ -240,11 +253,13 @@ namespace NewRemoting
 					return existingInfo;
 				}
 			});
+
+			s_instanceNames.AddOrUpdate(ret.Instance, new ReverseInstanceInfo(objectId, originalType));
+			return ret;
 		}
 
 		/// <summary>
 		/// Gets the instance id for a given object.
-		/// This method is slow - should be improved by a reverse dictionary or similar (maybe use <see cref="ConditionalWeakTable{TKey,TValue}"/>)
 		/// </summary>
 		public bool TryGetObjectId(object instance, out string instanceId, out Type originalType)
 		{
@@ -253,6 +268,15 @@ namespace NewRemoting
 				throw new ArgumentNullException(nameof(instance));
 			}
 
+			ReverseInstanceInfo ri;
+			if (s_instanceNames.TryGetValue(instance, out ri))
+			{
+				instanceId = ri.ObjectId;
+				originalType = ri.ObjectType;
+				return true;
+			}
+
+			// In case the above fails, try the slow method
 			var values = s_objects.Values.ToList();
 			foreach (var v in values)
 			{
@@ -273,7 +297,7 @@ namespace NewRemoting
 		{
 			if (!TryGetObjectFromId(id, out object instance))
 			{
-				throw new InvalidOperationException($"Could not locate instance with ID {id} or it is not local. Local identifier: {InstanceIdentifier}");
+				throw new InvalidOperationException($"Could not locate instance with ID {id} or it is not local. Local identifier: {ProcessIdentifier}");
 			}
 
 			return instance;
@@ -281,7 +305,7 @@ namespace NewRemoting
 
 		private string CreateObjectInstanceId(object obj)
 		{
-			string objectReference = FormattableString.Invariant($"{InstanceIdentifier}/{obj.GetType().FullName}/{RuntimeHelpers.GetHashCode(obj)}");
+			string objectReference = FormattableString.Invariant($"{ProcessIdentifier}/{obj.GetType().FullName}/{RuntimeHelpers.GetHashCode(obj)}");
 			return objectReference;
 		}
 
@@ -315,6 +339,7 @@ namespace NewRemoting
 				s_knownRemoteInstances.Clear();
 				s_numberOfInstancesUsed = 1;
 				s_nextIndex = -1;
+				s_instanceNames.Clear();
 			}
 		}
 
@@ -533,7 +558,7 @@ namespace NewRemoting
 
 		public void AddInterceptor(ClientSideInterceptor interceptor)
 		{
-			_interceptors.Add(interceptor.OtherSideInstanceId, interceptor);
+			_interceptors.Add(interceptor.OtherSideProcessId, interceptor);
 		}
 
 		private void MarkInstanceAsInUseBy(string willBeSentTo, InstanceInfo instanceInfo)
@@ -681,6 +706,19 @@ namespace NewRemoting
 				_instanceWeakReference = null;
 				return instance != null;
 			}
+		}
+
+		private class ReverseInstanceInfo
+		{
+			public ReverseInstanceInfo(string objectId, Type objectType)
+			{
+				ObjectId = objectId;
+				ObjectType = objectType;
+			}
+
+			public string ObjectId { get; }
+
+			public Type ObjectType { get; }
 		}
 	}
 }

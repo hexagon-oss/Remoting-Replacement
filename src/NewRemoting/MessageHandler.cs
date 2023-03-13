@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -9,6 +10,7 @@ using System.Net;
 using System.Reflection;
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
+using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
@@ -28,11 +30,13 @@ namespace NewRemoting
 		private readonly InstanceManager _instanceManager;
 		private readonly FormatterFactory _formatterFactory;
 		private readonly Dictionary<string, ClientSideInterceptor> _interceptors;
+		private readonly Encoding _stringEncoding;
 		private bool _initialized;
 		private ConcurrentDictionary<RemotingReferenceType, uint> _stats;
 
 		public MessageHandler(InstanceManager instanceManager, FormatterFactory formatterFactory)
 		{
+			_stringEncoding = Encoding.Unicode;
 			_instanceManager = instanceManager;
 			_formatterFactory = formatterFactory;
 			_initialized = false;
@@ -223,7 +227,7 @@ namespace NewRemoting
 						bool isEmpty = (bool)isEmptyMethod.Invoke(existingDelegateProxy, null);
 						if (isEmpty)
 						{
-							_instanceManager.Remove(instanceId, _instanceManager.InstanceIdentifier);
+							_instanceManager.Remove(instanceId, _instanceManager.ProcessIdentifier);
 						}
 						else
 						{
@@ -393,133 +397,144 @@ namespace NewRemoting
 			}
 		}
 
-		private bool TryUseFastSerialization(BinaryWriter w, Type objectType, object data)
+		internal bool TryUseFastSerialization(BinaryWriter w, Type objectType, object data)
 		{
-			if (objectType == typeof(Int32))
+			switch (data)
 			{
-				int i = (int)data;
-				w.Write((int)RemotingReferenceType.Int32);
-				LogMsg(RemotingReferenceType.Int32);
-				w.Write(i);
-				return true;
-			}
-
-			if (objectType == typeof(UInt32))
-			{
-				UInt32 i = (UInt32)data;
-				w.Write((int)RemotingReferenceType.Uint32);
-				LogMsg(RemotingReferenceType.Uint32);
-				w.Write(i);
-				return true;
-			}
-
-			if (objectType == typeof(bool))
-			{
-				bool b = (bool)data;
-				if (b)
+				case Int32 i32:
 				{
-					w.Write((int)RemotingReferenceType.BoolTrue);
-					LogMsg(RemotingReferenceType.BoolTrue);
-				}
-				else
-				{
-					w.Write((int)RemotingReferenceType.BoolFalse);
-					LogMsg(RemotingReferenceType.BoolFalse);
+					w.Write((int)RemotingReferenceType.Int32);
+					LogMsg(RemotingReferenceType.Int32);
+					w.Write(i32);
+					return true;
 				}
 
-				return true;
-			}
+				case UInt32 u32:
+				{
+					w.Write((int)RemotingReferenceType.Uint32);
+					LogMsg(RemotingReferenceType.Uint32);
+					w.Write(u32);
+					return true;
+				}
 
-			if (objectType == typeof(Int16))
-			{
-				Int16 s = (Int16)data;
-				w.Write((int)RemotingReferenceType.Int16);
-				LogMsg(RemotingReferenceType.Int16);
-				w.Write(s);
-				return true;
-			}
+				case bool b:
+				{
+					if (b)
+					{
+						w.Write((int)RemotingReferenceType.BoolTrue);
+						LogMsg(RemotingReferenceType.BoolTrue);
+					}
+					else
+					{
+						w.Write((int)RemotingReferenceType.BoolFalse);
+						LogMsg(RemotingReferenceType.BoolFalse);
+					}
 
-			if (objectType == typeof(UInt16))
-			{
-				UInt16 s = (UInt16)data;
-				w.Write((int)RemotingReferenceType.Uint16);
-				LogMsg(RemotingReferenceType.Uint16);
-				w.Write(s);
-				return true;
-			}
+					return true;
+				}
 
-			if (objectType == typeof(sbyte))
-			{
-				sbyte s = (sbyte)data;
-				w.Write((int)RemotingReferenceType.Int8);
-				LogMsg(RemotingReferenceType.Int8);
-				w.Write(s);
-				return true;
-			}
+				case Int16 s16:
+				{
+					w.Write((int)RemotingReferenceType.Int16);
+					LogMsg(RemotingReferenceType.Int16);
+					w.Write(s16);
+					return true;
+				}
 
-			if (objectType == typeof(byte))
-			{
-				byte b = (byte)data;
-				w.Write((int)RemotingReferenceType.Uint8);
-				LogMsg(RemotingReferenceType.Uint8);
-				w.Write(b);
-				return true;
-			}
+				case UInt16 u16:
+				{
+					w.Write((int)RemotingReferenceType.Uint16);
+					LogMsg(RemotingReferenceType.Uint16);
+					w.Write(u16);
+					return true;
+				}
 
-			if (objectType == typeof(float))
-			{
-				float f = (float)data;
-				w.Write((int)RemotingReferenceType.Float);
-				LogMsg(RemotingReferenceType.Float);
-				w.Write(f);
-				return true;
-			}
+				case sbyte i8:
+				{
+					w.Write((int)RemotingReferenceType.Int8);
+					LogMsg(RemotingReferenceType.Int8);
+					w.Write(i8);
+					return true;
+				}
 
-			if (objectType == typeof(Int64))
-			{
-				Int64 i = (Int64)data;
-				w.Write((int)RemotingReferenceType.Int64);
-				LogMsg(RemotingReferenceType.Int64);
-				w.Write(i);
-				return true;
-			}
+				case byte u8:
+				{
+					w.Write((int)RemotingReferenceType.Uint8);
+					LogMsg(RemotingReferenceType.Uint8);
+					w.Write(u8);
+					return true;
+				}
 
-			if (objectType == typeof(UInt64))
-			{
-				UInt64 i = (UInt64)data;
-				w.Write((int)RemotingReferenceType.Uint64);
-				LogMsg(RemotingReferenceType.Uint64);
-				w.Write(i);
-				return true;
-			}
+				case float f32:
+				{
+					w.Write((int)RemotingReferenceType.Float);
+					LogMsg(RemotingReferenceType.Float);
+					w.Write(f32);
+					return true;
+				}
 
-			if (objectType == typeof(double))
-			{
-				double d = (double)data;
-				w.Write((int)RemotingReferenceType.Double);
-				LogMsg(RemotingReferenceType.Double);
-				w.Write(d);
-				return true;
-			}
+				case Int64 i64:
+				{
+					w.Write((int)RemotingReferenceType.Int64);
+					LogMsg(RemotingReferenceType.Int64);
+					w.Write(i64);
+					return true;
+				}
 
-			if (objectType == typeof(System.Single))
-			{
-				Single i = (Single)data;
-				w.Write((int)RemotingReferenceType.Single);
-				LogMsg(RemotingReferenceType.Single);
-				w.Write(i);
-				return true;
+				case UInt64 u64:
+				{
+					w.Write((int)RemotingReferenceType.Uint64);
+					LogMsg(RemotingReferenceType.Uint64);
+					w.Write(u64);
+					return true;
+				}
+
+				case double f64:
+				{
+					w.Write((int)RemotingReferenceType.Double);
+					LogMsg(RemotingReferenceType.Double);
+					w.Write(f64);
+					return true;
+				}
+
+				case Half f16:
+				{
+					w.Write((int)RemotingReferenceType.Half);
+					LogMsg(RemotingReferenceType.Half);
+					w.Write(f16);
+					return true;
+				}
+
+				case string s:
+				{
+					w.Write((int)RemotingReferenceType.String);
+					LogMsg(RemotingReferenceType.String);
+					if (s.Length == 0)
+					{
+						// Don't write any data for the empty string, because attempting to read 0 bytes blocks.
+						w.Write(0);
+						return true;
+					}
+
+					var buffer = ArrayPool<byte>.Shared.Rent(_stringEncoding.GetMaxByteCount(s.Length));
+					Span<byte> bufferSpan = buffer.AsSpan();
+					int numBytesUsed = _stringEncoding.GetBytes(s.AsSpan(), bufferSpan);
+					w.Write(numBytesUsed);
+					w.Write(bufferSpan.Slice(0, numBytesUsed));
+					ArrayPool<byte>.Shared.Return(buffer);
+					return true;
+				}
 			}
 
 			return false;
 		}
 
-		private void SendAutoSerializedObject(BinaryWriter w, object data, string otherSideInstanceId)
+		private void SendAutoSerializedObject(BinaryWriter w, object data, string otherSideProcessId)
 		{
 			MemoryStream ms = new MemoryStream();
 
 #pragma warning disable 618
-			var formatter = _formatterFactory.CreateOrGetFormatter(otherSideInstanceId);
+			var formatter = _formatterFactory.CreateOrGetFormatter(otherSideProcessId);
 			formatter.Serialize(ms, data);
 #pragma warning restore 618
 			w.Write((int)RemotingReferenceType.SerializedItem);
@@ -597,7 +612,7 @@ namespace NewRemoting
 			return false;
 		}
 
-		public void ProcessCallResponse(IInvocation invocation, BinaryReader reader, string otherSideInstanceId)
+		public void ProcessCallResponse(IInvocation invocation, BinaryReader reader, string otherSideProcessId)
 		{
 			if (!_initialized)
 			{
@@ -611,7 +626,7 @@ namespace NewRemoting
 				methodBase = mi.Constructor;
 
 				object returnValue = ReadArgumentFromStream(reader, methodBase, invocation, true,
-					methodBase.DeclaringType, otherSideInstanceId);
+					methodBase.DeclaringType, otherSideProcessId);
 				invocation.ReturnValue = returnValue;
 				// out or ref arguments on ctors are rare, but not generally forbidden, so we continue here
 			}
@@ -619,7 +634,7 @@ namespace NewRemoting
 			{
 				// This happens if we request a remote instance directly (by interface type)
 				object returnValue = ReadArgumentFromStream(reader, mi2.Method, invocation, true, mi2.TargetType,
-					otherSideInstanceId);
+					otherSideProcessId);
 				invocation.ReturnValue = returnValue;
 				return;
 			}
@@ -630,7 +645,7 @@ namespace NewRemoting
 				if (me.ReturnType != typeof(void))
 				{
 					object returnValue = ReadArgumentFromStream(reader, methodBase, invocation, true, me.ReturnType,
-						otherSideInstanceId);
+						otherSideProcessId);
 					invocation.ReturnValue = returnValue;
 				}
 			}
@@ -643,7 +658,7 @@ namespace NewRemoting
 				{
 					// Copy the contents of the array-to-be-filled
 					object byRefValue = ReadArgumentFromStream(reader, methodBase, invocation, false,
-						byRefArguments.ParameterType, otherSideInstanceId);
+						byRefArguments.ParameterType, otherSideProcessId);
 					Array source = (Array)byRefValue; // The data from the remote side
 					Array destination = ((Array)invocation.Arguments[index]); // The argument to be filled
 					if (source.Length != destination.Length)
@@ -656,7 +671,7 @@ namespace NewRemoting
 				else if (byRefArguments.ParameterType.IsByRef)
 				{
 					object byRefValue = ReadArgumentFromStream(reader, methodBase, invocation, false,
-						byRefArguments.ParameterType, otherSideInstanceId);
+						byRefArguments.ParameterType, otherSideProcessId);
 					invocation.Arguments[index] = byRefValue;
 				}
 
@@ -664,7 +679,7 @@ namespace NewRemoting
 			}
 		}
 
-		public void SendExceptionReply(Exception exception, BinaryWriter w, int sequence, string otherSideInstanceId)
+		public void SendExceptionReply(Exception exception, BinaryWriter w, int sequence, string otherSideProcessId)
 		{
 			RemotingCallHeader hdReturnValue = new RemotingCallHeader(RemotingFunctionType.ExceptionReturn, sequence);
 			using var lck = hdReturnValue.WriteHeader(w);
@@ -679,14 +694,14 @@ namespace NewRemoting
 			{
 				w.Write(e.Name);
 				// This may contain inner exceptions, but since we're not throwing those, this shouldn't cause any issues on the remote side
-				WriteArgumentToStream(w, e.Value, otherSideInstanceId);
+				WriteArgumentToStream(w, e.Value, otherSideProcessId);
 			}
 
 			w.Write(exception.StackTrace ?? string.Empty);
 		}
 
 		public object ReadArgumentFromStream(BinaryReader r, MethodBase callingMethod, IInvocation invocation,
-			bool canAttemptToInstantiate, Type typeOfArgument, string otherSideInstanceId)
+			bool canAttemptToInstantiate, Type typeOfArgument, string otherSideProcessId)
 		{
 			if (!_initialized)
 			{
@@ -704,7 +719,7 @@ namespace NewRemoting
 					byte[] argumentData = r.ReadBytes(argumentLen);
 					MemoryStream ms = new MemoryStream(argumentData, false);
 #pragma warning disable 618
-					var formatter = _formatterFactory.CreateOrGetFormatter(otherSideInstanceId);
+					var formatter = _formatterFactory.CreateOrGetFormatter(otherSideProcessId);
 					object decodedArg = formatter.Deserialize(ms);
 #pragma warning restore 618
 					return decodedArg;
@@ -759,7 +774,7 @@ namespace NewRemoting
 					while (cont)
 					{
 						var nextElem = ReadArgumentFromStream(r, callingMethod, invocation, canAttemptToInstantiate,
-							contentType, otherSideInstanceId);
+							contentType, otherSideProcessId);
 						list.Add(nextElem);
 						cont = r.ReadBoolean();
 					}
@@ -843,10 +858,30 @@ namespace NewRemoting
 					return i;
 				}
 
-				case RemotingReferenceType.Single:
+				case RemotingReferenceType.Half:
 				{
-					var i = r.ReadSingle();
+					var i = r.ReadHalf();
 					return i;
+				}
+
+				case RemotingReferenceType.String:
+				{
+					int numBytesToRead = r.ReadInt32();
+					if (numBytesToRead == 0)
+					{
+						return string.Empty;
+					}
+
+					byte[] buffer = ArrayPool<byte>.Shared.Rent(numBytesToRead);
+					int numBytesRead = r.Read(buffer, 0, numBytesToRead);
+					if (numBytesRead != numBytesToRead)
+					{
+						throw new RemotingException("Unexpected end of stream or data corruption encountered");
+					}
+
+					String ret = _stringEncoding.GetString(buffer, 0, numBytesRead);
+					ArrayPool<byte>.Shared.Return(buffer);
+					return ret;
 				}
 
 				case RemotingReferenceType.AddEvent:
@@ -945,13 +980,13 @@ namespace NewRemoting
 					{
 						var interceptor = InstanceManager.GetInterceptor(_interceptors, instanceId);
 						internalSink = new DelegateInternalSink(interceptor, instanceId, methodInfoOfTarget);
-						var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideInstanceId,
+						var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideProcessId,
 							internalSink.GetType(), false);
 
 						internalSink = (DelegateInternalSink)usedInstance.Instance;
 					}
 
-					internalSink.RegisterInstance(otherSideInstanceId);
+					internalSink.RegisterInstance(otherSideProcessId);
 
 					// TODO: This copying of arrays here is not really performance-friendly
 					var argumentsOfTarget = methodInfoOfTarget.GetParameters().Select(x => x.ParameterType).ToList();
@@ -982,8 +1017,8 @@ namespace NewRemoting
 
 					// create the local server side delegate
 					Delegate newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
-					string delegateId = _instanceManager.GetDelegateTargetIdentifier(newDelegate, otherSideInstanceId);
-					_instanceManager.AddInstance(newDelegate, delegateId, otherSideInstanceId, newDelegate.GetType(), true);
+					string delegateId = _instanceManager.GetDelegateTargetIdentifier(newDelegate, otherSideProcessId);
+					_instanceManager.AddInstance(newDelegate, delegateId, otherSideProcessId, newDelegate.GetType(), true);
 					return newDelegate;
 				}
 
@@ -992,9 +1027,9 @@ namespace NewRemoting
 					string instanceId = r.ReadString();
 					if (_instanceManager.TryGetObjectFromId(instanceId, out var internalSink))
 					{
-						if (((DelegateInternalSink)internalSink).Unregister(otherSideInstanceId))
+						if (((DelegateInternalSink)internalSink).Unregister(otherSideProcessId))
 						{
-							_instanceManager.Remove(instanceId, _instanceManager.InstanceIdentifier);
+							_instanceManager.Remove(instanceId, _instanceManager.ProcessIdentifier);
 						}
 					}
 
@@ -1039,7 +1074,7 @@ namespace NewRemoting
 					else
 					{
 						internalSink = new DelegateInternalSink(interceptor, instanceId, methodInfoOfTarget);
-						var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideInstanceId,
+						var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideProcessId,
 							internalSink.GetType(), false);
 						internalSink = (DelegateInternalSink)usedInstance.Instance;
 					}
@@ -1077,7 +1112,7 @@ namespace NewRemoting
 			}
 		}
 
-		public Exception DecodeException(BinaryReader reader, string otherSideInstanceId)
+		public Exception DecodeException(BinaryReader reader, string otherSideProcessId)
 		{
 			string exceptionTypeName = reader.ReadString();
 			Dictionary<string, object> stringValuePairs = new Dictionary<string, object>();
@@ -1087,7 +1122,7 @@ namespace NewRemoting
 				string name = reader.ReadString();
 				// The values found here should all be serializable again
 				object data = ReadArgumentFromStream(reader, null, null, false, typeof(object),
-					otherSideInstanceId);
+					otherSideProcessId);
 				stringValuePairs.Add(name, data);
 			}
 
@@ -1164,7 +1199,7 @@ namespace NewRemoting
 
 		public void AddInterceptor(ClientSideInterceptor newInterceptor)
 		{
-			_interceptors.Add(newInterceptor.OtherSideInstanceId, newInterceptor);
+			_interceptors.Add(newInterceptor.OtherSideProcessId, newInterceptor);
 			_initialized = true; // at least one entry exists
 		}
 	}
