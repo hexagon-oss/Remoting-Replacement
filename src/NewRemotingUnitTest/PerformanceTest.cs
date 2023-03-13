@@ -15,12 +15,12 @@ namespace NewRemotingUnitTest
 	[TestFixture]
 	internal class PerformanceTest
 	{
-		private string m_data;
+		private string _data;
 
 		[SetUp]
 		public void SetUp()
 		{
-			m_data = "This is a test string with some characters: blahblahblah - Moreblahblah." +
+			_data = "This is a test string with some characters: blahblahblah - Moreblahblah." +
 					"What for is this? Testing... öäü$Ä.";
 		}
 
@@ -52,14 +52,14 @@ namespace NewRemotingUnitTest
 			BinaryWriter w = new BinaryWriter(ms, encoding, true);
 			for (int i = 0; i < 100000; i++)
 			{
-				w.Write(m_data);
+				w.Write(_data);
 			}
 
 			w.Close();
 			ms.Position = 0;
 			BinaryReader r = new BinaryReader(ms, encoding, true);
 			var read = r.ReadString();
-			Assert.AreEqual(m_data, read);
+			Assert.AreEqual(_data, read);
 		}
 
 		private sealed class DirectBinaryEncoding : Encoding

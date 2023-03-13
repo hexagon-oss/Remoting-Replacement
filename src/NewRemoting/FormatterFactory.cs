@@ -82,7 +82,6 @@ namespace NewRemoting
 						throw new RemotingException("Couldn't find matching objectId, although should be there");
 					}
 
-					// var originalType = ProxyUtil.GetUnproxiedType(obj);
 					// The proxy's assembly name is "DynamicProxyGenAssembly2", which does not physically exist and is certainly different on the
 					// remote side. Therefore make sure we never pass that name in the serialization stream.
 					info.AssemblyName = originalType.Assembly.FullName;
