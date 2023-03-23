@@ -33,6 +33,11 @@ namespace NewRemoting
 		private static readonly ConditionalWeakTable<object, ReverseInstanceInfo> s_instanceNames;
 
 		/// <summary>
+		/// Weak dictionary to keep and find the ID of an object
+		/// </summary>
+		private static readonly ConditionalWeakTable<object, InstanceId> s_objectIds;
+
+		/// <summary>
 		/// The list of known remote identifiers we have given references to.
 		/// Key: Identifier, Value: Index
 		/// </summary>
@@ -41,11 +46,15 @@ namespace NewRemoting
 		private static int s_nextIndex;
 		private static int s_numberOfInstancesUsed = 1;
 
+		private static long s_nextId = 0;
+		private static object s_nextIdLock = new object();
+
 		private readonly ILogger _logger;
 		private readonly Dictionary<string, ClientSideInterceptor> _interceptors;
 
 		static InstanceManager()
 		{
+			s_objectIds = new ConditionalWeakTable<object, InstanceId>();
 			s_objects = new ConcurrentDictionary<string, InstanceInfo>();
 			s_instanceNames = new ConditionalWeakTable<object, ReverseInstanceInfo>();
 			s_knownRemoteInstances = new ConcurrentDictionary<string, int>();
@@ -146,9 +155,25 @@ namespace NewRemoting
 			return objectId.StartsWith(ProcessIdentifier);
 		}
 
+		/// <summary>
+		/// Use a dictionary to find the ID of an object, if needed create a new ID based on process ID and a 64bit counter
+		/// </summary>
 		public string RegisterRealObjectAndGetId(object instance, string willBeSentTo)
 		{
-			string id = CreateObjectInstanceId(instance);
+			string id;
+			lock (s_nextIdLock)
+			{
+				if (s_objectIds.TryGetValue(instance, out var instanceId))
+				{
+					id = instanceId.Id;
+				}
+				else
+				{
+					id = FormattableString.Invariant($"{ProcessIdentifier}/{s_nextId++:x}");
+					s_objectIds.Add(instance, new InstanceId(id));
+				}
+			}
+
 			AddInstance(instance, id, willBeSentTo, instance.GetType(), true);
 			return id;
 		}
@@ -301,12 +326,6 @@ namespace NewRemoting
 			}
 
 			return instance;
-		}
-
-		private string CreateObjectInstanceId(object obj)
-		{
-			string objectReference = FormattableString.Invariant($"{ProcessIdentifier}/{obj.GetType().FullName}/{RuntimeHelpers.GetHashCode(obj)}");
-			return objectReference;
 		}
 
 		public void Clear()
@@ -599,6 +618,16 @@ namespace NewRemoting
 		private ulong GetBitFromIndex(int index)
 		{
 			return 1ul << index;
+		}
+
+		internal class InstanceId
+		{
+			public string Id { get; }
+
+			public InstanceId(string id)
+			{
+				Id = id;
+			}
 		}
 
 		internal class InstanceInfo
