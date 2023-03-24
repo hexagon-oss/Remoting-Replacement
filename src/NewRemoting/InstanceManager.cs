@@ -33,11 +33,6 @@ namespace NewRemoting
 		private static readonly ConditionalWeakTable<object, ReverseInstanceInfo> s_instanceNames;
 
 		/// <summary>
-		/// Weak dictionary to keep and find the ID of an object
-		/// </summary>
-		private static readonly ConditionalWeakTable<object, InstanceId> s_objectIds;
-
-		/// <summary>
 		/// The list of known remote identifiers we have given references to.
 		/// Key: Identifier, Value: Index
 		/// </summary>
@@ -46,15 +41,20 @@ namespace NewRemoting
 		private static int s_nextIndex;
 		private static int s_numberOfInstancesUsed = 1;
 
-		private static long s_nextId = 0;
-		private static object s_nextIdLock = new object();
+		private readonly object _nextIdLock = new object();
+
+		/// <summary>
+		/// Weak dictionary to keep and find the ID of an object
+		/// </summary>
+		private readonly ConditionalWeakTable<object, InstanceId> _objectIds;
 
 		private readonly ILogger _logger;
 		private readonly Dictionary<string, ClientSideInterceptor> _interceptors;
 
+		private long _nextId = 0;
+
 		static InstanceManager()
 		{
-			s_objectIds = new ConditionalWeakTable<object, InstanceId>();
 			s_objects = new ConcurrentDictionary<string, InstanceInfo>();
 			s_instanceNames = new ConditionalWeakTable<object, ReverseInstanceInfo>();
 			s_knownRemoteInstances = new ConcurrentDictionary<string, int>();
@@ -67,6 +67,7 @@ namespace NewRemoting
 			ProxyGenerator = proxyGenerator;
 			_interceptors = new();
 			ProcessIdentifier = Environment.MachineName + ":" + Environment.ProcessId.ToString("X", CultureInfo.CurrentCulture) + "." + s_numberOfInstancesUsed++;
+			_objectIds = new ConditionalWeakTable<object, InstanceId>();
 		}
 
 		/// <summary>
@@ -161,16 +162,16 @@ namespace NewRemoting
 		public string RegisterRealObjectAndGetId(object instance, string willBeSentTo)
 		{
 			string id;
-			lock (s_nextIdLock)
+			lock (_nextIdLock)
 			{
-				if (s_objectIds.TryGetValue(instance, out var instanceId))
+				if (_objectIds.TryGetValue(instance, out var instanceId))
 				{
 					id = instanceId.Id;
 				}
 				else
 				{
-					id = FormattableString.Invariant($"{ProcessIdentifier}/{s_nextId++:x}");
-					s_objectIds.Add(instance, new InstanceId(id));
+					id = FormattableString.Invariant($"{ProcessIdentifier}/{_nextId++:x}");
+					_objectIds.Add(instance, new InstanceId(id));
 				}
 			}
 

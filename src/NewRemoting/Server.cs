@@ -138,13 +138,7 @@ namespace NewRemoting
 			set;
 		}
 
-		public bool IsRunning
-		{
-			get
-			{
-				return _mainThread != null && _mainThread.IsAlive;
-			}
-		}
+		public bool IsRunning => _mainThread != null && _mainThread.IsAlive;
 
 		public ILogger Logger { get; }
 		public int NetworkPort => _networkPort;
@@ -423,8 +417,7 @@ namespace NewRemoting
 							continue;
 						}
 
-						object newInstance = null;
-						if (!TryReflectionMethod(() => Activator.CreateInstance(t, false), answerWriter, hd.Sequence, td.OtherSideProcessId, out newInstance))
+						if (!TryReflectionMethod(() => Activator.CreateInstance(t, false), answerWriter, hd.Sequence, td.OtherSideProcessId, out var newInstance))
 						{
 							continue;
 						}
@@ -463,8 +456,7 @@ namespace NewRemoting
 							continue;
 						}
 
-						object newInstance = null;
-						if (!TryReflectionMethod(() => Activator.CreateInstance(t, ctorArgs), answerWriter, hd.Sequence, td.OtherSideProcessId, out newInstance))
+						if (!TryReflectionMethod(() => Activator.CreateInstance(t, ctorArgs), answerWriter, hd.Sequence, td.OtherSideProcessId, out var newInstance))
 						{
 							SendAnswer(td, ms);
 							continue;
