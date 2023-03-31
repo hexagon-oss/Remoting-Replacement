@@ -496,7 +496,7 @@ namespace NewRemoting
 						typeOfGenericArguments.Add(t);
 					}
 
-					object realInstance = _instanceManager.GetObjectFromId(instance);
+					object realInstance = _instanceManager.GetObjectFromId(instance, typeOfCallerName, methodId);
 
 					if (typeOfCaller == null)
 					{

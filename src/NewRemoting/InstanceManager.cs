@@ -319,11 +319,11 @@ namespace NewRemoting
 			return false;
 		}
 
-		public object GetObjectFromId(string id)
+		public object GetObjectFromId(string id, string typeOfCallerName, string methodId)
 		{
 			if (!TryGetObjectFromId(id, out object instance))
 			{
-				throw new InvalidOperationException($"Could not locate instance with ID {id} or it is not local. Local identifier: {ProcessIdentifier}");
+				throw new InvalidOperationException($"Could not locate instance with ID {id} or it is not local. Local identifier: {ProcessIdentifier}, type of caller {typeOfCallerName}, methodId {methodId}");
 			}
 
 			return instance;

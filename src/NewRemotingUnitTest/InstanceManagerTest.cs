@@ -47,7 +47,7 @@ namespace NewRemotingUnitTest
 			string name2 = _instanceManager.RegisterRealObjectAndGetId(myInstance, "1");
 			Assert.AreEqual(name1, name2);
 
-			var myInstance2 = _instanceManager.GetObjectFromId(name1);
+			var myInstance2 = _instanceManager.GetObjectFromId(name1, "type1", "method1");
 			Assert.True(ReferenceEquals(myInstance, myInstance2));
 		}
 
@@ -60,7 +60,7 @@ namespace NewRemotingUnitTest
 			Assert.AreEqual(name1, name2);
 
 			_instanceManager.Remove(name1, "1");
-			var myInstance2 = _instanceManager.GetObjectFromId(name2);
+			var myInstance2 = _instanceManager.GetObjectFromId(name2, "type1", "method1");
 			Assert.True(ReferenceEquals(myInstance, myInstance2));
 		}
 
