@@ -218,6 +218,24 @@ namespace NewRemotingUnitTest
 			objectWithEvent.TimeChanged -= ObjectWithEventOnTimeChanged;
 		}
 
+		private void SomeCallbackMethod(string arg1)
+		{
+			// nothing to do here
+		}
+
+		[Test]
+		public void CanRegisterEventManyTimes()
+		{
+			CreateClientServer();
+			var server = CreateRemoteInstance();
+			Parallel.For(0, 100, x =>
+			{
+				server.AnEvent1 += SomeCallbackMethod;
+				server.DoCallbackOnEvent($"Iteration {x}");
+				server.AnEvent1 -= SomeCallbackMethod;
+			});
+		}
+
 		public void ObjectWithEventOnTimeChanged(DateTime arg1, string arg2)
 		{
 			_dataReceived = arg2;
