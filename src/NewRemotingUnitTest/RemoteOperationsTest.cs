@@ -227,13 +227,24 @@ namespace NewRemotingUnitTest
 		public void CanRegisterEventManyTimes()
 		{
 			CreateClientServer();
-			var server = CreateRemoteInstance();
+			IMarshallInterface server = CreateRemoteInstance();
+			EventSink eventSink = new EventSink();
+
 			Parallel.For(0, 100, x =>
 			{
-				server.AnEvent1 += SomeCallbackMethod;
-				server.DoCallbackOnEvent($"Iteration {x}");
-				server.AnEvent1 -= SomeCallbackMethod;
+				server.AnEvent1 += eventSink.CallbackMethod;
+				string msg = $"Iteration {x}";
+				server.DoCallbackOnEvent(msg);
+				server.AnEvent1 -= eventSink.CallbackMethod;
 			});
+
+			for (int i = 0; i < 100; i++)
+			{
+				server.AnEvent1 += eventSink.CallbackMethod;
+				string msg = $"Iteration {i}";
+				server.DoCallbackOnEvent(msg);
+				server.AnEvent1 -= eventSink.CallbackMethod;
+			}
 		}
 
 		public void ObjectWithEventOnTimeChanged(DateTime arg1, string arg2)
@@ -867,6 +878,11 @@ namespace NewRemotingUnitTest
 			public void RegisterThis(string msg, string source)
 			{
 				Data = $"{msg} from {source}";
+			}
+
+			public void CallbackMethod(string obj)
+			{
+				Data = obj;
 			}
 		}
 	}

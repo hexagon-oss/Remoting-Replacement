@@ -63,8 +63,7 @@ namespace NewRemoting
 
 		public static bool HasDefaultCtor(Type t)
 		{
-			var ctor = t.GetConstructor(BindingFlags.Public | BindingFlags.Instance, null, CallingConventions.Any,
-				new Type[0], null);
+			var ctor = t.GetConstructor(BindingFlags.Public | BindingFlags.Instance, null, CallingConventions.Any, Type.EmptyTypes, null);
 			return ctor != null;
 		}
 
@@ -81,11 +80,11 @@ namespace NewRemoting
 		/// <param name="w">The data sink</param>
 		/// <param name="del">The object to write</param>
 		/// <param name="calledMethod">The method that was called (typically add_(EventName) or remove_(EventName))</param>
-		/// <param name="referencesWillBeSentTo">Destination process identifier (used to keep track of references that are eventually encoded in the stream)</param>
+		/// <param name="otherSideProcessId">Destination process identifier (used to keep track of references that are eventually encoded in the stream)</param>
 		/// <param name="remoteInstanceId">The instance of the remote object the delegate operation was called on</param>
 		/// <returns>True if the operation needs to be forwarded to the server (new delegate)</returns>
 		public bool WriteDelegateArgumentToStream(BinaryWriter w, Delegate del, MethodInfo calledMethod,
-			string referencesWillBeSentTo, string remoteInstanceId)
+			string otherSideProcessId, string remoteInstanceId)
 		{
 			if (calledMethod.IsStatic)
 			{
@@ -177,8 +176,8 @@ namespace NewRemoting
 
 						// Try to add proxy to instance manager - this may return another, existing instance due to a race condition
 						// In this case, we only need to register, like in the case where we already found the object in the list.
-						var usedInstance = _instanceManager.AddInstance(proxy, instanceId, referencesWillBeSentTo, proxyType, false);
-						var usedProxy = usedInstance.Instance;
+						var usedInstance = _instanceManager.AddInstance(proxy, instanceId, otherSideProcessId, proxyType, false);
+						var usedProxy = usedInstance.QueryInstance();
 						// Make sure to do this after the AddInstance above, to be sure to register on the correct proxy
 						addEventMethod.Invoke(usedProxy, new[] { del });
 
@@ -227,7 +226,7 @@ namespace NewRemoting
 						bool isEmpty = (bool)isEmptyMethod.Invoke(existingDelegateProxy, null);
 						if (isEmpty)
 						{
-							_instanceManager.Remove(instanceId, _instanceManager.ProcessIdentifier);
+							_instanceManager.Remove(instanceId, otherSideProcessId);
 						}
 						else
 						{
@@ -252,7 +251,7 @@ namespace NewRemoting
 				if (del.Target != null)
 				{
 					string instanceId = _instanceManager.GetDelegateTargetIdentifier(del, remoteInstanceId);
-					_instanceManager.AddInstance(del, instanceId, referencesWillBeSentTo, del.GetType(), true);
+					_instanceManager.AddInstance(del, instanceId, otherSideProcessId, del.GetType(), true);
 					w.Write(instanceId);
 				}
 				else
@@ -983,7 +982,7 @@ namespace NewRemoting
 						var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideProcessId,
 							internalSink.GetType(), false);
 
-						internalSink = (DelegateInternalSink)usedInstance.Instance;
+						internalSink = (DelegateInternalSink)usedInstance.QueryInstance();
 					}
 
 					internalSink.RegisterInstance(otherSideProcessId);
@@ -1029,7 +1028,7 @@ namespace NewRemoting
 					{
 						if (((DelegateInternalSink)internalSink).Unregister(otherSideProcessId))
 						{
-							_instanceManager.Remove(instanceId, _instanceManager.ProcessIdentifier);
+							_instanceManager.Remove(instanceId, otherSideProcessId);
 						}
 					}
 
@@ -1076,7 +1075,7 @@ namespace NewRemoting
 						internalSink = new DelegateInternalSink(interceptor, instanceId, methodInfoOfTarget);
 						var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideProcessId,
 							internalSink.GetType(), false);
-						internalSink = (DelegateInternalSink)usedInstance.Instance;
+						internalSink = (DelegateInternalSink)usedInstance.QueryInstance();
 					}
 
 					IEnumerable<MethodInfo> possibleSinks = null;
