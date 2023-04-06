@@ -21,7 +21,6 @@ using static Nuke.Common.IO.PathConstruction;
 using static Nuke.Common.Tools.DotNet.DotNetTasks;
 using static Nuke.Common.Tools.NuGet.NuGetTasks;
 
-[CheckBuildProjectConfigurations]
 [ShutdownDotNetAfterServerBuild]
 class Build : NukeBuild
 {
@@ -93,6 +92,7 @@ class Build : NukeBuild
 	    .Executes(() =>
 	    {
 		    DotNetPublish(s => s
+			    .SetConfiguration(Configuration)
 			    .SetProject(SourceDirectory / "RemotingServer" / "RemotingServer.csproj")
 				.SetAssemblyVersion(GitVersion.AssemblySemVer)
 			    .SetFileVersion(GitVersion.AssemblySemFileVer)
