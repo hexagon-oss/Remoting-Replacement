@@ -49,6 +49,7 @@ namespace NewRemoting
 		}
 
 		internal string RemoteObjectReference => _remoteObjectReference;
+		public Delegate TheActualDelegate { get; set; }
 
 		public void ActionSink()
 		{

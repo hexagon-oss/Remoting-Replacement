@@ -17,6 +17,13 @@ using Microsoft.Win32.SafeHandles;
 
 namespace NewRemoting
 {
+	/// <summary>
+	/// This class keeps track of all references that are used in remoting.
+	/// It keeps a list (or rather: multiple lists) of instance ids together with their object references.
+	/// Both local and remote objects are tracked. And the object list is static, meaning multiple instances
+	/// of this class share the same object lists (this is needed when a process acts as server for many
+	/// processes, or simultaneously as client and as server)
+	/// </summary>
 	internal class InstanceManager
 	{
 		/// <summary>

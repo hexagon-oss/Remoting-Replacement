@@ -1018,6 +1018,7 @@ namespace NewRemoting
 					Delegate newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
 					string delegateId = _instanceManager.GetDelegateTargetIdentifier(newDelegate, otherSideProcessId);
 					_instanceManager.AddInstance(newDelegate, delegateId, otherSideProcessId, newDelegate.GetType(), true);
+					internalSink.TheActualDelegate = newDelegate;
 					return newDelegate;
 				}
 
@@ -1026,10 +1027,13 @@ namespace NewRemoting
 					string instanceId = r.ReadString();
 					if (_instanceManager.TryGetObjectFromId(instanceId, out var internalSink))
 					{
-						if (((DelegateInternalSink)internalSink).Unregister(otherSideProcessId))
+						DelegateInternalSink sink = (DelegateInternalSink)internalSink;
+						if (sink.Unregister(otherSideProcessId))
 						{
 							_instanceManager.Remove(instanceId, otherSideProcessId);
 						}
+
+						// return sink.TheActualSink; // argument required to deregister the sink from the target
 					}
 
 					return null;

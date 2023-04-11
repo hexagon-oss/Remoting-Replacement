@@ -265,7 +265,10 @@ namespace NewRemotingUnitTest
 			server.RegisterEventOnCallback(null);
 			Assert.AreEqual("Test String", server.DeregisterEvent());
 
-			server.RegisterEventOnCallback(cb);
+			GC.Collect();
+			GC.WaitForPendingFinalizers();
+			_client.ForceGc();
+			cb.InvokeCallback("Maybe this crashes?"); // Yes, it does with V0.3.2
 			cb = null;
 			GC.Collect();
 			GC.WaitForPendingFinalizers();
@@ -873,19 +876,12 @@ namespace NewRemotingUnitTest
 
 		private sealed class CallbackImpl : MarshalByRefObject, ICallbackInterface
 		{
-			private IWeakEvent<Action<string>> _weakEvent;
-
 			public CallbackImpl()
 			{
 				HasBeenCalled = false;
-				_weakEvent = WeakEventBase.CreateRemoteAwareAsync<Action<string>>();
 			}
 
-			public event Action<string> Callback
-			{
-				add => _weakEvent.Add(value);
-				remove => _weakEvent.Remove(value);
-			}
+			public event Action<string> Callback;
 
 			public bool HasBeenCalled { get; set; }
 
@@ -896,7 +892,7 @@ namespace NewRemotingUnitTest
 
 			public void InvokeCallback(string data)
 			{
-				_weakEvent.Raise(data);
+				Callback?.Invoke(data);
 			}
 		}
 
