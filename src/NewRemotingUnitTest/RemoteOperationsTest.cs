@@ -7,7 +7,9 @@ using System.Runtime.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using NewRemoting;
+using NewRemoting.Toolkit;
 using NUnit.Framework;
+using NUnit.Framework.Internal.Execution;
 using SampleServerClasses;
 
 namespace NewRemotingUnitTest
@@ -245,6 +247,30 @@ namespace NewRemotingUnitTest
 				server.DoCallbackOnEvent(msg);
 				server.AnEvent1 -= eventSink.CallbackMethod;
 			}
+		}
+
+		[Test]
+		public void CanRegisterRemoveEventLocally()
+		{
+			CreateClientServer();
+			IMarshallInterface server = CreateRemoteInstance();
+			var cb = new CallbackImpl();
+			cb.InvokeCallback("Hi!");
+			server.RegisterEventOnCallback(cb);
+			cb.InvokeCallback("Test String");
+
+			Assert.AreEqual("Test String", server.DeregisterEvent());
+			cb.InvokeCallback("Nothing happens now");
+			Assert.AreEqual("Test String", server.DeregisterEvent());
+			server.RegisterEventOnCallback(null);
+			Assert.AreEqual("Test String", server.DeregisterEvent());
+
+			server.RegisterEventOnCallback(cb);
+			cb = null;
+			GC.Collect();
+			GC.WaitForPendingFinalizers();
+			_client.ForceGc();
+			server.DeregisterEvent();
 		}
 
 		public void ObjectWithEventOnTimeChanged(DateTime arg1, string arg2)
@@ -847,12 +873,19 @@ namespace NewRemotingUnitTest
 
 		private sealed class CallbackImpl : MarshalByRefObject, ICallbackInterface
 		{
+			private IWeakEvent<Action<string>> _weakEvent;
+
 			public CallbackImpl()
 			{
 				HasBeenCalled = false;
+				_weakEvent = WeakEventBase.CreateRemoteAwareAsync<Action<string>>();
 			}
 
-			public event Action<string> Callback;
+			public event Action<string> Callback
+			{
+				add => _weakEvent.Add(value);
+				remove => _weakEvent.Remove(value);
+			}
 
 			public bool HasBeenCalled { get; set; }
 
@@ -863,7 +896,7 @@ namespace NewRemotingUnitTest
 
 			public void InvokeCallback(string data)
 			{
-				Callback?.Invoke(data);
+				_weakEvent.Raise(data);
 			}
 		}
 

@@ -23,12 +23,15 @@ namespace SampleServerClasses
 		public event Action<string, string, string, string> AnEvent4;
 		public event Action<string, string, string, string, string> AnEvent5;
 
+		private ICallbackInterface _instanceForCallback;
+
 		public MarshallableClass()
 		{
 			_component = new ReferencedComponent();
 			_cb = null;
 			Name = "Unnamed" + GetHashCode();
 			_callbackData = null;
+			_instanceForCallback = null;
 		}
 
 		public MarshallableClass(string name)
@@ -260,6 +263,25 @@ namespace SampleServerClasses
 		public void SetProgress(int progress)
 		{
 			_progressFeedback.Invoke(progress);
+		}
+
+		public void RegisterEventOnCallback(ICallbackInterface cb)
+		{
+			_instanceForCallback = cb;
+			if (_instanceForCallback != null)
+			{
+				_instanceForCallback.Callback += InverseCallback;
+			}
+		}
+
+		public string DeregisterEvent()
+		{
+			if (_instanceForCallback != null)
+			{
+				_instanceForCallback.Callback -= InverseCallback;
+			}
+
+			return _callbackData;
 		}
 
 		public virtual void CreateCalc()

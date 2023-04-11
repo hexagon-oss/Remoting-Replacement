@@ -60,6 +60,16 @@ namespace SampleServerClasses
 			throw new NotImplementedException();
 		}
 
+		public void RegisterEventOnCallback(ICallbackInterface cb)
+		{
+			throw new NotImplementedException();
+		}
+
+		public string DeregisterEvent()
+		{
+			throw new NotImplementedException();
+		}
+
 		public void Dispose()
 		{
 		}

@@ -24,5 +24,8 @@ namespace SampleServerClasses
 		void EnsureCallbackWasUsed();
 		public void RegisterEvent(Action<int> progressFeedback);
 		public void SetProgress(int progress);
+		void RegisterEventOnCallback(ICallbackInterface cb);
+
+		string DeregisterEvent();
 	}
 }
