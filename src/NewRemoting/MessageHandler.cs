@@ -988,15 +988,25 @@ namespace NewRemoting
 					// create the local server side delegate
 					Delegate newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
 					string delegateId = _instanceManager.GetDelegateTargetIdentifier(newDelegate, otherSideProcessId);
-					_instanceManager.AddInstance(newDelegate, delegateId, otherSideProcessId, newDelegate.GetType(), true);
-					// The sink must be empty, otherwise the above would have thrown
-					if (internalSink.TheActualDelegate != null)
+					var actualInstance = _instanceManager.AddInstance(newDelegate, delegateId, otherSideProcessId, newDelegate.GetType(), false);
+					var actualDelegate = (Delegate)actualInstance.QueryInstance();
+					if (ReferenceEquals(actualDelegate, newDelegate))
 					{
-						throw new InvalidRemotingOperationException("Expecting actual delegate to not exist here");
+						if (internalSink.TheActualDelegate != null)
+						{
+							throw new InvalidRemotingOperationException("Expecting actual delegate to not exist here");
+						}
+
+						internalSink.TheActualDelegate = newDelegate;
+						return newDelegate;
 					}
 
-					internalSink.TheActualDelegate = newDelegate;
-					return newDelegate;
+					if (internalSink.TheActualDelegate == null)
+					{
+						throw new InvalidRemotingOperationException("Expecting actual delegate to exist here");
+					}
+
+					return actualDelegate;
 				}
 
 				case RemotingReferenceType.RemoveEvent:
