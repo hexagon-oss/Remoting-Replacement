@@ -6,7 +6,7 @@ namespace NewRemoting;
 /// <summary>
 /// Delegate proxy on client to handle remote events - used only per reflection, therefore no usages visible
 /// </summary>
-internal class DelegateProxyOnClient
+internal class DelegateProxyOnClient : DelegateProxyOnClientBase
 {
 	public DelegateProxyOnClient()
 	{
@@ -14,21 +14,18 @@ internal class DelegateProxyOnClient
 
 	public event Action Event;
 
+	protected override bool IsEmpty => Event == null;
+
 	public void FireEvent()
 	{
 		Event?.Invoke();
-	}
-
-	public bool IsEmpty()
-	{
-		return Event == null;
 	}
 }
 
 /// <summary>
 /// Delegate proxy on client to handle remote events - used only per reflection, therefore no usages visible
 /// </summary>
-internal class DelegateProxyOnClient<T>
+internal class DelegateProxyOnClient<T> : DelegateProxyOnClientBase
 {
 	public DelegateProxyOnClient()
 	{
@@ -36,18 +33,15 @@ internal class DelegateProxyOnClient<T>
 
 	public event Action<T> Event;
 
+	protected override bool IsEmpty => Event == null;
+
 	public void FireEvent(T arg)
 	{
 		Event?.Invoke(arg);
 	}
-
-	public bool IsEmpty()
-	{
-		return Event == null;
-	}
 }
 
-internal class DelegateProxyOnClient<T1, T2>
+internal class DelegateProxyOnClient<T1, T2> : DelegateProxyOnClientBase
 {
 	public DelegateProxyOnClient()
 	{
@@ -55,18 +49,15 @@ internal class DelegateProxyOnClient<T1, T2>
 
 	public event Action<T1, T2> Event;
 
+	protected override bool IsEmpty => Event == null;
+
 	public void FireEvent(T1 arg1, T2 arg2)
 	{
 		Event?.Invoke(arg1, arg2);
 	}
-
-	public bool IsEmpty()
-	{
-		return Event == null;
-	}
 }
 
-internal class DelegateProxyOnClient<T1, T2, T3>
+internal class DelegateProxyOnClient<T1, T2, T3> : DelegateProxyOnClientBase
 {
 	public DelegateProxyOnClient()
 	{
@@ -74,18 +65,15 @@ internal class DelegateProxyOnClient<T1, T2, T3>
 
 	public event Action<T1, T2, T3> Event;
 
+	protected override bool IsEmpty => Event == null;
+
 	public void FireEvent(T1 arg1, T2 arg2, T3 arg3)
 	{
 		Event?.Invoke(arg1, arg2, arg3);
 	}
-
-	public bool IsEmpty()
-	{
-		return Event == null;
-	}
 }
 
-internal class DelegateProxyOnClient<T1, T2, T3, T4>
+internal class DelegateProxyOnClient<T1, T2, T3, T4> : DelegateProxyOnClientBase
 {
 	public DelegateProxyOnClient()
 	{
@@ -93,13 +81,10 @@ internal class DelegateProxyOnClient<T1, T2, T3, T4>
 
 	public event Action<T1, T2, T3, T4> Event;
 
+	protected override bool IsEmpty => Event == null;
+
 	public void FireEvent(T1 arg1, T2 arg2, T3 arg3, T4 arg4)
 	{
 		Event?.Invoke(arg1, arg2, arg3, arg4);
-	}
-
-	public bool IsEmpty()
-	{
-		return Event == null;
 	}
 }

@@ -820,13 +820,15 @@ namespace NewRemotingUnitTest
 		private void ExecuteCallbacks(IMarshallInterface instance, int overallIterations, int iterations,
 			ref int expectedCounter)
 		{
+			_dataReceived = null;
 			for (int j = 0; j < overallIterations; j++)
 			{
 				instance.AnEvent2 += CallbackMethod;
 				for (int i = 0; i < iterations; i++)
 				{
-					instance.DoCallbackOnEvent("Utest" + ++expectedCounter);
-					Assert.AreEqual("Utest" + expectedCounter, _dataReceived);
+					int cnt = ++expectedCounter;
+					instance.DoCallbackOnEvent("Utest" + cnt);
+					Assert.AreEqual("Utest" + cnt, _dataReceived);
 				}
 
 				if (j % 2 == 0)

@@ -564,7 +564,8 @@ namespace NewRemoting
 		/// </summary>
 		/// <param name="objectId">The object Id to remove</param>
 		/// <param name="remoteProcessId">The process attempting to remove the object</param>
-		public void Remove(string objectId, string remoteProcessId)
+		/// <param name="reallyRemove">If the target object has no noted references any more, force a removal.</param>
+		public void Remove(string objectId, string remoteProcessId, bool reallyRemove)
 		{
 			if (!s_knownRemoteInstances.TryGetValue(remoteProcessId, out int id))
 			{
@@ -583,6 +584,10 @@ namespace NewRemoting
 					{
 						// If not more clients, forget about this object - the server GC will care for the rest.
 						MarkInstanceAsUnusedLocally(ii.Identifier);
+						if (reallyRemove)
+						{
+							s_objects.TryRemove(objectId, out _);
+						}
 					}
 				}
 			}
