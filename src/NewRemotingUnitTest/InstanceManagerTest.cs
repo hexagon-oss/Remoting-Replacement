@@ -59,7 +59,7 @@ namespace NewRemotingUnitTest
 			string name2 = _instanceManager.RegisterRealObjectAndGetId(myInstance, "2");
 			Assert.AreEqual(name1, name2);
 
-			_instanceManager.Remove(name1, "1");
+			_instanceManager.Remove(name1, "1", false);
 			var myInstance2 = _instanceManager.GetObjectFromId(name2, "type1", "method1");
 			Assert.True(ReferenceEquals(myInstance, myInstance2));
 		}
@@ -90,8 +90,8 @@ namespace NewRemotingUnitTest
 			_instanceManager.AddInstance(myInstance, "A", "1", myInstance.GetType(), false);
 			var my2ndInstance = new MarshallableClass("Instance2");
 			var addedInstance = _instanceManager.AddInstance(my2ndInstance, "A", "1", my2ndInstance.GetType(), false);
-			Assert.IsTrue(ReferenceEquals(myInstance, addedInstance.Instance));
-			Assert.IsFalse(ReferenceEquals(my2ndInstance, addedInstance.Instance));
+			Assert.IsTrue(ReferenceEquals(myInstance, addedInstance.QueryInstance()));
+			Assert.IsFalse(ReferenceEquals(my2ndInstance, addedInstance.QueryInstance()));
 
 			// If the last argument is true, the same operation throws
 			Assert.Throws<InvalidOperationException>(() => _instanceManager.AddInstance(my2ndInstance, "A", "1", my2ndInstance.GetType(), true));

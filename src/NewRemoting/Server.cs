@@ -774,7 +774,7 @@ namespace NewRemoting
 				for (int i = 0; i < cnt; i++)
 				{
 					string objectId = r.ReadString();
-					_instanceManager.Remove(objectId, otherSideProcessId);
+					_instanceManager.Remove(objectId, otherSideProcessId, false);
 				}
 
 				return true;

@@ -63,8 +63,7 @@ namespace NewRemoting
 
 		public static bool HasDefaultCtor(Type t)
 		{
-			var ctor = t.GetConstructor(BindingFlags.Public | BindingFlags.Instance, null, CallingConventions.Any,
-				new Type[0], null);
+			var ctor = t.GetConstructor(BindingFlags.Public | BindingFlags.Instance, null, CallingConventions.Any, Type.EmptyTypes, null);
 			return ctor != null;
 		}
 
@@ -81,11 +80,11 @@ namespace NewRemoting
 		/// <param name="w">The data sink</param>
 		/// <param name="del">The object to write</param>
 		/// <param name="calledMethod">The method that was called (typically add_(EventName) or remove_(EventName))</param>
-		/// <param name="referencesWillBeSentTo">Destination process identifier (used to keep track of references that are eventually encoded in the stream)</param>
+		/// <param name="otherSideProcessId">Destination process identifier (used to keep track of references that are eventually encoded in the stream)</param>
 		/// <param name="remoteInstanceId">The instance of the remote object the delegate operation was called on</param>
 		/// <returns>True if the operation needs to be forwarded to the server (new delegate)</returns>
 		public bool WriteDelegateArgumentToStream(BinaryWriter w, Delegate del, MethodInfo calledMethod,
-			string referencesWillBeSentTo, string remoteInstanceId)
+			string otherSideProcessId, string remoteInstanceId)
 		{
 			if (calledMethod.IsStatic)
 			{
@@ -100,110 +99,89 @@ namespace NewRemoting
 					string instanceId = _instanceManager.GetDelegateTargetIdentifier(del, remoteInstanceId);
 
 					// Create a proxy class that provides a matching event for our delegate
-					if (_instanceManager.TryGetObjectFromId(instanceId, out var existingDelegateProxy))
+					Type proxyType;
+					var arguments = del.Method.GetParameters()
+						.Select(x => x.ParameterType).ToList();
+					bool hasReturnValue;
+					if (del.Method.ReturnType != typeof(void))
 					{
-						var proxyType = existingDelegateProxy.GetType();
-						var addEventMethod = proxyType.GetMethod("add_Event");
-						addEventMethod.Invoke(existingDelegateProxy, new[] { del });
-
-						// proxy is already registered on the server, whole message can be aborted here
-						return false;
+						hasReturnValue = true;
+						arguments.Add((Type)del.Method.ReturnType);
+						switch (arguments.Count)
+						{
+							case 1:
+								proxyType = typeof(DelegateFuncProxyOnClient<>)
+									.MakeGenericType(arguments.ToArray());
+								break;
+							case 2:
+								proxyType =
+									typeof(DelegateFuncProxyOnClient<,>).MakeGenericType(arguments.ToArray());
+								break;
+							case 3:
+								proxyType =
+									typeof(DelegateFuncProxyOnClient<,,>).MakeGenericType(arguments.ToArray());
+								break;
+							case 4:
+								proxyType =
+									typeof(DelegateFuncProxyOnClient<,,,>).MakeGenericType(arguments.ToArray());
+								break;
+							case 5:
+								proxyType =
+									typeof(DelegateFuncProxyOnClient<,,,,>).MakeGenericType(arguments.ToArray());
+								break;
+							default:
+								throw new InvalidRemotingOperationException(
+									$"Unsupported number of arguments for function ({arguments.Count}");
+						}
 					}
 					else
 					{
-						Type proxyType;
-						var arguments = del.Method.GetParameters()
-							.Select(x => x.ParameterType).ToList();
-						bool hasReturnValue;
-						if (del.Method.ReturnType != typeof(void))
+						hasReturnValue = false;
+						switch (arguments.Count)
 						{
-							hasReturnValue = true;
-							arguments.Add((Type)del.Method.ReturnType);
-							switch (arguments.Count)
-							{
-								case 1:
-									proxyType = typeof(DelegateFuncProxyOnClient<>)
-										.MakeGenericType(arguments.ToArray());
-									break;
-								case 2:
-									proxyType =
-										typeof(DelegateFuncProxyOnClient<,>).MakeGenericType(arguments.ToArray());
-									break;
-								case 3:
-									proxyType =
-										typeof(DelegateFuncProxyOnClient<,,>).MakeGenericType(arguments.ToArray());
-									break;
-								case 4:
-									proxyType =
-										typeof(DelegateFuncProxyOnClient<,,,>).MakeGenericType(arguments.ToArray());
-									break;
-								case 5:
-									proxyType =
-										typeof(DelegateFuncProxyOnClient<,,,,>).MakeGenericType(arguments.ToArray());
-									break;
-								default:
-									throw new InvalidRemotingOperationException(
-										$"Unsupported number of arguments for function ({arguments.Count}");
-							}
+							case 0:
+								proxyType = typeof(DelegateProxyOnClient);
+								break;
+							case 1:
+								proxyType = typeof(DelegateProxyOnClient<>).MakeGenericType(arguments.ToArray());
+								break;
+							case 2:
+								proxyType = typeof(DelegateProxyOnClient<,>).MakeGenericType(arguments.ToArray());
+								break;
+							case 3:
+								proxyType = typeof(DelegateProxyOnClient<,,>).MakeGenericType(arguments.ToArray());
+								break;
+							case 4:
+								proxyType = typeof(DelegateProxyOnClient<,,,>).MakeGenericType(arguments.ToArray());
+								break;
+							default:
+								throw new InvalidRemotingOperationException(
+									$"Unsupported number of arguments for action ({arguments.Count}");
 						}
-						else
+					}
+
+					var proxy = (DelegateProxyOnClientBase)Activator.CreateInstance(proxyType);
+					if (!proxy.RegisterDelegate(_instanceManager, del, otherSideProcessId, instanceId))
+					{
+						return false;
+					}
+
+					w.Write((int)RemotingReferenceType.AddEvent);
+					LogMsg(RemotingReferenceType.AddEvent);
+					w.Write(instanceId);
+					w.Write(hasReturnValue);
+					// If the type of the delegate method is generic, we need to provide its type arguments
+					w.Write(arguments.Count);
+					foreach (var argType in arguments)
+					{
+						string arg = argType.AssemblyQualifiedName;
+						if (arg == null)
 						{
-							hasReturnValue = false;
-							switch (arguments.Count)
-							{
-								case 0:
-									proxyType = typeof(DelegateProxyOnClient);
-									break;
-								case 1:
-									proxyType = typeof(DelegateProxyOnClient<>).MakeGenericType(arguments.ToArray());
-									break;
-								case 2:
-									proxyType = typeof(DelegateProxyOnClient<,>).MakeGenericType(arguments.ToArray());
-									break;
-								case 3:
-									proxyType = typeof(DelegateProxyOnClient<,,>).MakeGenericType(arguments.ToArray());
-									break;
-								case 4:
-									proxyType = typeof(DelegateProxyOnClient<,,,>).MakeGenericType(arguments.ToArray());
-									break;
-								default:
-									throw new InvalidRemotingOperationException(
-										$"Unsupported number of arguments for action ({arguments.Count}");
-							}
+							throw new InvalidRemotingOperationException(
+								"Unresolved generic type or some other undefined case");
 						}
 
-						var proxy = Activator.CreateInstance(proxyType);
-						var addEventMethod = proxyType.GetMethod("add_Event");
-
-						// Try to add proxy to instance manager - this may return another, existing instance due to a race condition
-						// In this case, we only need to register, like in the case where we already found the object in the list.
-						var usedInstance = _instanceManager.AddInstance(proxy, instanceId, referencesWillBeSentTo, proxyType, false);
-						var usedProxy = usedInstance.Instance;
-						// Make sure to do this after the AddInstance above, to be sure to register on the correct proxy
-						addEventMethod.Invoke(usedProxy, new[] { del });
-
-						// if they're not equal, AddInstance returns something old instead of the proxy we just created.
-						if (!ReferenceEquals(usedProxy, proxy))
-						{
-							return false;
-						}
-
-						w.Write((int)RemotingReferenceType.AddEvent);
-						LogMsg(RemotingReferenceType.AddEvent);
-						w.Write(instanceId);
-						w.Write(hasReturnValue);
-						// If the type of the delegate method is generic, we need to provide its type arguments
-						w.Write(arguments.Count);
-						foreach (var argType in arguments)
-						{
-							string arg = argType.AssemblyQualifiedName;
-							if (arg == null)
-							{
-								throw new InvalidRemotingOperationException("Unresolved generic type or some other undefined case");
-							}
-
-							w.Write(arg);
-						}
+						w.Write(arg);
 					}
 				}
 				else
@@ -219,19 +197,9 @@ namespace NewRemoting
 
 					if (_instanceManager.TryGetObjectFromId(instanceId, out var existingDelegateProxy))
 					{
-						// Remove proxy class if this was the last client
-						var proxyType = existingDelegateProxy.GetType();
-						var removeEventMethod = proxyType.GetMethod("remove_Event");
-						removeEventMethod.Invoke(existingDelegateProxy, new[] { del });
-						var isEmptyMethod = proxyType.GetMethod("IsEmpty");
-						bool isEmpty = (bool)isEmptyMethod.Invoke(existingDelegateProxy, null);
-						if (isEmpty)
+						DelegateProxyOnClientBase b = (DelegateProxyOnClientBase)existingDelegateProxy;
+						if (!b.RemoveDelegate(_instanceManager, del, otherSideProcessId, instanceId))
 						{
-							_instanceManager.Remove(instanceId, _instanceManager.ProcessIdentifier);
-						}
-						else
-						{
-							// proxy is still needed, whole message can be aborted here
 							return false;
 						}
 					}
@@ -252,7 +220,7 @@ namespace NewRemoting
 				if (del.Target != null)
 				{
 					string instanceId = _instanceManager.GetDelegateTargetIdentifier(del, remoteInstanceId);
-					_instanceManager.AddInstance(del, instanceId, referencesWillBeSentTo, del.GetType(), true);
+					_instanceManager.AddInstance(del, instanceId, otherSideProcessId, del.GetType(), true);
 					w.Write(instanceId);
 				}
 				else
@@ -897,6 +865,7 @@ namespace NewRemoting
 						typeOfGenericArguments[i] = t;
 					}
 
+					// Determine the method to call on the client side.
 					Type typeOfTarget = null;
 					if (hasReturnValue)
 					{
@@ -975,6 +944,7 @@ namespace NewRemoting
 					if (_instanceManager.TryGetObjectFromId(instanceId, out object sink))
 					{
 						internalSink = (DelegateInternalSink)sink;
+						// throw new InvalidRemotingOperationException($"Instance id {instanceId} already has a DelegateInternalSink");
 					}
 					else
 					{
@@ -983,7 +953,7 @@ namespace NewRemoting
 						var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideProcessId,
 							internalSink.GetType(), false);
 
-						internalSink = (DelegateInternalSink)usedInstance.Instance;
+						internalSink = (DelegateInternalSink)usedInstance.QueryInstance();
 					}
 
 					internalSink.RegisterInstance(otherSideProcessId);
@@ -1018,8 +988,25 @@ namespace NewRemoting
 					// create the local server side delegate
 					Delegate newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
 					string delegateId = _instanceManager.GetDelegateTargetIdentifier(newDelegate, otherSideProcessId);
-					_instanceManager.AddInstance(newDelegate, delegateId, otherSideProcessId, newDelegate.GetType(), true);
-					return newDelegate;
+					var actualInstance = _instanceManager.AddInstance(newDelegate, delegateId, otherSideProcessId, newDelegate.GetType(), false);
+					var actualDelegate = (Delegate)actualInstance.QueryInstance();
+					if (ReferenceEquals(actualDelegate, newDelegate))
+					{
+						if (internalSink.TheActualDelegate != null)
+						{
+							throw new InvalidRemotingOperationException("Expecting actual delegate to not exist here");
+						}
+
+						internalSink.TheActualDelegate = newDelegate;
+						return newDelegate;
+					}
+
+					if (internalSink.TheActualDelegate == null)
+					{
+						throw new InvalidRemotingOperationException("Expecting actual delegate to exist here");
+					}
+
+					return actualDelegate;
 				}
 
 				case RemotingReferenceType.RemoveEvent:
@@ -1027,9 +1014,13 @@ namespace NewRemoting
 					string instanceId = r.ReadString();
 					if (_instanceManager.TryGetObjectFromId(instanceId, out var internalSink))
 					{
-						if (((DelegateInternalSink)internalSink).Unregister(otherSideProcessId))
+						DelegateInternalSink sink = (DelegateInternalSink)internalSink;
+						if (sink.Unregister(otherSideProcessId))
 						{
-							_instanceManager.Remove(instanceId, _instanceManager.ProcessIdentifier);
+							_instanceManager.Remove(instanceId, otherSideProcessId, true);
+							var del = sink.TheActualDelegate;
+							sink.TheActualDelegate = null; // Is not registered any more
+							return del; // argument required to deregister the sink from the target
 						}
 					}
 
@@ -1076,7 +1067,7 @@ namespace NewRemoting
 						internalSink = new DelegateInternalSink(interceptor, instanceId, methodInfoOfTarget);
 						var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideProcessId,
 							internalSink.GetType(), false);
-						internalSink = (DelegateInternalSink)usedInstance.Instance;
+						internalSink = (DelegateInternalSink)usedInstance.QueryInstance();
 					}
 
 					IEnumerable<MethodInfo> possibleSinks = null;

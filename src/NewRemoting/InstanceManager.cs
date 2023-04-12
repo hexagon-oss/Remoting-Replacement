@@ -17,6 +17,13 @@ using Microsoft.Win32.SafeHandles;
 
 namespace NewRemoting
 {
+	/// <summary>
+	/// This class keeps track of all references that are used in remoting.
+	/// It keeps a list (or rather: multiple lists) of instance ids together with their object references.
+	/// Both local and remote objects are tracked. And the object list is static, meaning multiple instances
+	/// of this class share the same object lists (this is needed when a process acts as server for many
+	/// processes, or simultaneously as client and as server)
+	/// </summary>
 	internal class InstanceManager
 	{
 		/// <summary>
@@ -219,9 +226,9 @@ namespace NewRemoting
 		{
 			if (s_objects.TryGetValue(id, out InstanceInfo value))
 			{
-				if (value.Instance != null)
+				instance = value.QueryInstance();
+				if (instance != null)
 				{
-					instance = value.Instance;
 					return true;
 				}
 			}
@@ -257,11 +264,11 @@ namespace NewRemoting
 					if (existingInfo.IsReleased)
 					{
 						// if marked as no longer needed, revive by setting the instance
-						existingInfo.Instance = instance;
+						existingInfo.SetInstance(instance);
 					}
 					else
 					{
-						if (doThrowOnDuplicate && !ReferenceEquals(existingInfo.Instance, instance))
+						if (doThrowOnDuplicate && !ReferenceEquals(existingInfo.QueryInstance(), instance))
 						{
 							var msg = FormattableString.Invariant(
 								$"Added new instance of {instance.GetType()} is not equals to {existingInfo.Identifier} to instance manager, but no duplicate was expected");
@@ -280,7 +287,7 @@ namespace NewRemoting
 				}
 			});
 
-			s_instanceNames.AddOrUpdate(ret.Instance, new ReverseInstanceInfo(objectId, originalType));
+			s_instanceNames.AddOrUpdate(ret.QueryInstance(), new ReverseInstanceInfo(objectId, originalType));
 			return ret;
 		}
 
@@ -306,7 +313,7 @@ namespace NewRemoting
 			var values = s_objects.Values.ToList();
 			foreach (var v in values)
 			{
-				if (ReferenceEquals(v.Instance, instance))
+				if (ReferenceEquals(v.QueryInstance(), instance))
 				{
 					instanceId = v.Identifier;
 					originalType = v.OriginalType;
@@ -549,12 +556,18 @@ namespace NewRemoting
 
 			InstanceInfo inst = AddInstance(instance, objectId, null, type, false);
 
-			return inst.Instance;
+			return inst.QueryInstance();
 		}
 
-		public void Remove(string objectId, string remoteInstanceIdentifier)
+		/// <summary>
+		/// Remove the given object ID from the container. This is mostly used for garbage collection, but also for explicit disposal.
+		/// </summary>
+		/// <param name="objectId">The object Id to remove</param>
+		/// <param name="remoteProcessId">The process attempting to remove the object</param>
+		/// <param name="reallyRemove">If the target object has no noted references any more, force a removal.</param>
+		public void Remove(string objectId, string remoteProcessId, bool reallyRemove)
 		{
-			if (!s_knownRemoteInstances.TryGetValue(remoteInstanceIdentifier, out int id))
+			if (!s_knownRemoteInstances.TryGetValue(remoteProcessId, out int id))
 			{
 				// Not a known remote instance, cannot have any objects
 				return;
@@ -571,6 +584,10 @@ namespace NewRemoting
 					{
 						// If not more clients, forget about this object - the server GC will care for the rest.
 						MarkInstanceAsUnusedLocally(ii.Identifier);
+						if (reallyRemove)
+						{
+							s_objects.TryRemove(objectId, out _);
+						}
 					}
 				}
 			}
@@ -631,6 +648,13 @@ namespace NewRemoting
 			}
 		}
 
+		/// <summary>
+		/// Keeps track of MarshalByRef-Instances (or proxies of them)
+		/// If the actual instance lives in the remote process, we need to keep the hard reference, because the
+		/// remoting infrastructure might be the only owner of that object (a proxy in this case).
+		/// If it is a reference to a local object, we can use a weak reference. It will be gone, once there are no
+		/// other references to it within our process - meaning no one has a reference to the actual instance any more.
+		/// </summary>
 		internal class InstanceInfo
 		{
 			private readonly InstanceManager _owningInstanceManager;
@@ -640,51 +664,12 @@ namespace NewRemoting
 			public InstanceInfo(object obj, string identifier, bool isLocal, Type originalType, InstanceManager owner)
 			{
 				IsLocal = isLocal;
-				Instance = obj;
+				SetInstance(obj);
 
 				Identifier = identifier;
 				OriginalType = originalType ?? throw new ArgumentNullException(nameof(originalType));
 				_owningInstanceManager = owner;
 				ReferenceBitVector = 0;
-			}
-
-			/// <summary>
-			/// If the actual instance lives in our process, we need to keep the hard reference, because
-			/// there are clients that may keep a reference to this object.
-			/// If it is a remote reference, we can use a weak reference. It will be gone, once there are no
-			/// other references to it within our process - meaning no one has a reference to the proxy any more.
-			/// </summary>
-			public object Instance
-			{
-				get
-				{
-					if (_instanceHardReference != null)
-					{
-						return _instanceHardReference;
-					}
-
-					var ret = _instanceWeakReference?.Target;
-
-					if (IsLocal)
-					{
-						// If this should be a hard reference, resurrect it
-						Resurrect();
-					}
-
-					return ret;
-				}
-				set
-				{
-					if (IsLocal)
-					{
-						_instanceHardReference = value;
-						_instanceWeakReference = null;
-					}
-					else
-					{
-						_instanceWeakReference = new WeakReference(value, false);
-					}
-				}
 			}
 
 			public string Identifier
@@ -729,12 +714,48 @@ namespace NewRemoting
 				}
 			}
 
-			public bool Resurrect()
+			private void Resurrect()
 			{
 				object instance = _instanceWeakReference?.Target;
 				_instanceHardReference = instance;
 				_instanceWeakReference = null;
-				return instance != null;
+			}
+
+			/// <summary>
+			/// Returns the currently stored item. Resurrects the instance, if needed.
+			/// </summary>
+			/// <remarks>
+			/// Implemented as method, because has a side effect.
+			/// </remarks>
+			public object QueryInstance()
+			{
+				if (_instanceHardReference != null)
+				{
+					return _instanceHardReference;
+				}
+
+				var ret = _instanceWeakReference?.Target;
+
+				if (IsLocal)
+				{
+					// If this should be a hard reference, resurrect it
+					Resurrect();
+				}
+
+				return ret;
+			}
+
+			public void SetInstance(object value)
+			{
+				if (IsLocal)
+				{
+					_instanceHardReference = value;
+					_instanceWeakReference = null;
+				}
+				else
+				{
+					_instanceWeakReference = new WeakReference(value, false);
+				}
 			}
 		}
 

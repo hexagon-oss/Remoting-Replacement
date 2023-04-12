@@ -7,7 +7,9 @@ using System.Runtime.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using NewRemoting;
+using NewRemoting.Toolkit;
 using NUnit.Framework;
+using NUnit.Framework.Internal.Execution;
 using SampleServerClasses;
 
 namespace NewRemotingUnitTest
@@ -216,6 +218,62 @@ namespace NewRemotingUnitTest
 			Assert.False(string.IsNullOrWhiteSpace(_dataReceived));
 			objectWithEvent.StopTiming();
 			objectWithEvent.TimeChanged -= ObjectWithEventOnTimeChanged;
+		}
+
+		private void SomeCallbackMethod(string arg1)
+		{
+			// nothing to do here
+		}
+
+		[Test]
+		public void CanRegisterEventManyTimes()
+		{
+			CreateClientServer();
+			IMarshallInterface server = CreateRemoteInstance();
+			EventSink eventSink = new EventSink();
+
+			Parallel.For(0, 100, x =>
+			{
+				server.AnEvent1 += eventSink.CallbackMethod;
+				string msg = $"Iteration {x}";
+				server.DoCallbackOnEvent(msg);
+				server.AnEvent1 -= eventSink.CallbackMethod;
+			});
+
+			for (int i = 0; i < 100; i++)
+			{
+				server.AnEvent1 += eventSink.CallbackMethod;
+				string msg = $"Iteration {i}";
+				server.DoCallbackOnEvent(msg);
+				server.AnEvent1 -= eventSink.CallbackMethod;
+			}
+		}
+
+		[Test]
+		public void CanRegisterRemoveEventLocally()
+		{
+			CreateClientServer();
+			IMarshallInterface server = CreateRemoteInstance();
+			var cb = new CallbackImpl();
+			cb.InvokeCallback("Hi!");
+			server.RegisterEventOnCallback(cb);
+			cb.InvokeCallback("Test String");
+
+			Assert.AreEqual("Test String", server.DeregisterEvent());
+			cb.InvokeCallback("Nothing happens now");
+			Assert.AreEqual("Test String", server.DeregisterEvent());
+			server.RegisterEventOnCallback(null);
+			Assert.AreEqual("Test String", server.DeregisterEvent());
+
+			GC.Collect();
+			GC.WaitForPendingFinalizers();
+			_client.ForceGc();
+			cb.InvokeCallback("Maybe this crashes?"); // Yes, it does with V0.3.2
+			cb = null;
+			GC.Collect();
+			GC.WaitForPendingFinalizers();
+			_client.ForceGc();
+			server.DeregisterEvent();
 		}
 
 		public void ObjectWithEventOnTimeChanged(DateTime arg1, string arg2)
@@ -762,13 +820,15 @@ namespace NewRemotingUnitTest
 		private void ExecuteCallbacks(IMarshallInterface instance, int overallIterations, int iterations,
 			ref int expectedCounter)
 		{
+			_dataReceived = null;
 			for (int j = 0; j < overallIterations; j++)
 			{
 				instance.AnEvent2 += CallbackMethod;
 				for (int i = 0; i < iterations; i++)
 				{
-					instance.DoCallbackOnEvent("Utest" + ++expectedCounter);
-					Assert.AreEqual("Utest" + expectedCounter, _dataReceived);
+					int cnt = ++expectedCounter;
+					instance.DoCallbackOnEvent("Utest" + cnt);
+					Assert.AreEqual("Utest" + cnt, _dataReceived);
 				}
 
 				if (j % 2 == 0)
@@ -849,6 +909,11 @@ namespace NewRemotingUnitTest
 			public void RegisterThis(string msg, string source)
 			{
 				Data = $"{msg} from {source}";
+			}
+
+			public void CallbackMethod(string obj)
+			{
+				Data = obj;
 			}
 		}
 	}
