@@ -32,15 +32,15 @@ namespace RemotingServer
 				}
 
 				ILogger logger = null;
-				if (options.Verbose)
-				{
-					logger = new ConsoleAndDebugLogger("RemotingServer");
-				}
 
 				if (!string.IsNullOrWhiteSpace(options.LogFile))
 				{
 					// logfile argument is expected to be without root path (as it is called remotely without knowledge of local paths)
-					logger = new SimpleLogFileWriter(Path.Combine(Path.GetTempPath(), options.LogFile), "ServerLog", LogLevel.Trace);
+					logger = new SimpleLogFileWriter(Path.Combine(Path.GetTempPath(), options.LogFile), "ServerLog", options.Verbose ? LogLevel.Trace : LogLevel.Information);
+				}
+				else if (options.Verbose)
+				{
+					logger = new ConsoleAndDebugLogger("RemotingServer");
 				}
 
 				var allKeys = ConfigurationManager.AppSettings.AllKeys;

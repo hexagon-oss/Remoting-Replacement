@@ -102,6 +102,17 @@ namespace NewRemoting
 				throw new ObjectDisposedException("Remoting infrastructure has been shut down. Remote proxies are no longer valid");
 			}
 
+			if (methodName == "Void Dispose(Boolean)")
+			{
+				var arg = invocation.Arguments.FirstOrDefault();
+				if (arg is false)
+				{
+					// Dispose(false) must not be remoted, this is called by the GC and only gets here for special objects like fileStream
+					_logger.Log(LogLevel.Warning, $"{ThisSideProcessId}: Skipping dispose(false) on {invocation.TargetType}");
+					return;
+				}
+			}
+
 			// Todo: Check this stuff
 			if (methodName == "ToString()" && DebuggerToStringBehavior != DebuggerToStringBehavior.EvaluateRemotely)
 			{
