@@ -278,7 +278,7 @@ namespace NewRemoting
 
 						// We have created the new instance twice due to a race condition
 						// drop it again and use the old one instead
-						_logger.LogInformation($"Race condition detected: Duplicate instance for object id {objectId} will be discarded.");
+						_logger.LogTrace($"Race condition detected: Duplicate instance for object id {objectId} will be discarded.");
 					}
 
 					// Update existing living info object with new client information
