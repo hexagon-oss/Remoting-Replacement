@@ -108,7 +108,7 @@ namespace NewRemoting
 				if (arg is false)
 				{
 					// Dispose(false) must not be remoted, this is called by the GC and only gets here for special objects like fileStream
-					_logger.Log(LogLevel.Warning, $"{ThisSideProcessId}: Skipping dispose(false) on {invocation.TargetType}");
+					invocation.Proceed();
 					return;
 				}
 			}
