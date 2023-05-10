@@ -193,9 +193,16 @@ namespace NewRemoting
 			var name2 = sourceReferences.FirstOrDefault(x => x.Name == args.Name);
 			if (name2 != null)
 			{
-				Assembly loaded = Assembly.Load(name2);
-				_knownAssemblies.AddOrUpdate(args.Name, loaded, (s, assembly1) => loaded);
-				return loaded;
+				try
+				{
+					Assembly loaded = Assembly.Load(name2);
+					_knownAssemblies.AddOrUpdate(args.Name, loaded, (s, assembly1) => loaded);
+					return loaded;
+				}
+				catch (Exception x)
+				{
+					Logger.Log(LogLevel.Error, x.ToString());
+				}
 			}
 
 			string dllOnly = args.Name;
@@ -228,16 +235,25 @@ namespace NewRemoting
 			string startDirectory = Path.Combine(currentDirectory, "runtimes", osName);
 			if (Directory.Exists(startDirectory))
 			{
-				var potentialEntries = Directory.EnumerateFileSystemEntries(startDirectory, dllOnly, SearchOption.AllDirectories).ToArray();
+				var potentialEntries = Directory
+					.EnumerateFileSystemEntries(startDirectory, dllOnly, SearchOption.AllDirectories).ToArray();
 				if (potentialEntries.Length > 0)
 				{
 					GetBestRuntimeDll(potentialEntries, ref path);
 				}
 			}
 
-			var assembly = Assembly.LoadFile(path);
-			_knownAssemblies.AddOrUpdate(args.Name, assembly, (s, assembly1) => assembly);
-			return assembly;
+			try
+			{
+				var assembly = Assembly.LoadFile(path);
+				_knownAssemblies.AddOrUpdate(args.Name, assembly, (s, assembly1) => assembly);
+				return assembly;
+			}
+			catch (Exception x)
+			{
+				Logger.Log(LogLevel.Error, x.ToString());
+				return null;
+			}
 		}
 
 		internal static void GetBestRuntimeDll(string[] potentialEntries, ref string path)
