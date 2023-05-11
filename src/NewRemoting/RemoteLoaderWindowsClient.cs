@@ -31,7 +31,7 @@ namespace NewRemoting
 			: base(remoteCredentials, remoteHost, waitTimeBetweenPaExecExecute, logger)
 		{
 			RemotePort = remotePort;
-			_extraArguments = extraArguments;
+			_extraArguments = "--localEndPoint " + remoteHost + " " + extraArguments;
 			_shouldFileBeUploadedFunc = shouldFileBeUploadedFunc ?? throw new ArgumentNullException(nameof(shouldFileBeUploadedFunc));
 			_fileHashCalculator = fileHashCalculator ?? throw new ArgumentNullException(nameof(fileHashCalculator));
 			OutputDataReceived += (s, l) =>
