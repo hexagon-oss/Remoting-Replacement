@@ -38,23 +38,6 @@ namespace NewRemoting.Toolkit
 			return host.AddressList;
 		}
 
-		public static IPAddress GetLocalIp()
-		{
-			IPHostEntry iphostentry = Dns.GetHostEntry(Dns.GetHostName());
-			// Enumerate IP addresses
-			IPAddress localIp = null;
-			foreach (IPAddress ip in iphostentry.AddressList)
-			{
-				if (ip.AddressFamily == AddressFamily.InterNetwork)
-				{
-					localIp = ip;
-					break;
-				}
-			}
-
-			return localIp;
-		}
-
 		/// <summary>
 		/// Checks if an address is local
 		/// </summary>

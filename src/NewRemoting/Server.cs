@@ -68,6 +68,7 @@ namespace NewRemoting
 
 		private Thread _mainThread;
 		private int _networkPort;
+		private string _localEndPoint;
 		private TcpListener _listener;
 		private bool _threadRunning;
 
@@ -82,14 +83,16 @@ namespace NewRemoting
 		/// Start <see cref="StartListening"/> to actually start the server.
 		/// </summary>
 		/// <param name="networkPort">Network port to open server on</param>
+		/// <param name="localEndPoint">optional local endpoint for servers running on systems with multiple IPs</param>
 		/// <param name="authenticationInformation">the certificate filename, and password</param>
 		/// <param name="logger">Optional logger instance, for debugging purposes</param>
-		public Server(int networkPort, AuthenticationInformation authenticationInformation, ILogger logger = null)
+		public Server(int networkPort, string localEndPoint, AuthenticationInformation authenticationInformation, ILogger logger = null)
 		{
 			_authenticationInformation = authenticationInformation;
 			Logger = logger ?? NullLogger.Instance;
 			_interceptorLock = new object();
 			_networkPort = networkPort;
+			_localEndPoint = localEndPoint;
 			_threads = new();
 			_proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
 			_preopenedStream = null;
@@ -112,6 +115,7 @@ namespace NewRemoting
 		internal Server(Stream preopenedStream, MessageHandler messageHandler, ClientSideInterceptor localInterceptor, string certificateFilename = null, string certificatePassword = null, ILogger logger = null)
 		{
 			_networkPort = 0;
+			_localEndPoint = String.Empty;
 			_interceptorLock = new object();
 			Logger = logger ?? NullLogger.Instance;
 			_preopenedStream = preopenedStream;
@@ -332,7 +336,8 @@ namespace NewRemoting
 				_serverCertificate = new X509Certificate2(_authenticationInformation.CertificateFileName, _authenticationInformation.CertificatePassword, X509KeyStorageFlags.MachineKeySet);
 			}
 
-			_listener = new TcpListener(IPAddress.Any, _networkPort);
+			var localAddr = string.IsNullOrEmpty(_localEndPoint) ? IPAddress.Any : IPAddress.Parse(_localEndPoint);
+			_listener = new TcpListener(localAddr, _networkPort);
 			_threadRunning = true;
 			_listener.Start();
 			_mainThread = new Thread(ReceiverThread);

@@ -83,7 +83,7 @@ namespace RemotingServer
 					}
 				}
 
-				var server = new Server(port, new AuthenticationInformation(certificate, certPwd), logger);
+				var server = new Server(port, options.LocalEndPoint, new AuthenticationInformation(certificate, certPwd), logger);
 				if (options.KillSelf)
 				{
 					server.KillProcessWhenChannelDisconnected = true;

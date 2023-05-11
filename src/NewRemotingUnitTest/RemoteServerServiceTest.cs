@@ -21,7 +21,7 @@ namespace NewRemotingUnitTest
 		public void SetUp()
 		{
 			_hashCalculatorMock = new Mock<FileHashCalculator>();
-			_service = new RemoteServerService(new Server(0, null), _hashCalculatorMock.Object, NullLogger.Instance);
+			_service = new RemoteServerService(new Server(0, String.Empty, null), _hashCalculatorMock.Object, NullLogger.Instance);
 		}
 
 		[Test]

@@ -31,6 +31,13 @@ namespace RemotingServer
 			set;
 		}
 
+		[Option("localEndPoint", HelpText = "Add option to set a local endpoint for servers running on systems with multiple IPs")]
+		public string LocalEndPoint
+		{
+			get;
+			set;
+		}
+
 		[Option('l', "logfile", HelpText = "Writes log data to the given log file. Should only be used for debugging, as it has a significant performance impact. Cannot be used with -v.")]
 		public string LogFile
 		{
