@@ -20,7 +20,7 @@ namespace NewRemoting
 		private readonly Func<FileInfo, bool> _shouldFileBeUploadedFunc;
 		private readonly FileHashCalculator _fileHashCalculator;
 		private readonly string _extraArguments;
-		private readonly TimeSpan _remoteProcessConnectionTimeout = TimeSpan.FromSeconds(10);
+		private readonly TimeSpan _remoteProcessConnectionTimeout = TimeSpan.FromSeconds(20);
 
 		private IRemoteServerService _remoteServer;
 		private Client _remotingClient;
@@ -266,7 +266,8 @@ namespace NewRemoting
 							if (combinedCancellation.IsCancellationRequested)
 							{
 								clientConnectionLogger?.LogError($"Timeout waiting starting remote process {REMOTELOADER_EXECUTABLE}.");
-								throw new OperationCanceledException($"Timeout waiting starting remote process {REMOTELOADER_EXECUTABLE}.")
+								throw new OperationCanceledException(
+									$"Timeout waiting starting remote process {REMOTELOADER_EXECUTABLE}.");
 							}
 
 							var err = proc.StandardError.ReadToEnd();
