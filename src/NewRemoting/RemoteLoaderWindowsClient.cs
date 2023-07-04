@@ -20,7 +20,7 @@ namespace NewRemoting
 		private readonly Func<FileInfo, bool> _shouldFileBeUploadedFunc;
 		private readonly FileHashCalculator _fileHashCalculator;
 		private readonly string _extraArguments;
-		private readonly TimeSpan _remoteProcessConnectionTimeout = TimeSpan.FromSeconds(10);
+		private readonly TimeSpan _remoteProcessConnectionTimeout = TimeSpan.FromSeconds(20);
 
 		private IRemoteServerService _remoteServer;
 		private Client _remotingClient;
@@ -228,6 +228,8 @@ namespace NewRemoting
 
 		public bool Connect(bool checkExistingInstance, CancellationToken cancellationToken, ILogger clientConnectionLogger = null)
 		{
+			clientConnectionLogger?.LogInformation($"Connection sequence for {REMOTELOADER_EXECUTABLE} started.");
+
 			if (checkExistingInstance)
 			{
 				var isRemoteHostOnLocalMachine = NetworkUtil.IsLocalIpAddress(RemoteHost);
@@ -261,14 +263,18 @@ namespace NewRemoting
 								proc.WaitForExit(100);
 							}
 
-							cancellationToken.ThrowIfCancellationRequested();
-							timeoutCts.Token.ThrowIfCancellationRequested();
+							if (combinedCancellation.IsCancellationRequested)
+							{
+								clientConnectionLogger?.LogError($"Timeout waiting starting remote process {REMOTELOADER_EXECUTABLE}.");
+								throw new OperationCanceledException(
+									$"Timeout waiting starting remote process {REMOTELOADER_EXECUTABLE}.");
+							}
 
 							var err = proc.StandardError.ReadToEnd();
 
 							if (!string.IsNullOrEmpty(err))
 							{
-								clientConnectionLogger?.LogInformation($"Powershell standard error output {err}.");
+								clientConnectionLogger?.LogWarning($"Powershell standard error output {err}.");
 							}
 
 							if (proc.ExitCode == 0)
@@ -276,7 +282,7 @@ namespace NewRemoting
 								var output = proc.StandardOutput.ReadToEnd();
 								if (output.StartsWith("True"))
 								{
-									clientConnectionLogger?.LogInformation($"{REMOTELOADER_EXECUTABLE} process already exist on the remote machine.");
+									clientConnectionLogger?.LogWarning($"{REMOTELOADER_EXECUTABLE} process already exist on the remote machine.");
 									return false;
 								}
 							}
