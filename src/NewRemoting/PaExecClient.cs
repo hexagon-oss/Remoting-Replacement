@@ -362,7 +362,7 @@ namespace NewRemoting
 							_internalCancellationTokenSource?.Cancel();
 						}
 					};
-					Logger.LogInformation(FormattableString.Invariant($"Starting remote process: {process.StartInfo.FileName} in {process.StartInfo.WorkingDirectory} with {process.StartInfo.Arguments}"));
+					Logger.LogInformation(FormattableString.Invariant($"Starting remote process: {process.StartInfo.FileName} in {process.StartInfo.WorkingDirectory}"));
 					process.Start();
 					process.BeginOutputReadLine();
 					process.BeginErrorReadLine();
