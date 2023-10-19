@@ -177,8 +177,7 @@ namespace NewRemoting
 				{
 					lastError = null;
 					Logger.LogInformation("Creating remoting client");
-					_remotingClient = new Client(RemoteHost, RemotePort, Credentials.Certificate,
-						clientConnectionLogger, Logger);
+					_remotingClient = new Client(RemoteHost, RemotePort, Credentials.Certificate, Logger, clientConnectionLogger);
 					Logger.LogInformation("Remoting client creation succeeded");
 					break;
 				}
