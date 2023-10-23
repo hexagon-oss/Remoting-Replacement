@@ -76,6 +76,7 @@ namespace NewRemoting
 				Logger.LogInformation("Client authentication done.");
 			}
 
+			Logger.LogInformation($"stream created");
 			_writer = new BinaryWriter(stream, MessageHandler.DefaultStringEncoding);
 			_reader = new BinaryReader(stream, MessageHandler.DefaultStringEncoding);
 			_builder = new DefaultProxyBuilder();
