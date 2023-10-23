@@ -63,7 +63,7 @@ namespace NewRemoting
 			_connectionConfigured = false;
 			_disconnected = false;
 
-			Logger.LogInformation("Creating client");
+			Logger.LogInformation($"Creating client {authenticationInformation.CertificateFileName}");
 			_client = new TcpClient(server, port);
 
 			_serverLink = new TcpClient(server, port);
