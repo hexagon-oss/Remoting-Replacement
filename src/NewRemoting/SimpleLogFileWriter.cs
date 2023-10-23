@@ -67,6 +67,14 @@ namespace NewRemoting
 			}
 		}
 
+		public void Flush()
+		{
+			lock (_writer)
+			{
+				_writer.Flush();
+			}
+		}
+
 		public bool IsEnabled(LogLevel logLevel)
 		{
 			return logLevel >= _minLogLevel;
@@ -79,7 +87,10 @@ namespace NewRemoting
 
 		protected virtual void Dispose(bool disposing)
 		{
-			_writer.Dispose();
+			lock (_writer)
+			{
+				_writer.Dispose();
+			}
 		}
 
 		public void Dispose()
