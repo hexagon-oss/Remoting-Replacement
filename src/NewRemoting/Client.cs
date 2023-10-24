@@ -51,19 +51,20 @@ namespace NewRemoting
 		/// </summary>
 		/// <param name="server">Server name or IP</param>
 		/// <param name="port">Network port</param>
-		/// <param name="logger">Optional logging sink (for diagnostic messages)</param>
-		/// <param name="connectionLogger">Optional connection logging sink (for diagnostic messages)</param>
-		/// <param name="certificateFilename">the certificate filename usually a pfx file</param>
-		public Client(string server, int port, AuthenticationInformation authenticationInformation, ILogger logger = null, ILogger connectionLogger = null)
+		/// <param name="authenticationInformation"> credentials for authentication</param>
+		/// <param name="instanceManagerLogger">Optional logging sink (for diagnostic messages)</param>
+		/// <param name="connectionLogger">Logger to trace this very client</param>
+		public Client(string server, int port, AuthenticationInformation authenticationInformation, ILogger instanceManagerLogger = null, ILogger connectionLogger = null)
 		{
 			_clientAuthentication = authenticationInformation;
-			var instanceLogger = logger ?? NullLogger.Instance;
+			var instanceLogger = instanceManagerLogger ?? NullLogger.Instance;
 			Logger = connectionLogger ?? NullLogger.Instance;
 			_accessLock = new object();
 			_connectionConfigured = false;
 			_disconnected = false;
 
-			Logger.LogInformation("Creating client");
+			var msg = authenticationInformation != null ? authenticationInformation.CertificateFileName : string.Empty;
+			Logger.LogInformation($"Creating client {msg}");
 			_client = new TcpClient(server, port);
 
 			_serverLink = new TcpClient(server, port);
@@ -75,6 +76,7 @@ namespace NewRemoting
 				Logger.LogInformation("Client authentication done.");
 			}
 
+			Logger.LogInformation($"stream created");
 			_writer = new BinaryWriter(stream, MessageHandler.DefaultStringEncoding);
 			_reader = new BinaryReader(stream, MessageHandler.DefaultStringEncoding);
 			_builder = new DefaultProxyBuilder();

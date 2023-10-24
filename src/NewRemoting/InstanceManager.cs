@@ -254,7 +254,7 @@ namespace NewRemoting
 				// Not found in list - insert new info object
 				var ii = new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), originalType, this);
 				MarkInstanceAsInUseBy(willBeSentTo, ii);
-				_logger.LogDebug($"Added new instance {ii.Identifier} to instance manager");
+				_logger?.LogDebug($"Added new instance {ii.Identifier} to instance manager");
 				return ii;
 			}, (id, existingInfo) =>
 			{
@@ -272,13 +272,13 @@ namespace NewRemoting
 						{
 							var msg = FormattableString.Invariant(
 								$"Added new instance of {instance.GetType()} is not equals to {existingInfo.Identifier} to instance manager, but no duplicate was expected");
-							_logger.LogError(msg);
+							_logger?.LogError(msg);
 							throw new InvalidOperationException(msg);
 						}
 
 						// We have created the new instance twice due to a race condition
 						// drop it again and use the old one instead
-						_logger.LogTrace($"Race condition detected: Duplicate instance for object id {objectId} will be discarded.");
+						_logger?.LogTrace($"Race condition detected: Duplicate instance for object id {objectId} will be discarded.");
 					}
 
 					// Update existing living info object with new client information
@@ -403,7 +403,7 @@ namespace NewRemoting
 							instancesToClear.Add(e.Value);
 						}
 
-						_logger.LogDebug($"Instance {e.Value.Identifier} is released locally");
+						_logger?.LogDebug($"Instance {e.Value.Identifier} is released locally");
 						MarkInstanceAsUnusedLocally(e.Value.Identifier);
 					}
 				}
@@ -414,7 +414,7 @@ namespace NewRemoting
 				return;
 			}
 
-			_logger.Log(LogLevel.Debug, $"Cleaning up references to {instancesToClear.Count} objects");
+			_logger?.Log(LogLevel.Debug, $"Cleaning up references to {instancesToClear.Count} objects");
 			RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.GcCleanup, 0);
 			using (var lck = hd.WriteHeader(w))
 			{
@@ -443,7 +443,7 @@ namespace NewRemoting
 
 				if (ii.ReferenceBitVector != 0)
 				{
-					_logger.LogError($"Instance {ii.Identifier} has inconsistent state preventing removal from the instance manager");
+					_logger?.LogError($"Instance {ii.Identifier} has inconsistent state preventing removal from the instance manager");
 					return;
 				}
 			}
@@ -455,7 +455,7 @@ namespace NewRemoting
 					throw new InvalidOperationException(FormattableString.Invariant($"Attempting to free a reference ({ii.Identifier}) that is still in use"));
 				}
 
-				_logger.LogDebug($"Instance {ii.Identifier} is removed from the instance manager");
+				_logger?.LogDebug($"Instance {ii.Identifier} is removed from the instance manager");
 			}
 		}
 
@@ -474,7 +474,7 @@ namespace NewRemoting
 				// (i.e. because it is sending a reference to a proxy back)
 				if (TryGetObjectFromId(objectId, out instance))
 				{
-					_logger.LogDebug($"Found an instance for object id {objectId}");
+					_logger?.LogDebug($"Found an instance for object id {objectId}");
 					return instance;
 				}
 
@@ -484,7 +484,7 @@ namespace NewRemoting
 			{
 				if (TryGetObjectFromId(objectId, out instance))
 				{
-					_logger.LogDebug($"Found an instance for object id {objectId}");
+					_logger?.LogDebug($"Found an instance for object id {objectId}");
 					return instance;
 				}
 			}
@@ -500,13 +500,13 @@ namespace NewRemoting
 			ManualInvocation mi = invocation as ManualInvocation;
 			if (typeOfArgument != null && typeOfArgument.IsInterface)
 			{
-				_logger.Log(LogLevel.Debug, $"Create interface proxy for main type {typeOfArgument}");
+				_logger?.Log(LogLevel.Debug, $"Create interface proxy for main type {typeOfArgument}");
 				// If the call returns an interface, only create an interface proxy, because we might not be able to instantiate the actual class (because it's not public, it's sealed, has no public ctors, etc)
 				instance = ProxyGenerator.CreateInterfaceProxyWithoutTarget(typeOfArgument, interfaces, interceptor);
 			}
 			else if (canAttemptToInstantiate && (!type.IsSealed) && (MessageHandler.HasDefaultCtor(type) || (mi != null && invocation.Arguments.Length > 0 && mi.Constructor != null)))
 			{
-				_logger.Log(LogLevel.Debug, $"Create class proxy for main type {type}");
+				_logger?.Log(LogLevel.Debug, $"Create class proxy for main type {type}");
 				if (MessageHandler.HasDefaultCtor(type))
 				{
 					instance = ProxyGenerator.CreateClassProxy(type, interfaces, ProxyGenerationOptions.Default, Array.Empty<object>(), interceptor);
@@ -522,7 +522,7 @@ namespace NewRemoting
 			{
 				// If the type is sealed or has no default ctor, we need to create an interface proxy, even if the target type is not an interface and may therefore not match.
 				// If the target type is object, we also try an interface proxy instead, since everything should be convertible to object.
-				_logger.Log(LogLevel.Debug, $"Create interface proxy as backup for main type {type} with {interfaces[0]}");
+				_logger?.Log(LogLevel.Debug, $"Create interface proxy as backup for main type {type} with {interfaces[0]}");
 				if (type == typeof(FileStream))
 				{
 					// Special case of the Stream case below. This is not a general solution, but for this type, we can then create the correct type, so when
@@ -550,7 +550,7 @@ namespace NewRemoting
 			}
 			else
 			{
-				_logger.Log(LogLevel.Debug, $"Create class proxy as fallback for main type {type}");
+				_logger?.Log(LogLevel.Debug, $"Create class proxy as fallback for main type {type}");
 				instance = ProxyGenerator.CreateClassProxy(type, interfaces, interceptor);
 			}
 
@@ -620,10 +620,10 @@ namespace NewRemoting
 			// a specific instance
 			if (s_nextIndex > 8 * sizeof(UInt64))
 			{
-				_logger.LogWarning($"Too many instances registered {0}", s_nextIndex);
+				_logger?.LogWarning($"Too many instances registered {0}", s_nextIndex);
 				foreach (var i in s_knownRemoteInstances)
 				{
-					_logger.LogWarning(i.Key);
+					_logger?.LogWarning(i.Key);
 				}
 
 				throw new InvalidOperationException("To many different instance identifiers seen - only up to 64 allowed right now");
