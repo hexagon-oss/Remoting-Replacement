@@ -287,11 +287,12 @@ namespace NewRemoting
 			}
 		}
 
-		internal static SslStream Authenticate(TcpClient client, X509Certificate certificate, ILogger logger)
+		internal SslStream Authenticate(TcpClient client, X509Certificate certificate, ILogger logger)
 		{
 			SslStream sslStream = new SslStream(client.GetStream(), false);
 			try
 			{
+				logger.Log(LogLevel.Information, "creating server authentication options");
 				SslServerAuthenticationOptions options = new SslServerAuthenticationOptions();
 				// we require the client authentication
 				options.ClientCertificateRequired = true;
@@ -301,7 +302,9 @@ namespace NewRemoting
 				options.CertificateRevocationCheckMode = X509RevocationMode.NoCheck;
 				options.RemoteCertificateValidationCallback = new RemoteCertificateValidationCallback(ValidateClientCertificate);
 				options.ServerCertificate = certificate;
+				logger.Log(LogLevel.Information, "creating server authenticating as server");
 				sslStream.AuthenticateAsServer(options);
+				logger.Log(LogLevel.Information, "creating server authenticating as server done");
 				return sslStream;
 			}
 			catch (AuthenticationException e)
@@ -314,14 +317,17 @@ namespace NewRemoting
 			}
 		}
 
-		private static bool ValidateClientCertificate(object sender, X509Certificate remoteCertificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+		private bool ValidateClientCertificate(object sender, X509Certificate remoteCertificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
 		{
+			Logger.LogInformation("ValidateClientCertificate started");
 			// we do not check the sslPolicyErrors because we do not require the client to install the certificate
 			if (remoteCertificate != null && remoteCertificate.ToString() == _serverCertificate.ToString())
 			{
+				Logger.LogInformation("ValidateClientCertificate succeed");
 				return true;
 			}
 
+			Logger.LogInformation("ValidateClientCertificate failed");
 			return false;
 		}
 
