@@ -519,15 +519,16 @@ namespace NewRemoting
 						typeOfCaller = realInstance.GetType();
 					}
 
-					var methods = typeOfCaller.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+					var allMethods = typeOfCaller.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+					IEnumerable<MethodInfo> methods;
 					if (methodGenericArgs > 0)
 					{
 						// If the method has generic arguments, only methods with the same number of args can match
-						methods = methods.Where(x => x.GetGenericArguments().Length == methodGenericArgs).ToArray();
+						methods = allMethods.Where(x => x.GetGenericArguments().Length == methodGenericArgs);
 					}
 					else
 					{
-						methods = methods.Where(x => x.IsGenericMethod == false).ToArray();
+						methods = allMethods.Where(x => x.IsGenericMethod == false);
 					}
 
 					MethodInfo methodToCall = null;
