@@ -193,6 +193,16 @@ namespace SampleServerClasses
 			return new FileStream(fileName, FileMode.Open, FileAccess.Read);
 		}
 
+		public virtual Stream OpenStream(string fileName, FileMode mode, FileAccess access)
+		{
+			return new FileStream(fileName, mode, access);
+		}
+
+		public virtual void DeleteFile(string fileName)
+		{
+			File.Delete(fileName);
+		}
+
 		public void CloseStream(Stream stream)
 		{
 			if (stream != null)

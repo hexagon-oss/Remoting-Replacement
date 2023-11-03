@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.Serialization;
 using System.Threading;
@@ -815,6 +816,40 @@ namespace NewRemotingUnitTest
 			Assert.IsEmpty(result);
 			result = server.ProcessListOfTypes(typeof(string), typeof(Int32), typeof(bool), null);
 			Assert.False(string.IsNullOrWhiteSpace(result));
+		}
+
+		[Test]
+		public void CanReadAndWriteLargeRemoteFile()
+		{
+			const int blocks = 20;
+			CreateClientServer();
+			var server = CreateRemoteInstance();
+			var stream = server.OpenStream("test.dat", FileMode.Create, FileAccess.ReadWrite);
+
+			byte[] buffer = new byte[1024 * 1024 * 1024];
+			byte[] buffer2 = new byte[buffer.Length];
+
+			for (int i = 0; i < buffer.Length; i++)
+			{
+				buffer[i] = (byte)i;
+			}
+
+			for (int j = 0; j < blocks; j++)
+			{
+				stream.Write(buffer, 0, buffer.Length);
+			}
+
+			stream.Position = 0;
+
+			for (int k = 0; k < blocks; k++)
+			{
+				int dataRead = stream.Read(buffer2, 0, buffer.Length);
+				Assert.AreEqual(buffer.Length, dataRead);
+				Assert.AreEqual(buffer[k], buffer2[k]);
+			}
+
+			stream.Close();
+			server.DeleteFile("test.dat");
 		}
 
 		private void ExecuteCallbacks(IMarshallInterface instance, int overallIterations, int iterations,
