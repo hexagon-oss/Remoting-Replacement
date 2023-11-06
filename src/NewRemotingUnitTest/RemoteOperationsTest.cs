@@ -821,12 +821,13 @@ namespace NewRemotingUnitTest
 		[Test]
 		public void CanReadAndWriteLargeRemoteFile()
 		{
-			const int blocks = 20;
+			const int blocks = 80;
+			const int blockSize = 1024 * 1024 * 256;
 			CreateClientServer();
 			var server = CreateRemoteInstance();
 			var stream = server.OpenStream("test.dat", FileMode.Create, FileAccess.ReadWrite);
 
-			byte[] buffer = new byte[1024 * 1024 * 1024];
+			byte[] buffer = new byte[blockSize];
 			byte[] buffer2 = new byte[buffer.Length];
 
 			for (int i = 0; i < buffer.Length; i++)
