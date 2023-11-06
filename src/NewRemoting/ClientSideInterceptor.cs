@@ -15,6 +15,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Castle.DynamicProxy;
 using Microsoft.Extensions.Logging;
+using NewRemoting.Toolkit;
 
 // BinaryFormatter shouldn't be used
 #pragma warning disable SYSLIB0011
@@ -124,7 +125,7 @@ namespace NewRemoting
 
 			int thisSeq = NextSequenceNumber();
 
-			using MemoryStream rawDataMessage = new MemoryStream(1024);
+			using ByRefStream rawDataMessage = new ByRefStream();
 			using BinaryWriter writer = new BinaryWriter(rawDataMessage, MessageHandler.DefaultStringEncoding);
 
 			using CallContext ctx = CreateCallContext(invocation, thisSeq);
@@ -229,7 +230,7 @@ namespace NewRemoting
 			WaitForReply(invocation, ctx);
 		}
 
-		private void SafeSendToServer(MemoryStream rawDataMessage)
+		private void SafeSendToServer(Stream rawDataMessage)
 		{
 			try
 			{
