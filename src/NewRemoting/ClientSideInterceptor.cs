@@ -171,6 +171,19 @@ namespace NewRemoting
 
 			if (largeAllocationExpected)
 			{
+				largeAllocationExpected = invocation.Arguments.Any(x =>
+				{
+					if (x is Array array && array.LongLength > 1024) // Expected to stay in the small object heap?
+					{
+						return true;
+					}
+
+					return false;
+				});
+			}
+
+			if (largeAllocationExpected)
+			{
 				// Do not use this writer before gaining the lock in the next line!
 				try
 				{
