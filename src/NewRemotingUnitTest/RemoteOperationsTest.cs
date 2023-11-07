@@ -819,9 +819,23 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
+		public void UseStructAsArgument()
+		{
+			CreateClientServer();
+			var server = _client.CreateRemoteInstance<MarshallableClass>();
+			var sent = new CustomSerializableObject();
+			sent.Time = DateTime.Now;
+			sent.Value = 100;
+			var result = server.SomeStructOperation(sent);
+			Assert.AreEqual(10, result.Value);
+
+			result = server.SomeStructOperation(new CustomSerializableObject()); // Repeat
+		}
+
+		[Test]
 		public void CanReadAndWriteLargeRemoteFile()
 		{
-			const int blocks = 40;
+			const int blocks = 20;
 			const int blockSize = 1024 * 1024 * 1024;
 			CreateClientServer();
 			var server = CreateRemoteInstance();

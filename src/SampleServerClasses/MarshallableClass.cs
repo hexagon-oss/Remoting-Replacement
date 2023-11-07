@@ -323,5 +323,10 @@ namespace SampleServerClasses
 		{
 			return string.Join(", ", types.Select(x => x?.ToString()));
 		}
+
+		public virtual CustomSerializableObject SomeStructOperation(CustomSerializableObject sent)
+		{
+			return new CustomSerializableObject() { Time = DateTime.Now, Value = 10 };
+		}
 	}
 }
