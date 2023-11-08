@@ -518,8 +518,8 @@ namespace NewRemoting
 #pragma warning disable 618
 			var formatter = _formatterFactory.CreateOrGetFormatter(otherSideProcessId);
 			w.Write((int)RemotingReferenceType.SerializedItem);
-
 			formatter.Serialize(w.BaseStream, data);
+			_formatterFactory.FinalizeSerialization(w);
 #pragma warning restore 618
 		}
 
@@ -698,6 +698,9 @@ namespace NewRemoting
 					var formatter = _formatterFactory.CreateOrGetFormatter(otherSideProcessId);
 					object decodedArg = formatter.Deserialize(r.BaseStream);
 #pragma warning restore 618
+
+					_formatterFactory.FinalizeDeserialization(r);
+
 					return decodedArg;
 				}
 

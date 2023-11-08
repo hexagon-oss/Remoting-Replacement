@@ -867,6 +867,30 @@ namespace NewRemotingUnitTest
 			server.DeleteFile("test.dat");
 		}
 
+		[Test]
+		public void CanReadManuallySerializedObjectDirectly()
+		{
+			CreateClientServer();
+			var server = CreateRemoteInstance();
+			var obj = server.GetSerializedObject();
+			Assert.IsNotNull(obj);
+			Assert.AreEqual(10, obj.Length);
+			Assert.AreEqual(5, obj[1]);
+		}
+
+		[Test]
+		public void CanReadManuallySerializedObjectIndirectly()
+		{
+			CreateClientServer();
+			var server = CreateRemoteInstance();
+			var obj = server.GetSerializedObjects();
+			Assert.IsNotNull(obj);
+			Assert.IsNotNull(obj.A);
+			Assert.AreEqual(5, obj.A.Length);
+			Assert.AreEqual(6, obj.A[0]);
+			Assert.AreNotEqual(6, obj.B[0]);
+		}
+
 		private void ExecuteCallbacks(IMarshallInterface instance, int overallIterations, int iterations,
 			ref int expectedCounter)
 		{
