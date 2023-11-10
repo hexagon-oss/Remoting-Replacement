@@ -20,7 +20,7 @@ namespace NewRemoting.Toolkit
 		public void Serialize(BinaryWriter serializerTarget);
 
 		/// <summary>
-		/// Deserializing operation. Previous to this, the default constructor is called.
+		/// Deserializing operation. The constructor has probably not been called prior to this (and all fields are still in the default state)
 		/// </summary>
 		/// <param name="serializerSource">The serialization source. The object must make sure it reads exactly as many bytes as had been
 		/// written during serialization.</param>
