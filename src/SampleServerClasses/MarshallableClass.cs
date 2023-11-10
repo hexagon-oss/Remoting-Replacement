@@ -11,6 +11,7 @@ namespace SampleServerClasses
 		private ReferencedComponent _component;
 		private ICallbackInterface _cb;
 		private string _name;
+		private byte[] _someData;
 
 		private string _callbackData;
 		private SimpleCalc _calculator;
@@ -32,6 +33,9 @@ namespace SampleServerClasses
 			Name = "Unnamed" + GetHashCode();
 			_callbackData = null;
 			_instanceForCallback = null;
+			_someData = new byte[100];
+			_someData[1] = 5;
+			_someData[2] = 6;
 		}
 
 		public MarshallableClass(string name)
@@ -193,6 +197,16 @@ namespace SampleServerClasses
 			return new FileStream(fileName, FileMode.Open, FileAccess.Read);
 		}
 
+		public virtual Stream OpenStream(string fileName, FileMode mode, FileAccess access)
+		{
+			return new FileStream(fileName, mode, access);
+		}
+
+		public virtual void DeleteFile(string fileName)
+		{
+			File.Delete(fileName);
+		}
+
 		public void CloseStream(Stream stream)
 		{
 			if (stream != null)
@@ -312,6 +326,21 @@ namespace SampleServerClasses
 		public virtual string ProcessListOfTypes(params Type[] types)
 		{
 			return string.Join(", ", types.Select(x => x?.ToString()));
+		}
+
+		public virtual CustomSerializableObject SomeStructOperation(CustomSerializableObject sent)
+		{
+			return new CustomSerializableObject() { Time = DateTime.Now, Value = 10 };
+		}
+
+		public virtual ManualSerializableLargeObject GetSerializedObject()
+		{
+			return new ManualSerializableLargeObject(new Memory<byte>(_someData, 0, 10));
+		}
+
+		public virtual (ManualSerializableLargeObject A, ManualSerializableLargeObject B, int C) GetSerializedObjects()
+		{
+			return (new ManualSerializableLargeObject(new Memory<byte>(_someData, 2, 5)), new ManualSerializableLargeObject(_someData), 33);
 		}
 	}
 }

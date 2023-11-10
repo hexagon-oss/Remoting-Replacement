@@ -38,6 +38,7 @@ namespace NewRemoting
 		String,
 		AddEvent,
 		RemoveEvent,
-		MethodPointer
+		MethodPointer,
+		ByteArray
 	}
 }

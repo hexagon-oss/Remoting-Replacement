@@ -15,6 +15,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Castle.DynamicProxy;
 using Microsoft.Extensions.Logging;
+using NewRemoting.Toolkit;
 
 // BinaryFormatter shouldn't be used
 #pragma warning disable SYSLIB0011
@@ -124,11 +125,6 @@ namespace NewRemoting
 
 			int thisSeq = NextSequenceNumber();
 
-			using MemoryStream rawDataMessage = new MemoryStream(1024);
-			using BinaryWriter writer = new BinaryWriter(rawDataMessage, MessageHandler.DefaultStringEncoding);
-
-			using CallContext ctx = CreateCallContext(invocation, thisSeq);
-
 			_logger.Log(LogLevel.Debug, $"{ThisSideProcessId}: Intercepting {invocation.Method}, sequence {thisSeq}");
 
 			MethodInfo me = invocation.Method;
@@ -168,7 +164,65 @@ namespace NewRemoting
 				remoteInstanceId = di.RemoteObjectReference;
 			}
 
-			hd.WriteHeaderNoLock(writer);
+			using CallContext ctx = CreateCallContext(invocation, thisSeq);
+
+			// If we have a delegate as argument, we must use the copy-before-send path
+			bool largeAllocationExpected = !invocation.Arguments.Any(x => x is Delegate);
+
+			if (largeAllocationExpected)
+			{
+				largeAllocationExpected = invocation.Arguments.Any(x =>
+				{
+					if (x is Array array && array.LongLength > 1024) // Expected to stay in the small object heap?
+					{
+						return true;
+					}
+
+					return false;
+				});
+			}
+
+			if (largeAllocationExpected)
+			{
+				// Do not use this writer before gaining the lock in the next line!
+				try
+				{
+					using BinaryWriter writer = new BinaryWriter(_serverLink, MessageHandler.DefaultStringEncoding, true);
+					using var lck = hd.WriteHeader(writer);
+
+					if (!PreparePayload(invocation, writer, remoteInstanceId, me))
+					{
+						// We need to ensure we don't end here in this case (we can't abort what we've already written to the stream)
+						throw new InvalidOperationException("Large allocation expected for delegate call - this shouldn't happen");
+					}
+				}
+				catch (IOException x)
+				{
+					throw new RemotingException("Error sending bulk data to server. Link down?", x);
+				}
+			}
+			else
+			{
+				using Stream targetStream = new MemoryStream(1024);
+
+				using BinaryWriter writer = new BinaryWriter(targetStream, MessageHandler.DefaultStringEncoding);
+
+				hd.WriteHeaderNoLock(writer);
+				if (!PreparePayload(invocation, writer, remoteInstanceId, me))
+				{
+					// We don't need to inform the server (was a pure local delegate operation)
+					return;
+				}
+
+				// now finally write the stream to the network. That way, we don't send incomplete messages if an exception happens encoding a parameter.
+				SafeSendToServer(targetStream);
+			}
+
+			WaitForReply(invocation, ctx);
+		}
+
+		private bool PreparePayload(IInvocation invocation, BinaryWriter writer, string remoteInstanceId, MethodInfo me)
+		{
 			writer.Write(remoteInstanceId);
 			// Also transmit the type of the calling object (if the method is called on an interface, this is different from the actual object)
 			if (me.DeclaringType != null)
@@ -214,7 +268,7 @@ namespace NewRemoting
 				{
 					if (!_messageHandler.WriteDelegateArgumentToStream(writer, del, invocation.Method, OtherSideProcessId, remoteInstanceId))
 					{
-						return;
+						return false;
 					}
 				}
 				else
@@ -223,13 +277,10 @@ namespace NewRemoting
 				}
 			}
 
-			// now finally write the stream to the network. That way, we don't send incomplete messages if an exception happens encoding a parameter.
-			SafeSendToServer(rawDataMessage);
-
-			WaitForReply(invocation, ctx);
+			return true;
 		}
 
-		private void SafeSendToServer(MemoryStream rawDataMessage)
+		private void SafeSendToServer(Stream rawDataMessage)
 		{
 			try
 			{

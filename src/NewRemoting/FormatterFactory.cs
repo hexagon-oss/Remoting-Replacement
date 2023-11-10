@@ -1,12 +1,15 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Castle.DynamicProxy;
+using NewRemoting.Toolkit;
 
 namespace NewRemoting
 {
@@ -16,6 +19,7 @@ namespace NewRemoting
 		private readonly ProxySurrogate _serializationSurrogate;
 		private readonly CustomSerializerSurrogate _customSerializer;
 		private readonly ConcurrentDictionary<string, BinaryFormatter> _cusBinaryFormatters;
+		private readonly ConcurrentDictionary<int, ManualSerializerSurrogate> _manualSerializers;
 
 		public FormatterFactory(InstanceManager instanceManager)
 		{
@@ -23,6 +27,7 @@ namespace NewRemoting
 			_serializationSurrogate = new ProxySurrogate(_instanceManager);
 			_customSerializer = new CustomSerializerSurrogate();
 			_cusBinaryFormatters = new ConcurrentDictionary<string, BinaryFormatter>();
+			_manualSerializers = new ConcurrentDictionary<int, ManualSerializerSurrogate>();
 		}
 
 		public IFormatter CreateOrGetFormatter(string otherSideProcessId)
@@ -47,6 +52,18 @@ namespace NewRemoting
 				selector = this;
 				return _serializationSurrogate;
 			}
+			else if (type.IsAssignableTo(typeof(IManualSerialization)) && type.IsSerializable)
+			{
+				selector = this;
+				if (_manualSerializers.TryGetValue(Thread.CurrentThread.ManagedThreadId, out var serializer))
+				{
+					return serializer;
+				}
+
+				var newserializer = new ManualSerializerSurrogate(_instanceManager);
+				_manualSerializers.TryAdd(Thread.CurrentThread.ManagedThreadId, newserializer); // Cannot really fail
+				return newserializer;
+			}
 			else if (Client.IsProxyType(type))
 			{
 				selector = this;
@@ -60,6 +77,22 @@ namespace NewRemoting
 			}
 
 			return base.GetSurrogate(type, context, out selector);
+		}
+
+		public void FinalizeSerialization(BinaryWriter w)
+		{
+			if (_manualSerializers.TryRemove(Thread.CurrentThread.ManagedThreadId, out var hasSerializer))
+			{
+				hasSerializer.PerformManualSerialization(w);
+			}
+		}
+
+		public void FinalizeDeserialization(BinaryReader r)
+		{
+			if (_manualSerializers.TryRemove(Thread.CurrentThread.ManagedThreadId, out var hasSerializer))
+			{
+				hasSerializer.PerformManualDeserialization(r);
+			}
 		}
 
 		private sealed class ProxySurrogate : ISerializationSurrogate

@@ -492,6 +492,22 @@ namespace NewRemoting
 					ArrayPool<byte>.Shared.Return(buffer);
 					return true;
 				}
+
+				case byte[] byteArray:
+				{
+					w.Write((int)RemotingReferenceType.ByteArray);
+					LogMsg(RemotingReferenceType.ByteArray);
+					if (byteArray.Length == 0)
+					{
+						// See above
+						w.Write(0);
+						return true;
+					}
+
+					w.Write(byteArray.Length);
+					w.Write(byteArray, 0, byteArray.Length);
+					return true;
+				}
 			}
 
 			return false;
@@ -499,17 +515,12 @@ namespace NewRemoting
 
 		private void SendAutoSerializedObject(BinaryWriter w, object data, string otherSideProcessId)
 		{
-			MemoryStream ms = new MemoryStream();
-
 #pragma warning disable 618
 			var formatter = _formatterFactory.CreateOrGetFormatter(otherSideProcessId);
-			formatter.Serialize(ms, data);
-#pragma warning restore 618
 			w.Write((int)RemotingReferenceType.SerializedItem);
-			w.Write((int)ms.Length);
-			var array = ms.ToArray();
-
-			w.Write(array, 0, (int)ms.Length);
+			formatter.Serialize(w.BaseStream, data);
+			_formatterFactory.FinalizeSerialization(w);
+#pragma warning restore 618
 		}
 
 		/// <summary>
@@ -683,13 +694,13 @@ namespace NewRemoting
 					return null;
 				case RemotingReferenceType.SerializedItem:
 				{
-					int argumentLen = r.ReadInt32();
-					byte[] argumentData = r.ReadBytes(argumentLen);
-					MemoryStream ms = new MemoryStream(argumentData, false);
 #pragma warning disable 618
 					var formatter = _formatterFactory.CreateOrGetFormatter(otherSideProcessId);
-					object decodedArg = formatter.Deserialize(ms);
+					object decodedArg = formatter.Deserialize(r.BaseStream);
 #pragma warning restore 618
+
+					_formatterFactory.FinalizeDeserialization(r);
+
 					return decodedArg;
 				}
 
@@ -849,6 +860,31 @@ namespace NewRemoting
 
 					String ret = _stringEncoding.GetString(buffer, 0, numBytesRead);
 					ArrayPool<byte>.Shared.Return(buffer);
+					return ret;
+				}
+
+				case RemotingReferenceType.ByteArray:
+				{
+					int numElements = r.ReadInt32();
+					if (numElements == 0)
+					{
+						return Array.Empty<byte>();
+					}
+
+					byte[] ret = new byte[numElements];
+					int numElementsRead = 0;
+
+					while (numElementsRead < numElements)
+					{
+						// We eventually need to read really large chunks of data, but Read may return before that if the block is larger than ~1MB.
+						numElementsRead += r.Read(ret, numElementsRead, numElements - numElementsRead);
+					}
+
+					if (numElementsRead != numElements)
+					{
+						throw new RemotingException("Unexpected end of stream - Incomplete binary data transmission");
+					}
+
 					return ret;
 				}
 
