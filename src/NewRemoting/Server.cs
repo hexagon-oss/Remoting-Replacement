@@ -375,7 +375,7 @@ namespace NewRemoting
 						var task = openTasks[index];
 						if (task.Exception != null)
 						{
-							throw new RemotingException("Unhandled task exception in remote server");
+							throw new RemotingException($"Unhandled task exception in remote server: {task.Exception.Message}", task.Exception);
 						}
 
 						if (task.IsCompleted)
