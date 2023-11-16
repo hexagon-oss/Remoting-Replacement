@@ -493,21 +493,23 @@ namespace NewRemoting
 					return true;
 				}
 
-				case byte[] byteArray:
-				{
-					w.Write((int)RemotingReferenceType.ByteArray);
-					LogMsg(RemotingReferenceType.ByteArray);
-					if (byteArray.Length == 0)
-					{
-						// See above
-						w.Write(0);
-						return true;
-					}
+					// This code is suspected of causing "Fatal error. Internal CLR error. (0x80131506)"
+					// No idea why this should be different to using standard serialization. Or simulation, by the way.
+					////case byte[] byteArray:
+					////{
+					////	w.Write((int)RemotingReferenceType.ByteArray);
+					////	LogMsg(RemotingReferenceType.ByteArray);
+					////	if (byteArray.Length == 0)
+					////	{
+					////		// See above
+					////		w.Write(0);
+					////		return true;
+					////	}
 
-					w.Write(byteArray.Length);
-					w.Write(byteArray, 0, byteArray.Length);
-					return true;
-				}
+					////	w.Write(byteArray.Length);
+					////	w.Write(byteArray, 0, byteArray.Length);
+					////	return true;
+					////}
 			}
 
 			return false;
