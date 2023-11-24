@@ -6,6 +6,7 @@ namespace NewRemoting
 	[Serializable]
 	public class RemotingException : Exception
 	{
+		private RemotingExceptionAdditionalInfo? _additionalInfo = null;
 		public RemotingException()
 		{
 		}
@@ -25,6 +26,12 @@ namespace NewRemoting
 			StreamingContext context)
 			: base(info, context)
 		{
+		}
+
+		public RemotingExceptionAdditionalInfo? AdditionalInfo
+		{
+			get => _additionalInfo;
+			set => _additionalInfo = value;
 		}
 	}
 }

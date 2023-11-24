@@ -165,7 +165,7 @@ namespace NewRemoting
 
 			var isRemoteHostOnLocalMachine = NetworkUtil.IsLocalIpAddress(RemoteHost);
 
-			LaunchProcess(externalToken, isRemoteHostOnLocalMachine);
+			var process = LaunchProcess(externalToken, isRemoteHostOnLocalMachine);
 
 			_remotingClient = null;
 
@@ -185,6 +185,16 @@ namespace NewRemoting
 				{
 					Logger.LogError(x, $"Unable to connect to remote server. Attempt {retries + 1}: {x.Message}");
 					lastError = x;
+
+					if (process is { ExitCode: -1 })
+					{
+						var ex = new RemotingException(message: "Process exited with exit code -1.")
+						{
+							AdditionalInfo = RemotingExceptionAdditionalInfo.ProcessStartFailure
+						};
+						lastError = ex;
+						break;
+					}
 				}
 				catch (Exception x)
 				{

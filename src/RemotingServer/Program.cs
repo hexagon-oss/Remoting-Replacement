@@ -11,14 +11,20 @@ namespace RemotingServer
 {
 	internal class Program
 	{
-		public static void Main(string[] args)
+		public static int Main(string[] args)
 		{
 			Console.WriteLine("Hello World of Remoting Servers!");
-			StartServer(args);
+			if (!StartServer(args))
+			{
+				Console.WriteLine("Server failed to start.");
+				return -1;
+			}
+
 			Console.WriteLine("Server gracefully exiting");
+			return 0;
 		}
 
-		public static void StartServer(string[] args)
+		public static bool StartServer(string[] args)
 		{
 			var parsed = Parser.Default.ParseArguments<CommandLineOptions>(args);
 			int port = Client.DefaultNetworkPort;
@@ -79,7 +85,7 @@ namespace RemotingServer
 					if (!File.Exists(certificate))
 					{
 						Console.WriteLine($"Certificate {certificate} does not exist");
-						return;
+						return false;
 					}
 				}
 
@@ -101,6 +107,8 @@ namespace RemotingServer
 					disposable.Dispose();
 				}
 			}
+
+			return true;
 		}
 	}
 }
