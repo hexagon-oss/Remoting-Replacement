@@ -14,7 +14,7 @@
     <PackageDownload Include="OpenCover" Version="[4.7.1221]" />
     <PackageDownload Include="ReportGenerator" Version="[5.0.0]" />
     <PackageDownload Include="NuGet.CommandLine" Version="[5.11.0]" />
-    <PackageReference Include="Nuke.Common" Version="6.0.3" />
+    <PackageReference Include="Nuke.Common" Version="7.0.6" />
     <PackageDownload Include="GitVersion.Tool" Version="[5.10.3]" />
   </ItemGroup>
 
