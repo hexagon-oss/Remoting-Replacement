@@ -13,6 +13,7 @@ using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Castle.Core.Logging;
 using Castle.DynamicProxy;
@@ -341,14 +342,6 @@ namespace NewRemoting
 				string originalTypeName = originalType.AssemblyQualifiedName ?? string.Empty;
 				w.Write(originalTypeName);
 			}
-			else if (t.IsSerializable)
-			{
-				if (!TryUseFastSerialization(w, t, data))
-				{
-					LogMsg(RemotingReferenceType.Auto);
-					SendAutoSerializedObject(w, data, referencesWillBeSentTo);
-				}
-			}
 			else if (t.IsAssignableTo(typeof(MarshalByRefObject)))
 			{
 				string objectId = _instanceManager.RegisterRealObjectAndGetId(data, referencesWillBeSentTo);
@@ -362,7 +355,12 @@ namespace NewRemoting
 			}
 			else
 			{
-				throw new SerializationException($"Object {data} is neither serializable nor MarshalByRefObject");
+				if (!TryUseFastSerialization(w, t, data))
+				{
+					LogMsg(RemotingReferenceType.Auto);
+					w.Write((Int32)RemotingReferenceType.SerializedItem);
+					SendAutoSerializedObject(w, data, referencesWillBeSentTo);
+				}
 			}
 		}
 
@@ -494,23 +492,23 @@ namespace NewRemoting
 					return true;
 				}
 
-					// This code is suspected of causing "Fatal error. Internal CLR error. (0x80131506)"
-					// No idea why this should be different to using standard serialization. Or simulation, by the way.
-					////case byte[] byteArray:
-					////{
-					////	w.Write((int)RemotingReferenceType.ByteArray);
-					////	LogMsg(RemotingReferenceType.ByteArray);
-					////	if (byteArray.Length == 0)
-					////	{
-					////		// See above
-					////		w.Write(0);
-					////		return true;
-					////	}
+				// This code is suspected of causing "Fatal error. Internal CLR error. (0x80131506)"
+				// No idea why this should be different to using standard serialization. Or simulation, by the way.
+				case byte[] byteArray:
+				{
+					w.Write((int)RemotingReferenceType.ByteArray);
+					LogMsg(RemotingReferenceType.ByteArray);
+					if (byteArray.Length == 0)
+					{
+						// See above
+						w.Write(0);
+						return true;
+					}
 
-					////	w.Write(byteArray.Length);
-					////	w.Write(byteArray, 0, byteArray.Length);
-					////	return true;
-					////}
+					w.Write(byteArray.Length);
+					w.Write(byteArray, 0, byteArray.Length);
+					return true;
+				}
 			}
 
 			return false;
@@ -518,12 +516,9 @@ namespace NewRemoting
 
 		private void SendAutoSerializedObject(BinaryWriter w, object data, string otherSideProcessId)
 		{
-#pragma warning disable 618
-			var formatter = _formatterFactory.CreateOrGetFormatter(otherSideProcessId);
-			w.Write((int)RemotingReferenceType.SerializedItem);
-			formatter.Serialize(w.BaseStream, data);
-			_formatterFactory.FinalizeSerialization(w);
-#pragma warning restore 618
+			var options = _formatterFactory.CreateOrGetFormatter(otherSideProcessId);
+			JsonSerializer.Serialize(w.BaseStream, data, options);
+			_formatterFactory.FinalizeSerialization(w, options);
 		}
 
 		/// <summary>
@@ -541,11 +536,6 @@ namespace NewRemoting
 					if (type.IsSubclassOf(typeof(MarshalByRefObject)))
 					{
 						return true;
-					}
-
-					if (type.IsSerializable)
-					{
-						return false;
 					}
 
 					// Otherwise, we have to test the contents.
@@ -661,27 +651,6 @@ namespace NewRemoting
 			}
 		}
 
-		public void SendExceptionReply(Exception exception, BinaryWriter w, int sequence, string otherSideProcessId)
-		{
-			RemotingCallHeader hdReturnValue = new RemotingCallHeader(RemotingFunctionType.ExceptionReturn, sequence);
-			using var lck = hdReturnValue.WriteHeader(w);
-			// We're manually serializing exceptions, because that's apparently how this should be done (since
-			// ExceptionDispatchInfo.SetRemoteStackTrace doesn't work if the stack trace has already been set)
-			w.Write(exception.GetType().AssemblyQualifiedName ?? string.Empty);
-			SerializationInfo info = new SerializationInfo(exception.GetType(), new FormatterConverter());
-			StreamingContext ctx = new StreamingContext();
-			exception.GetObjectData(info, ctx);
-			w.Write(info.MemberCount);
-			foreach (var e in info)
-			{
-				w.Write(e.Name);
-				// This may contain inner exceptions, but since we're not throwing those, this shouldn't cause any issues on the remote side
-				WriteArgumentToStream(w, e.Value, otherSideProcessId);
-			}
-
-			w.Write(exception.StackTrace ?? string.Empty);
-		}
-
 		public object ReadArgumentFromStream(BinaryReader r, MethodBase callingMethod, IInvocation invocation,
 			bool canAttemptToInstantiate, Type typeOfArgument, string otherSideProcessId)
 		{
@@ -697,12 +666,10 @@ namespace NewRemoting
 					return null;
 				case RemotingReferenceType.SerializedItem:
 				{
-#pragma warning disable 618
 					var formatter = _formatterFactory.CreateOrGetFormatter(otherSideProcessId);
-					object decodedArg = formatter.Deserialize(r.BaseStream);
-#pragma warning restore 618
+					object decodedArg = JsonSerializer.Deserialize(r.BaseStream, typeof(object), formatter);
 
-					_formatterFactory.FinalizeDeserialization(r);
+					_formatterFactory.FinalizeDeserialization(r, formatter);
 
 					return decodedArg;
 				}
@@ -1147,68 +1114,51 @@ namespace NewRemoting
 			}
 		}
 
+		public void SendExceptionReply(Exception exception, BinaryWriter w, int sequence, string otherSideProcessId)
+		{
+			RemotingCallHeader hdReturnValue = new RemotingCallHeader(RemotingFunctionType.ExceptionReturn, sequence);
+			using var lck = hdReturnValue.WriteHeader(w);
+			// We're manually serializing exceptions, because that's apparently how this should be done (since
+			// ExceptionDispatchInfo.SetRemoteStackTrace doesn't work if the stack trace has already been set)
+			w.Write(exception.GetType().AssemblyQualifiedName ?? string.Empty);
+			w.Write(exception.Message);
+			w.Write(exception.HResult);
+			w.Write(exception.StackTrace ?? string.Empty);
+		}
+
 		public Exception DecodeException(BinaryReader reader, string otherSideProcessId)
 		{
 			string exceptionTypeName = reader.ReadString();
-			Dictionary<string, object> stringValuePairs = new Dictionary<string, object>();
-			int numValues = reader.ReadInt32();
-			for (int i = 0; i < numValues; i++)
-			{
-				string name = reader.ReadString();
-				// The values found here should all be serializable again
-				object data = ReadArgumentFromStream(reader, null, null, false, typeof(object),
-					otherSideProcessId);
-				stringValuePairs.Add(name, data);
-			}
-
+			string remoteMessage = reader.ReadString();
+			int hresult = reader.ReadInt32();
 			string remoteStack = reader.ReadString();
 			Type exceptionType = Server.GetTypeFromAnyAssembly(exceptionTypeName);
-			SerializationInfo info = new SerializationInfo(exceptionType, new FormatterConverter());
 
-			foreach (var e in stringValuePairs)
-			{
-				switch (e.Key)
-				{
-					case "StackTraceString":
-						// We don't want to set this one, so we are able to use SetRemoteStackTrace
-						info.AddValue(e.Key, null);
-						break;
-					case "RemoteStackTraceString":
-						// If this is already provided, the exception has probably been thrown on yet another instance
-						info.AddValue(e.Key, null);
-						remoteStack += " previously thrown at " + e.Value;
-						break;
-					default:
-						info.AddValue(e.Key, e.Value);
-						break;
-				}
-			}
-
-			StreamingContext ctx = new StreamingContext();
 			var ctors = exceptionType.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-
-			// Default ctor as fallback
-			ConstructorInfo ctorToUse = null;
+			// Prefer ctors with many arguments
+			ctors = ctors.OrderByDescending(x => x.GetParameters().Length).ToArray();
 
 			// Manually search the deserialization constructor. Activator.CreateInstance is not helpful when something is wrong
 			Exception decodedException = null;
 			foreach (var ctor in ctors)
 			{
 				var parameters = ctor.GetParameters();
-				if (parameters.Length == 2 && parameters[0].ParameterType == typeof(SerializationInfo) && parameters[1].ParameterType == typeof(StreamingContext))
+				if (parameters.Length == 2 && parameters[0].ParameterType == typeof(string) && parameters[1].ParameterType == typeof(Exception))
 				{
-					ctorToUse = ctor;
-					decodedException = (Exception)ctorToUse.Invoke(new object[] { info, ctx });
+					decodedException = (Exception)ctor.Invoke(new object[] { remoteMessage, null });
 					break;
 				}
-			}
 
-			if (decodedException == null)
-			{
-				ctorToUse = ctors.FirstOrDefault(x => x.GetParameters().Length == 0);
-				if (ctorToUse != null)
+				if (parameters.Length == 1 && parameters[0].ParameterType == typeof(string))
 				{
-					decodedException = (Exception)ctorToUse.Invoke(Array.Empty<object>());
+					decodedException = (Exception)ctor.Invoke(new object[] { remoteMessage });
+					break;
+				}
+
+				if (parameters.Length == 0)
+				{
+					decodedException = (Exception)ctor.Invoke(Array.Empty<Object>());
+					break;
 				}
 			}
 
@@ -1218,6 +1168,7 @@ namespace NewRemoting
 				decodedException = new RemotingException($"Unable to deserialize exception of type {exceptionTypeName}. Please fix it's deserialization constructor");
 			}
 
+			decodedException.HResult = hresult;
 			try
 			{
 				ExceptionDispatchInfo.SetRemoteStackTrace(decodedException!, remoteStack);

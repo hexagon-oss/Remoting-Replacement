@@ -310,7 +310,7 @@ namespace NewRemoting
 				logger.Log(LogLevel.Error, "Authentication failed - closing the connection.");
 				sslStream.Close();
 				client.Close();
-				throw e;
+				throw;
 			}
 		}
 

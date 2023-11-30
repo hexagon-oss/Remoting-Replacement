@@ -20,13 +20,7 @@ namespace NewRemoting
 			: base(message, inner)
 		{
 		}
-
-		protected RemotingException(
-			SerializationInfo info,
-			StreamingContext context)
-			: base(info, context)
-		{
-		}
+	}
 
 		public RemotingExceptionAdditionalInfo? AdditionalInfo
 		{

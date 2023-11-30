@@ -16,17 +16,15 @@ using NewRemoting.Toolkit;
 
 namespace NewRemoting
 {
-	internal class FormatterFactory : SurrogateSelector, ISurrogateSelector
+	internal class FormatterFactory
 	{
 		private readonly InstanceManager _instanceManager;
 		private readonly ConcurrentDictionary<string, JsonSerializerOptions> _cusBinaryFormatters;
-		private readonly ConcurrentDictionary<int, ManualSerializerSurrogate> _manualSerializers;
 
 		public FormatterFactory(InstanceManager instanceManager)
 		{
 			_instanceManager = instanceManager;
 			_cusBinaryFormatters = new ConcurrentDictionary<string, JsonSerializerOptions>();
-			_manualSerializers = new ConcurrentDictionary<int, ManualSerializerSurrogate>();
 		}
 
 		public JsonSerializerOptions CreateOrGetFormatter(string otherSideProcessId)
@@ -42,64 +40,26 @@ namespace NewRemoting
 				IncludeFields = true,
 				Converters =
 				{
-					new ProxySurrogate(_instanceManager, otherSideProcessId)
+					new ProxySurrogate(_instanceManager, otherSideProcessId),
+					new ManualSerializerSurrogate(_instanceManager),
+					new CultureInfoSerializerSurrogate(),
 				}
 			};
-			var bf = new BinaryFormatter(this, new StreamingContext(StreamingContextStates.All, otherSideProcessId));
-			_cusBinaryFormatters.TryAdd(otherSideProcessId, bf);
-			return bf;
+
+			_cusBinaryFormatters.TryAdd(otherSideProcessId, options);
+			return options;
 		}
 
-		public override ISerializationSurrogate GetSurrogate(Type type, StreamingContext context, out ISurrogateSelector selector)
+		public void FinalizeSerialization(BinaryWriter w, JsonSerializerOptions formatter)
 		{
-			// If the type being serialized is MarshalByRef and not serializable (having both is rare, but not impossible),
-			// we redirect here and store an object reference.
-			if ((type.IsSubclassOf(typeof(MarshalByRefObject)) || type == typeof(MarshalByRefObject)) && !type.IsSerializable)
-			{
-				selector = this;
-				return _serializationSurrogate;
-			}
-			else if (type.IsAssignableTo(typeof(IManualSerialization)) && type.IsSerializable)
-			{
-				selector = this;
-				if (_manualSerializers.TryGetValue(Thread.CurrentThread.ManagedThreadId, out var serializer))
-				{
-					return serializer;
-				}
-
-				var newserializer = new ManualSerializerSurrogate(_instanceManager);
-				_manualSerializers.TryAdd(Thread.CurrentThread.ManagedThreadId, newserializer); // Cannot really fail
-				return newserializer;
-			}
-			else if (Client.IsProxyType(type))
-			{
-				selector = this;
-				return _serializationSurrogate;
-			}
-
-			if (_customSerializer.CanSerialize(type))
-			{
-				selector = this;
-				return _customSerializer;
-			}
-
-			return base.GetSurrogate(type, context, out selector);
+			var manualSerializer = (ManualSerializerSurrogate)formatter.Converters.First(x => x is ManualSerializerSurrogate);
+			manualSerializer.PerformManualSerialization(w);
 		}
 
-		public void FinalizeSerialization(BinaryWriter w)
+		public void FinalizeDeserialization(BinaryReader r, JsonSerializerOptions formatter)
 		{
-			if (_manualSerializers.TryRemove(Thread.CurrentThread.ManagedThreadId, out var hasSerializer))
-			{
-				hasSerializer.PerformManualSerialization(w);
-			}
-		}
-
-		public void FinalizeDeserialization(BinaryReader r)
-		{
-			if (_manualSerializers.TryRemove(Thread.CurrentThread.ManagedThreadId, out var hasSerializer))
-			{
-				hasSerializer.PerformManualDeserialization(r);
-			}
+			var manualSerializer = (ManualSerializerSurrogate)formatter.Converters.First(x => x is ManualSerializerSurrogate);
+			manualSerializer.PerformManualDeserialization(r);
 		}
 
 		private sealed class ProxySurrogate : JsonConverter<object>
@@ -196,6 +156,7 @@ namespace NewRemoting
 				return newProxy;
 			}
 
+			/*
 			public void GetObjectData(object obj, SerializationInfo info, StreamingContext context)
 			{
 				string objectId;
@@ -240,6 +201,7 @@ namespace NewRemoting
 
 				return newProxy;
 			}
+			*/
 		}
 	}
 }

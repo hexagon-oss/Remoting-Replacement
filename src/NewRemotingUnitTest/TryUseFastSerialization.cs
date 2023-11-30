@@ -5,9 +5,11 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using Castle.DynamicProxy;
 using Moq;
 using NewRemoting;
 using NUnit.Framework;
+using SampleServerClasses;
 
 namespace NewRemotingUnitTest
 {
@@ -16,13 +18,15 @@ namespace NewRemotingUnitTest
 	{
 		private MessageHandler _messageHandler;
 		private Mock<Stream> _streamMock;
+		private InstanceManager _instanceManager;
 
 		[SetUp]
 		public void SetUp()
 		{
+			_instanceManager = new InstanceManager(new ProxyGenerator(), null);
 			_streamMock = new Mock<Stream>();
 			_streamMock.Setup(x => x.CanRead).Returns(true);
-			_messageHandler = new MessageHandler(null, null);
+			_messageHandler = new MessageHandler(_instanceManager, new FormatterFactory(_instanceManager));
 			_messageHandler.AddInterceptor(new ClientSideInterceptor("OtherSide", "ThisSide", true, _streamMock.Object, _messageHandler, null));
 		}
 
@@ -56,6 +60,25 @@ namespace NewRemotingUnitTest
 
 			Assert.IsNotNull(result);
 			Assert.AreEqual(test, result);
+		}
+
+		[Test]
+		public void SerializeClass()
+		{
+			var test = new SerializableClassWithMarshallableMembers(2, null);
+			MemoryStream ms = new MemoryStream();
+			var w = new BinaryWriter(ms, MessageHandler.DefaultStringEncoding);
+			_messageHandler.WriteArgumentToStream(w, test, "Blah");
+			_messageHandler.WriteArgumentToStream(w, (int)99, "Blah");
+			byte[] data = ms.GetBuffer();
+			string text = Encoding.UTF8.GetString(data.AsSpan(4));
+			ms.Position = 0;
+			var r = new BinaryReader(ms, MessageHandler.DefaultStringEncoding);
+			SerializableClassWithMarshallableMembers result = (SerializableClassWithMarshallableMembers)_messageHandler.ReadArgumentFromStream(r, MethodBase.GetCurrentMethod(), null, true, null, "Blah");
+			int x = (int)_messageHandler.ReadArgumentFromStream(r, MethodBase.GetCurrentMethod(), null, true, null, "Blah");
+			Assert.IsNotNull(result);
+			Assert.AreEqual(test.Idx, result.Idx);
+			Assert.AreEqual(99, x); // to verify the stream is still in sync
 		}
 	}
 }

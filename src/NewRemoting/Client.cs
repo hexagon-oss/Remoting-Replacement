@@ -9,6 +9,7 @@ using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Castle.Core.Internal;
 using Castle.DynamicProxy;
@@ -38,7 +39,7 @@ namespace NewRemoting
 		private BinaryReader _reader;
 		private DefaultProxyBuilder _builder;
 		private ProxyGenerator _proxy;
-		private IFormatter _formatter;
+		private JsonSerializerOptions _formatter;
 		private Server _server;
 		private object _accessLock;
 		private TcpClient _serverLink;

@@ -1,29 +1,50 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.Serialization;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 using NewRemoting.Toolkit;
 
 namespace NewRemoting
 {
-	internal class ManualSerializerSurrogate : ISerializationSurrogate
+	internal class ManualSerializerSurrogate : JsonConverter<object>
 	{
 		private readonly InstanceManager _instanceManager;
 
-		/// <summary>
-		/// This serializer is not stateless!
-		/// </summary>
-		private int _index = 0;
-		private List<IManualSerialization> _list = new List<IManualSerialization>();
+		private ConcurrentDictionary<int, List<IManualSerialization>> _list = new();
 
 		public ManualSerializerSurrogate(InstanceManager instanceManager)
 		{
 			_instanceManager = instanceManager;
 		}
 
+		public override bool CanConvert(Type typeToConvert)
+		{
+			return base.CanConvert(typeToConvert) && typeToConvert.IsAssignableTo(typeof(IManualSerialization));
+		}
+
+		public override void Write(Utf8JsonWriter writer, object value, JsonSerializerOptions options)
+		{
+			int threadId = Thread.CurrentThread.ManagedThreadId;
+			writer.WriteStringValue(value.GetType().AssemblyQualifiedName);
+			if (_list.TryGetValue(threadId, out var myList))
+			{
+				myList.Add((IManualSerialization)value);
+			}
+			else
+			{
+				_list.TryAdd(threadId, new List<IManualSerialization>() { (IManualSerialization)value });
+			}
+		}
+
+		/*
 		public void GetObjectData(object obj, SerializationInfo info, StreamingContext context)
 		{
 			if (!(obj is IManualSerialization manual))
@@ -32,30 +53,46 @@ namespace NewRemoting
 			}
 
 			info.AddValue("AssemblyQualifiedName", obj.GetType().AssemblyQualifiedName);
-			info.AddValue("PostSerialization", _index++);
 			_list.Add(manual);
-		}
+		}*/
 
 		public void PerformManualSerialization(BinaryWriter w)
 		{
-			foreach (var item in _list)
+			int threadId = Thread.CurrentThread.ManagedThreadId;
+			if (_list.TryRemove(threadId, out var myList))
 			{
-				item.Serialize(w);
+				foreach (var item in myList)
+				{
+					item.Serialize(w);
+				}
 			}
 		}
 
+		public override object Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+		{
+			string objectType = reader.GetString();
+			Type t = Server.GetTypeFromAnyAssembly(objectType);
+			return Activator.CreateInstance(t, BindingFlags.CreateInstance | BindingFlags.Public | BindingFlags.NonPublic);
+		}
+
+		/*
 		public object SetObjectData(object obj, SerializationInfo info, StreamingContext context, ISurrogateSelector selector)
 		{
 			// The instance has actually already been created
 			_list.Add(obj as IManualSerialization);
 			return obj;
 		}
+		*/
 
 		public void PerformManualDeserialization(BinaryReader r)
 		{
-			foreach (var item in _list)
+			int threadId = Thread.CurrentThread.ManagedThreadId;
+			if (_list.TryRemove(threadId, out var myList))
 			{
-				item.Deserialize(r);
+				foreach (var item in myList)
+				{
+					item.Deserialize(r);
+				}
 			}
 		}
 	}
