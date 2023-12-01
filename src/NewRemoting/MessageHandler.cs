@@ -357,11 +357,43 @@ namespace NewRemoting
 			{
 				if (!TryUseFastSerialization(w, t, data))
 				{
-					LogMsg(RemotingReferenceType.Auto);
-					w.Write((Int32)RemotingReferenceType.SerializedItem);
-					SendAutoSerializedObject(w, data, referencesWillBeSentTo);
+					UseSlowJsonSerialization(w, data, referencesWillBeSentTo);
 				}
 			}
+		}
+
+		private void UseSlowJsonSerialization(BinaryWriter w, object data, string referencesWillBeSentTo)
+		{
+			Type t = data.GetType();
+			LogMsg(RemotingReferenceType.Auto);
+			w.Write((Int32)RemotingReferenceType.SerializedItem);
+			if (t.AssemblyQualifiedName == null)
+			{
+				throw new RemotingException($"Type {t} has no valid AssemblyQualifiedName. Dynamic types can't be serialized");
+			}
+
+			w.Write(t.AssemblyQualifiedName);
+
+			// I currently see no other way than doing this copy, because we need to write the length first, so we can extract the json correctly later
+			// We could look for the '\r' termination character in the json, but that requires peeking on the reader's end, which is also not
+			// possible on a network stream.
+			MemoryStream ms = new MemoryStream();
+			BinaryWriter w2 = new BinaryWriter(ms);
+			try
+			{
+				var options = _formatterFactory.CreateOrGetFormatter(referencesWillBeSentTo);
+				JsonSerializer.Serialize(w2.BaseStream, data, options);
+				w.Write((int)ms.Length);
+				ms.Position = 0;
+				ms.CopyTo(w.BaseStream, 64 * 1024);
+				_formatterFactory.FinalizeSerialization(w, options);
+			}
+			catch (Exception ex) when (ex is NotSupportedException || ex is JsonException)
+			{
+				throw new SerializationException($"Automatic serialization of type {data.GetType()} failed.", ex);
+			}
+
+			ms.Dispose();
 		}
 
 		internal bool TryUseFastSerialization(BinaryWriter w, Type objectType, object data)
@@ -514,13 +546,6 @@ namespace NewRemoting
 			return false;
 		}
 
-		private void SendAutoSerializedObject(BinaryWriter w, object data, string otherSideProcessId)
-		{
-			var options = _formatterFactory.CreateOrGetFormatter(otherSideProcessId);
-			JsonSerializer.Serialize(w.BaseStream, data, options);
-			_formatterFactory.FinalizeSerialization(w, options);
-		}
-
 		/// <summary>
 		/// True when this type implements <see cref="IList{T}" /> with T being <see cref="MarshalByRefObject"/>.
 		/// </summary>
@@ -667,7 +692,10 @@ namespace NewRemoting
 				case RemotingReferenceType.SerializedItem:
 				{
 					var formatter = _formatterFactory.CreateOrGetFormatter(otherSideProcessId);
-					object decodedArg = JsonSerializer.Deserialize(r.BaseStream, typeof(object), formatter);
+					string typeName = r.ReadString();
+					int dataLength = r.ReadInt32();
+					Type t = Server.GetTypeFromAnyAssembly(typeName);
+					object decodedArg = JsonSerializer.Deserialize(new JsonSplitStream(r.BaseStream, dataLength), t, formatter);
 
 					_formatterFactory.FinalizeDeserialization(r, formatter);
 

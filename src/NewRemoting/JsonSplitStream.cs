@@ -57,6 +57,11 @@ namespace NewRemoting
 				count = (int)(Length - _position);
 			}
 
+			if (count == 0)
+			{
+				return 0;
+			}
+
 			int ret = BaseStream.Read(buffer, offset, count);
 			_position += ret;
 			return ret;

@@ -96,7 +96,7 @@ class Build : NukeBuild
 				.SetAssemblyVersion(GitVersion.AssemblySemVer)
 			    .SetFileVersion(GitVersion.AssemblySemFileVer)
 			    .SetInformationalVersion(GitVersion.InformationalVersion)
-			    .SetFramework("net6.0-windows")
+			    .SetFramework("net8.0-windows")
 		    );
 	    });
 
@@ -115,7 +115,7 @@ class Build : NukeBuild
 		    {
 			    @$"xcopy /Y /D /I {outDir}\*.* {solutionDir}\RemotingServer\bin\{Configuration}\net8.0-windows",
 			    @$"xcopy /Y /E /S /I {outDir}\runtimes {solutionDir}\RemotingServer\bin\{Configuration}\net8.0-windows\runtimes",
-			    @$"xcopy /Y /D /I {solutionDir}\RemotingServer\bin\{Configuration}\net6.0-windows {solutionDir}\NewRemotingUnitTest\bin\{Configuration}\net8.0-windows",
+			    @$"xcopy /Y /D /I {solutionDir}\RemotingServer\bin\{Configuration}\net8.0-windows {solutionDir}\NewRemotingUnitTest\bin\{Configuration}\net8.0-windows",
 			    @$"xcopy /Y /D /I {outDir}\*.* {solutionDir}\NewRemotingUnitTest\bin\{Configuration}\net8.0-windows",
 			    @$"xcopy /Y /E /S /I {outDir}\runtimes {solutionDir}\NewRemotingUnitTest\bin\{Configuration}\net8.0-windows\runtimes"
 		    };
@@ -152,7 +152,7 @@ class Build : NukeBuild
 			    .SetVersion(GitVersion.SemVer)
 			    .SetInformationalVersion(GitVersion.InformationalVersion));
 
-		    var publishDir = SourceDirectory / "RemotingServer" / "bin" / Configuration / "net6.0-windows" / "publish";
+		    var publishDir = SourceDirectory / "RemotingServer" / "bin" / Configuration / "net8.0-windows" / "publish";
 
 		    NuGetPack(s => s
 				    .SetBasePath(publishDir)

@@ -27,7 +27,7 @@ namespace NewRemoting
 
 		public override bool CanConvert(Type typeToConvert)
 		{
-			return base.CanConvert(typeToConvert) && typeToConvert.IsAssignableTo(typeof(IManualSerialization));
+			return typeToConvert.IsAssignableTo(typeof(IManualSerialization));
 		}
 
 		public override void Write(Utf8JsonWriter writer, object value, JsonSerializerOptions options)
@@ -72,7 +72,24 @@ namespace NewRemoting
 		{
 			string objectType = reader.GetString();
 			Type t = Server.GetTypeFromAnyAssembly(objectType);
-			return Activator.CreateInstance(t, BindingFlags.CreateInstance | BindingFlags.Public | BindingFlags.NonPublic);
+			var defaultCtor = t.GetConstructor(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, Array.Empty<Type>());
+			if (defaultCtor == null)
+			{
+				throw new RemotingException($"No default constructor on type {typeToConvert} found");
+			}
+
+			int threadId = Thread.CurrentThread.ManagedThreadId;
+			IManualSerialization manual = (IManualSerialization)defaultCtor.Invoke(Array.Empty<object>());
+			if (_list.TryGetValue(threadId, out var myList))
+			{
+				myList.Add(manual);
+			}
+			else
+			{
+				_list.TryAdd(threadId, new List<IManualSerialization>() { manual });
+			}
+
+			return manual;
 		}
 
 		/*

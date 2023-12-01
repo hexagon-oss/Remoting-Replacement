@@ -75,7 +75,7 @@ namespace NewRemoting
 
 			public override bool CanConvert(Type typeToConvert)
 			{
-				return base.CanConvert(typeToConvert) && typeToConvert.IsAssignableTo(typeof(MarshalByRefObject));
+				return typeToConvert.IsAssignableTo(typeof(MarshalByRefObject));
 			}
 
 			public override void Write(Utf8JsonWriter writer, object value, JsonSerializerOptions options)
@@ -121,6 +121,7 @@ namespace NewRemoting
 					}
 
 					string propertyName = reader.GetString()!;
+					reader.Read();
 					string propertyValue = reader.GetString();
 					if (propertyName.Equals("ObjectId", StringComparison.Ordinal))
 					{
