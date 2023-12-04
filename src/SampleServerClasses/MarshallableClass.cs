@@ -36,6 +36,7 @@ namespace SampleServerClasses
 			_someData = new byte[100];
 			_someData[1] = 5;
 			_someData[2] = 6;
+			_someData[9] = 99;
 		}
 
 		public MarshallableClass(string name)
