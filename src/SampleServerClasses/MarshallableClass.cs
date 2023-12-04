@@ -313,6 +313,13 @@ namespace SampleServerClasses
 			return new SealedClass();
 		}
 
+		public virtual IMyDto GetDto(string data)
+		{
+			var ret = new SerializableType(data, data.Length);
+			ret.Next = new SerializableType("The next instance", 1);
+			return ret;
+		}
+
 		public virtual bool TakeSomeArguments(int a, Int16 b, UInt16 c, double d)
 		{
 			return Math.Abs(a + b - (c + d)) < 1E-12;

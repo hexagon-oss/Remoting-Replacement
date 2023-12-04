@@ -435,6 +435,18 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
+		public void SerializeDtoAsInterface()
+		{
+			CreateClientServer();
+			var cls = CreateRemoteInstance();
+			IMyDto returned = cls.GetDto("Test");
+			Assert.NotNull(returned);
+			Assert.IsInstanceOf<SerializableType>(returned);
+			Assert.AreEqual("Test", returned.Name);
+			Assert.AreEqual(4, returned.Id);
+		}
+
+		[Test]
 		public void SerializeUnserializableReturnType()
 		{
 			CreateClientServer();

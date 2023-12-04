@@ -383,6 +383,7 @@ namespace NewRemoting
 			{
 				var options = _formatterFactory.CreateOrGetFormatter(referencesWillBeSentTo);
 				JsonSerializer.Serialize(w2.BaseStream, data, options);
+				var test = JsonSerializer.SerializeToDocument(data, options);
 				w.Write((int)ms.Length);
 				ms.Position = 0;
 				ms.CopyTo(w.BaseStream, 64 * 1024);
