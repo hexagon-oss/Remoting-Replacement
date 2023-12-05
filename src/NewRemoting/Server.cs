@@ -512,9 +512,9 @@ namespace NewRemoting
 						typeOfGenericArguments.Add(t);
 					}
 
-					object realInstance = _instanceManager.GetObjectFromId(instance, typeOfCallerName, methodId);
+					object realInstance = _instanceManager.GetObjectFromId(instance, typeOfCallerName, methodId, out bool wasDelegateTarget);
 
-					if (typeOfCaller == null)
+					if (typeOfCaller == null && wasDelegateTarget == false)
 					{
 						typeOfCaller = realInstance.GetType();
 					}
@@ -572,7 +572,7 @@ namespace NewRemoting
 					{
 						try
 						{
-							InvokeRealInstance(methodToCall, realInstance, args, hd, answerWriter, td.OtherSideProcessId);
+							InvokeRealInstance(methodToCall, realInstance, args, hd, answerWriter, td.OtherSideProcessId, wasDelegateTarget);
 						}
 						catch (SerializationException x)
 						{
@@ -648,19 +648,38 @@ namespace NewRemoting
 			return true;
 		}
 
-		private void InvokeRealInstance(MethodInfo me, object realInstance, object[] args, RemotingCallHeader hd, BinaryWriter w, string otherSideProcessId)
+		private void InvokeRealInstance(MethodInfo me, object realInstance, object[] args, RemotingCallHeader hd, BinaryWriter w, string otherSideProcessId, bool wasDelegateTarget)
 		{
 			// Here, the actual target method of the proxied call is invoked.
 			Logger.Log(LogLevel.Debug, $"MainServer: Invoking {me}, sequence {hd.Sequence}");
 			object returnValue;
 			try
 			{
-				if (realInstance == null && !me.IsStatic)
+				if (wasDelegateTarget)
+				{
+					try
+					{
+						// Just return nothing, as we can't perform the call
+						if (me.ReturnType == typeof(void) || !me.ReturnType.IsValueType)
+						{
+							returnValue = null;
+						}
+						else
+						{
+							returnValue = Activator.CreateInstance(me.ReturnType);
+						}
+					}
+					catch (Exception x)
+					{
+						Logger.LogError(x, $"Could not fire event on callback method, and {me.ReturnType} cannot be instantiated");
+						throw new InvalidOperationException($"Could not fire event on callback method, and {me.ReturnType} cannot be instantiated", x);
+					}
+				}
+				else if (realInstance == null && !me.IsStatic)
 				{
 					throw new NullReferenceException("Cannot invoke on a non-static method without an instance");
 				}
-
-				if (realInstance is Delegate del)
+				else if (realInstance is Delegate del)
 				{
 					returnValue = me.Invoke(del.Target, args);
 				}

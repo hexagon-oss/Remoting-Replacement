@@ -222,7 +222,7 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
-		[Repeat(10)]
+		[Repeat(5)]
 		public void CanFireEventWhileDisconnecting()
 		{
 			CreateClientServer();

@@ -177,7 +177,6 @@ namespace RemotingClient
 				try
 				{
 					Client client = new Client(ip, Client.DefaultNetworkPort, certificate, logWriter);
-					Client client = new Client(ip, Client.DefaultNetworkPort, certificate, new SimpleLogFileWriter("ClientLog.log", "ClientLog", LogLevel.Trace));
 					return client;
 				}
 				catch (SocketException x)
