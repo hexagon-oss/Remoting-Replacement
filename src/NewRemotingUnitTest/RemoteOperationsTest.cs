@@ -208,7 +208,7 @@ namespace NewRemotingUnitTest
 			var objectWithEvent = server.GetInterface<IMyComponentInterface>();
 			_dataReceived = null;
 			objectWithEvent.TimeChanged += ObjectWithEventOnTimeChanged;
-			objectWithEvent.StartTiming();
+			objectWithEvent.StartTiming(TimeSpan.FromSeconds(1));
 			int ticks = 100;
 			while (string.IsNullOrEmpty(_dataReceived) && ticks-- > 0)
 			{
@@ -216,6 +216,30 @@ namespace NewRemotingUnitTest
 			}
 
 			Assert.That(ticks > 0);
+			Assert.False(string.IsNullOrWhiteSpace(_dataReceived));
+			objectWithEvent.StopTiming();
+			objectWithEvent.TimeChanged -= ObjectWithEventOnTimeChanged;
+		}
+
+		[Test]
+		[Repeat(10)]
+		public void CanFireEventWhileDisconnecting()
+		{
+			CreateClientServer();
+			var server = CreateRemoteInstance();
+			var objectWithEvent = server.GetInterface<IMyComponentInterface>();
+			_dataReceived = null;
+			objectWithEvent.TimeChanged += ObjectWithEventOnTimeChanged;
+			objectWithEvent.StartTiming(TimeSpan.Zero);
+			int ticks = 10000;
+			while (ticks-- > 0)
+			{
+				objectWithEvent.TimeChanged -= ObjectWithEventOnTimeChanged;
+				_dataReceived = null;
+				objectWithEvent.TimeChanged += ObjectWithEventOnTimeChanged;
+			}
+
+			Thread.Sleep(100);
 			Assert.False(string.IsNullOrWhiteSpace(_dataReceived));
 			objectWithEvent.StopTiming();
 			objectWithEvent.TimeChanged -= ObjectWithEventOnTimeChanged;

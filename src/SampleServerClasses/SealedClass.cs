@@ -20,7 +20,7 @@ namespace SampleServerClasses
 			return null;
 		}
 
-		public void StartTiming()
+		public void StartTiming(TimeSpan rate)
 		{
 			TimeChanged?.Invoke(DateTime.Now, "Test");
 		}

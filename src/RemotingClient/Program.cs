@@ -80,7 +80,7 @@ namespace RemotingClient
 			var sinkInstance = new MyClassWithAnEventSink();
 			myComponentInterface.TimeChanged += sinkInstance.OnTimeChanged;
 
-			myComponentInterface.StartTiming();
+			myComponentInterface.StartTiming(TimeSpan.FromSeconds(1));
 
 			Thread.Sleep(20000);
 			IDisposable disposable = (IDisposable)myComponentInterface;
@@ -173,13 +173,16 @@ namespace RemotingClient
 			int i = 5;
 			while (true)
 			{
+				var logWriter = new SimpleLogFileWriter("ClientLog.log", "ClientLog", LogLevel.Trace);
 				try
 				{
+					Client client = new Client(ip, Client.DefaultNetworkPort, certificate, logWriter);
 					Client client = new Client(ip, Client.DefaultNetworkPort, certificate, new SimpleLogFileWriter("ClientLog.log", "ClientLog", LogLevel.Trace));
 					return client;
 				}
 				catch (SocketException x)
 				{
+					logWriter.Dispose();
 					Console.WriteLine($"Exception connecting to server: {x}");
 					i--;
 					Thread.Sleep(500);

@@ -14,6 +14,7 @@ namespace SampleServerClasses
 		private int _data;
 		private Thread _timingThread;
 		private bool _isThreadRunning;
+		private TimeSpan _interval;
 
 		public event Action<DateTime, string> TimeChanged;
 
@@ -22,6 +23,7 @@ namespace SampleServerClasses
 			_data = GetHashCode();
 			_timingThread = null;
 			_isThreadRunning = false;
+			_interval = TimeSpan.FromSeconds(1);
 		}
 
 		public string ComponentName
@@ -68,12 +70,13 @@ namespace SampleServerClasses
 			return new FileStream(fileName, FileMode.Open);
 		}
 
-		public void StartTiming()
+		public void StartTiming(TimeSpan interval)
 		{
 			if (_timingThread == null)
 			{
 				_isThreadRunning = true;
 				_timingThread = new Thread(DoReport);
+				_interval = interval;
 				_timingThread.Start();
 			}
 		}
@@ -91,7 +94,7 @@ namespace SampleServerClasses
 					return;
 				}
 
-				Thread.Sleep(1000);
+				Thread.Sleep(_interval);
 			}
 		}
 
