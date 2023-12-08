@@ -26,6 +26,8 @@ namespace NewRemoting
 	/// </summary>
 	internal class InstanceManager
 	{
+		private const string DelegateIdentifier = ".Method";
+
 		/// <summary>
 		/// The global(!) object registry. Contains references to all objects involved in remoting.
 		/// The instances can be local, in which case we use it to look up their ids, or remote, in
@@ -194,7 +196,7 @@ namespace NewRemoting
 		/// <returns></returns>
 		public string GetDelegateTargetIdentifier(Delegate del, string remoteInstanceId)
 		{
-			StringBuilder id = new StringBuilder(FormattableString.Invariant($"{ProcessIdentifier}/{del.Method.GetType().FullName}/.Method/{del.Method.Name}/I{remoteInstanceId}"));
+			StringBuilder id = new StringBuilder(FormattableString.Invariant($"{ProcessIdentifier}/{del.Method.GetType().FullName}/{DelegateIdentifier}/{del.Method.Name}/I/{remoteInstanceId}"));
 			foreach (var g in del.Method.GetGenericArguments())
 			{
 				id.Append($"/{g.FullName}");
@@ -326,13 +328,31 @@ namespace NewRemoting
 			return false;
 		}
 
-		public object GetObjectFromId(string id, string typeOfCallerName, string methodId)
+		/// <summary>
+		/// Returns the object for a given id
+		/// </summary>
+		/// <param name="id">The object id</param>
+		/// <param name="typeOfCallerName">The type of caller (only used for debugging purposes)</param>
+		/// <param name="methodId">The method about to call (only used for debugging)</param>
+		/// <param name="wasDelegateTarget">True if the <paramref name="id"/> references a delegate target, but is no longer present (rare
+		/// race condition when a callback happens at the same time the event is disconnected)</param>
+		/// <returns>The object from the global cache</returns>
+		/// <exception cref="InvalidOperationException">The object didn't exist (unless it was a delegate target call)</exception>
+		public object GetObjectFromId(string id, string typeOfCallerName, string methodId, out bool wasDelegateTarget)
 		{
 			if (!TryGetObjectFromId(id, out object instance))
 			{
+				if (id.Contains($"/{DelegateIdentifier}/", StringComparison.Ordinal))
+				{
+					_logger.LogWarning($"Callback delegate for {id} is gone. Attempting to ignore this, as it likely just deregistered");
+					wasDelegateTarget = true;
+					return null;
+				}
+
 				throw new InvalidOperationException($"Could not locate instance with ID {id} or it is not local. Local identifier: {ProcessIdentifier}, type of caller {typeOfCallerName}, methodId {methodId}");
 			}
 
+			wasDelegateTarget = false;
 			return instance;
 		}
 

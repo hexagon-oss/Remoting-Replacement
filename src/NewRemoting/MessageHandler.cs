@@ -27,6 +27,7 @@ namespace NewRemoting
 	/// </summary>
 	internal class MessageHandler
 	{
+		private static readonly object ConcurrentOperationsLock = new object();
 		private readonly InstanceManager _instanceManager;
 		private readonly FormatterFactory _formatterFactory;
 		private readonly Dictionary<string, ClientSideInterceptor> _interceptors;
@@ -892,174 +893,179 @@ namespace NewRemoting
 
 				case RemotingReferenceType.AddEvent:
 				{
-					string instanceId = r.ReadString();
-					bool hasReturnValue = r.ReadBoolean();
-					int methodGenericArgs = r.ReadInt32();
-					Type[] typeOfGenericArguments = new Type[methodGenericArgs];
-					for (int i = 0; i < methodGenericArgs; i++)
+					lock (ConcurrentOperationsLock)
 					{
-						var typeName = r.ReadString();
-						var t = Server.GetTypeFromAnyAssembly(typeName);
-						typeOfGenericArguments[i] = t;
-					}
-
-					// Determine the method to call on the client side.
-					Type typeOfTarget = null;
-					if (hasReturnValue)
-					{
-						switch (typeOfGenericArguments.Length)
+						string instanceId = r.ReadString();
+						bool hasReturnValue = r.ReadBoolean();
+						int methodGenericArgs = r.ReadInt32();
+						Type[] typeOfGenericArguments = new Type[methodGenericArgs];
+						for (int i = 0; i < methodGenericArgs; i++)
 						{
-							case 1:
-								typeOfTarget =
-									typeof(DelegateFuncProxyOnClient<>).MakeGenericType(typeOfGenericArguments[0]);
-								break;
-							case 2:
-								typeOfTarget =
-									typeof(DelegateFuncProxyOnClient<,>).MakeGenericType(typeOfGenericArguments[0],
+							var typeName = r.ReadString();
+							var t = Server.GetTypeFromAnyAssembly(typeName);
+							typeOfGenericArguments[i] = t;
+						}
+
+						// Determine the method to call on the client side.
+						Type typeOfTarget = null;
+						if (hasReturnValue)
+						{
+							switch (typeOfGenericArguments.Length)
+							{
+								case 1:
+									typeOfTarget =
+										typeof(DelegateFuncProxyOnClient<>).MakeGenericType(typeOfGenericArguments[0]);
+									break;
+								case 2:
+									typeOfTarget =
+										typeof(DelegateFuncProxyOnClient<,>).MakeGenericType(typeOfGenericArguments[0],
+											typeOfGenericArguments[1]);
+									break;
+								case 3:
+									typeOfTarget =
+										typeof(DelegateFuncProxyOnClient<,,>).MakeGenericType(typeOfGenericArguments[0],
+											typeOfGenericArguments[1], typeOfGenericArguments[2]);
+									break;
+								case 4:
+									typeOfTarget =
+										typeof(DelegateFuncProxyOnClient<,,>).MakeGenericType(typeOfGenericArguments[0],
+											typeOfGenericArguments[1], typeOfGenericArguments[2],
+											typeOfGenericArguments[3]);
+									break;
+								case 5:
+									typeOfTarget =
+										typeof(DelegateFuncProxyOnClient<,,>).MakeGenericType(typeOfGenericArguments[0],
+											typeOfGenericArguments[1], typeOfGenericArguments[2], typeOfGenericArguments[3],
+											typeOfGenericArguments[4]);
+									break;
+								default:
+									throw new InvalidRemotingOperationException(
+										$"Unsupported number of arguments for function ({typeOfGenericArguments.Length}");
+							}
+						}
+						else
+						{
+							switch (typeOfGenericArguments.Length)
+							{
+								case 0:
+									typeOfTarget =
+										typeof(DelegateProxyOnClient);
+									break;
+								case 1:
+									typeOfTarget =
+										typeof(DelegateProxyOnClient<>).MakeGenericType(typeOfGenericArguments[0]);
+									break;
+								case 2:
+									typeOfTarget = typeof(DelegateProxyOnClient<,>).MakeGenericType(
+										typeOfGenericArguments[0],
 										typeOfGenericArguments[1]);
-								break;
-							case 3:
-								typeOfTarget =
-									typeof(DelegateFuncProxyOnClient<,,>).MakeGenericType(typeOfGenericArguments[0],
+									break;
+								case 3:
+									typeOfTarget = typeof(DelegateProxyOnClient<,>).MakeGenericType(
+										typeOfGenericArguments[0],
 										typeOfGenericArguments[1], typeOfGenericArguments[2]);
-								break;
-							case 4:
-								typeOfTarget =
-									typeof(DelegateFuncProxyOnClient<,,>).MakeGenericType(typeOfGenericArguments[0],
-										typeOfGenericArguments[1], typeOfGenericArguments[2],
-										typeOfGenericArguments[3]);
-								break;
-							case 5:
-								typeOfTarget =
-									typeof(DelegateFuncProxyOnClient<,,>).MakeGenericType(typeOfGenericArguments[0],
-										typeOfGenericArguments[1], typeOfGenericArguments[2], typeOfGenericArguments[3],
-										typeOfGenericArguments[4]);
-								break;
-							default:
-								throw new InvalidRemotingOperationException(
-									$"Unsupported number of arguments for function ({typeOfGenericArguments.Length}");
+									break;
+								case 4:
+									typeOfTarget = typeof(DelegateProxyOnClient<,>).MakeGenericType(
+										typeOfGenericArguments[0],
+										typeOfGenericArguments[1], typeOfGenericArguments[2], typeOfGenericArguments[3]);
+									break;
+								default:
+									throw new InvalidRemotingOperationException(
+										$"Unsupported number of arguments for action ({typeOfGenericArguments.Length}");
+							}
 						}
-					}
-					else
-					{
-						switch (typeOfGenericArguments.Length)
+
+						var methodInfoOfTarget = typeOfTarget.GetMethod("FireEvent",
+							BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+						// This creates an instance of the DelegateInternalSink class, which acts as a proxy for delegate callbacks. Instead of the actual delegate
+						// target, we register a method from this class as a delegate target
+						DelegateInternalSink internalSink;
+						if (_instanceManager.TryGetObjectFromId(instanceId, out object sink))
 						{
-							case 0:
-								typeOfTarget =
-									typeof(DelegateProxyOnClient);
-								break;
-							case 1:
-								typeOfTarget =
-									typeof(DelegateProxyOnClient<>).MakeGenericType(typeOfGenericArguments[0]);
-								break;
-							case 2:
-								typeOfTarget = typeof(DelegateProxyOnClient<,>).MakeGenericType(
-									typeOfGenericArguments[0],
-									typeOfGenericArguments[1]);
-								break;
-							case 3:
-								typeOfTarget = typeof(DelegateProxyOnClient<,>).MakeGenericType(
-									typeOfGenericArguments[0],
-									typeOfGenericArguments[1], typeOfGenericArguments[2]);
-								break;
-							case 4:
-								typeOfTarget = typeof(DelegateProxyOnClient<,>).MakeGenericType(
-									typeOfGenericArguments[0],
-									typeOfGenericArguments[1], typeOfGenericArguments[2], typeOfGenericArguments[3]);
-								break;
-							default:
-								throw new InvalidRemotingOperationException(
-									$"Unsupported number of arguments for action ({typeOfGenericArguments.Length}");
+							internalSink = (DelegateInternalSink)sink;
+							// throw new InvalidRemotingOperationException($"Instance id {instanceId} already has a DelegateInternalSink");
 						}
-					}
-
-					var methodInfoOfTarget = typeOfTarget.GetMethod("FireEvent",
-						BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-
-					// This creates an instance of the DelegateInternalSink class, which acts as a proxy for delegate callbacks. Instead of the actual delegate
-					// target, we register a method from this class as a delegate target
-					DelegateInternalSink internalSink;
-					if (_instanceManager.TryGetObjectFromId(instanceId, out object sink))
-					{
-						internalSink = (DelegateInternalSink)sink;
-						// throw new InvalidRemotingOperationException($"Instance id {instanceId} already has a DelegateInternalSink");
-					}
-					else
-					{
-						var interceptor = InstanceManager.GetInterceptor(_interceptors, instanceId);
-						internalSink = new DelegateInternalSink(interceptor, instanceId, methodInfoOfTarget);
-						var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideProcessId,
-							internalSink.GetType(), false);
-
-						internalSink = (DelegateInternalSink)usedInstance.QueryInstance();
-					}
-
-					internalSink.RegisterInstance(otherSideProcessId);
-
-					// TODO: This copying of arrays here is not really performance-friendly
-					var argumentsOfTarget = methodInfoOfTarget.GetParameters().Select(x => x.ParameterType).ToList();
-
-					IEnumerable<MethodInfo> possibleSinks = null;
-
-					MethodInfo localSinkTarget;
-					if (methodInfoOfTarget.ReturnType == typeof(void))
-					{
-						possibleSinks = internalSink.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public)
-							.Where(x => x.Name == "ActionSink");
-						localSinkTarget =
-							possibleSinks.Single(x => x.GetGenericArguments().Length == argumentsOfTarget.Count);
-					}
-					else
-					{
-						possibleSinks = internalSink.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public)
-							.Where(x => x.Name == "FuncSink");
-						localSinkTarget = possibleSinks.Single(x =>
-							x.GetGenericArguments().Length == argumentsOfTarget.Count + 1);
-						argumentsOfTarget.Add(methodInfoOfTarget.ReturnType);
-					}
-
-					if (argumentsOfTarget.Count > 0)
-					{
-						localSinkTarget = localSinkTarget.MakeGenericMethod(argumentsOfTarget.ToArray());
-					}
-
-					// create the local server side delegate
-					Delegate newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
-					string delegateId = _instanceManager.GetDelegateTargetIdentifier(newDelegate, otherSideProcessId);
-					var actualInstance = _instanceManager.AddInstance(newDelegate, delegateId, otherSideProcessId, newDelegate.GetType(), false);
-					var actualDelegate = (Delegate)actualInstance.QueryInstance();
-					if (ReferenceEquals(actualDelegate, newDelegate))
-					{
-						if (internalSink.TheActualDelegate != null)
+						else
 						{
-							throw new InvalidRemotingOperationException("Expecting actual delegate to not exist here");
+							var interceptor = InstanceManager.GetInterceptor(_interceptors, instanceId);
+							internalSink = new DelegateInternalSink(interceptor, instanceId, methodInfoOfTarget);
+							var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideProcessId,
+								internalSink.GetType(), false);
+
+							internalSink = (DelegateInternalSink)usedInstance.QueryInstance();
 						}
 
-						internalSink.TheActualDelegate = newDelegate;
-						return newDelegate;
-					}
+						internalSink.RegisterInstance(otherSideProcessId);
 
-					if (internalSink.TheActualDelegate == null)
-					{
-						throw new InvalidRemotingOperationException("Expecting actual delegate to exist here");
-					}
+						// TODO: This copying of arrays here is not really performance-friendly
+						var argumentsOfTarget = methodInfoOfTarget.GetParameters().Select(x => x.ParameterType).ToList();
 
-					return actualDelegate;
+						IEnumerable<MethodInfo> possibleSinks = null;
+
+						MethodInfo localSinkTarget;
+						if (methodInfoOfTarget.ReturnType == typeof(void))
+						{
+							possibleSinks = internalSink.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public)
+								.Where(x => x.Name == "ActionSink");
+							localSinkTarget =
+								possibleSinks.Single(x => x.GetGenericArguments().Length == argumentsOfTarget.Count);
+						}
+						else
+						{
+							possibleSinks = internalSink.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public)
+								.Where(x => x.Name == "FuncSink");
+							localSinkTarget = possibleSinks.Single(x =>
+								x.GetGenericArguments().Length == argumentsOfTarget.Count + 1);
+							argumentsOfTarget.Add(methodInfoOfTarget.ReturnType);
+						}
+
+						if (argumentsOfTarget.Count > 0)
+						{
+							localSinkTarget = localSinkTarget.MakeGenericMethod(argumentsOfTarget.ToArray());
+						}
+
+						// create the local server side delegate
+						Delegate newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
+						string delegateId = _instanceManager.GetDelegateTargetIdentifier(newDelegate, otherSideProcessId);
+						var actualInstance = _instanceManager.AddInstance(newDelegate, delegateId, otherSideProcessId, newDelegate.GetType(), false);
+						var actualDelegate = (Delegate)actualInstance.QueryInstance();
+						if (ReferenceEquals(actualDelegate, newDelegate))
+						{
+							if (internalSink.TheActualDelegate != null)
+							{
+								throw new InvalidRemotingOperationException("Expecting actual delegate to not exist here");
+							}
+
+							internalSink.TheActualDelegate = newDelegate;
+							return newDelegate;
+						}
+
+						return actualDelegate;
+					}
 				}
 
 				case RemotingReferenceType.RemoveEvent:
 				{
 					string instanceId = r.ReadString();
-					if (_instanceManager.TryGetObjectFromId(instanceId, out var internalSink))
+					lock (ConcurrentOperationsLock)
 					{
-						DelegateInternalSink sink = (DelegateInternalSink)internalSink;
-						if (sink.Unregister(otherSideProcessId))
+						if (_instanceManager.TryGetObjectFromId(instanceId, out var internalSink))
 						{
-							_instanceManager.Remove(instanceId, otherSideProcessId, true);
-							var del = sink.TheActualDelegate;
-							sink.TheActualDelegate = null; // Is not registered any more
-							return del; // argument required to deregister the sink from the target
+							DelegateInternalSink sink = (DelegateInternalSink)internalSink;
+							if (sink.Unregister(otherSideProcessId))
+							{
+								_instanceManager.Remove(instanceId, otherSideProcessId, true);
+								var del = sink.TheActualDelegate;
+								sink.TheActualDelegate = null; // Is not registered any more
+
+								// argument required to deregister the sink from the target, but nothing happens if it's null, because we use a wrong path later on
+								// This is only null in exceptional cases ("CanFireEventWhileDisconnecting" test)
+								return del;
+							}
 						}
+
 					}
 
 					return null;

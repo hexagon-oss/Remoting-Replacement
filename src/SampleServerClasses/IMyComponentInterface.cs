@@ -15,7 +15,7 @@ namespace SampleServerClasses
 
 		Stream GetRemoteStream(string fileName);
 
-		void StartTiming();
+		void StartTiming(TimeSpan interval);
 
 		void StopTiming();
 
