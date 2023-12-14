@@ -20,7 +20,6 @@ namespace NewRemoting
 			: base(message, inner)
 		{
 		}
-	}
 
 		public RemotingExceptionAdditionalInfo? AdditionalInfo
 		{
