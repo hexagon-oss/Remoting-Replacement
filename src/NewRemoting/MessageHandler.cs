@@ -33,29 +33,34 @@ namespace NewRemoting
 		private readonly FormatterFactory _formatterFactory;
 		private readonly Dictionary<string, ClientSideInterceptor> _interceptors;
 		private readonly Encoding _stringEncoding;
+		private readonly ILogger _logger;
+		private readonly HashSet<Type> _typesAlreadySerialized; // Mostly for debugging purposes
 		private bool _initialized;
 		private ConcurrentDictionary<RemotingReferenceType, uint> _stats;
 
-		public MessageHandler(InstanceManager instanceManager, FormatterFactory formatterFactory)
+		public MessageHandler(InstanceManager instanceManager, FormatterFactory formatterFactory, ILogger logger)
 		{
 			_stringEncoding = Encoding.Unicode;
 			_instanceManager = instanceManager;
 			_formatterFactory = formatterFactory;
 			_initialized = false;
+			_typesAlreadySerialized = new HashSet<Type>();
 			_interceptors = new();
 			_stats = new ConcurrentDictionary<RemotingReferenceType, uint>();
 			foreach (RemotingReferenceType refType in Enum.GetValues(typeof(RemotingReferenceType)))
 			{
 				_stats[refType] = 0;
 			}
+
+			_logger = logger;
 		}
 
-		public void PrintStats(ILogger logger)
+		public void PrintStats()
 		{
-			logger.LogInformation("Remoting Messagehandler usage stats:");
+			_logger.LogInformation("Remoting Messagehandler usage stats:");
 			foreach (var stat in _stats)
 			{
-				logger.LogInformation(FormattableString.Invariant($"{stat.Key}: {stat.Value}"));
+				_logger.LogInformation(FormattableString.Invariant($"{stat.Key}: {stat.Value}"));
 			}
 		}
 
@@ -365,6 +370,11 @@ namespace NewRemoting
 		private void UseSlowJsonSerialization(BinaryWriter w, object data, string referencesWillBeSentTo)
 		{
 			Type t = data.GetType();
+			if (_typesAlreadySerialized.Add(t))
+			{
+				_logger.LogInformation($"Serializing {t.FullName} the slow way. Make sure it is suitable for that");
+			}
+
 			LogMsg(RemotingReferenceType.Auto);
 			w.Write((Int32)RemotingReferenceType.SerializedItem);
 			if (t.AssemblyQualifiedName == null)

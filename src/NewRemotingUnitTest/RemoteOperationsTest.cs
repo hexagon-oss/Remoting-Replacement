@@ -927,6 +927,18 @@ namespace NewRemotingUnitTest
 			Assert.AreNotEqual(6, obj.B[0]);
 		}
 
+		[Test]
+		public void CanGetListAsOutParameter()
+		{
+			CreateClientServer();
+			var server = CreateRemoteInstance();
+			Assert.That(server.GetMyImportantList(out var data));
+			CollectionAssert.IsNotEmpty(data);
+			Assert.AreEqual(1, data[0].Value);
+			Assert.AreEqual(2, data[1].Value);
+			Assert.AreNotEqual(0, data[1].AnotherValue);
+		}
+
 		private void ExecuteCallbacks(IMarshallInterface instance, int overallIterations, int iterations,
 			ref int expectedCounter)
 		{

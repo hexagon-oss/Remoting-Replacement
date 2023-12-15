@@ -85,7 +85,7 @@ namespace NewRemoting
 			_instanceManager = new InstanceManager(_proxy, instanceLogger);
 			_formatterFactory = new FormatterFactory(_instanceManager);
 
-			_messageHandler = new MessageHandler(_instanceManager, _formatterFactory);
+			_messageHandler = new MessageHandler(_instanceManager, _formatterFactory, Logger);
 
 			// A client side has only one server, so there's also only one interceptor and only one server side
 			_interceptor = new ClientSideInterceptor(string.Empty, _instanceManager.ProcessIdentifier, true, stream, _messageHandler, Logger);
@@ -559,7 +559,7 @@ namespace NewRemoting
 		{
 			lock (_accessLock)
 			{
-				_messageHandler.PrintStats(Logger); // Dispose is too late, log earlier
+				_messageHandler.PrintStats(); // Dispose is too late, log earlier
 				_instanceManager.PerformGc(_writer, true);
 				int sequence = _interceptor.NextSequenceNumber();
 				RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.ClientDisconnecting, sequence);

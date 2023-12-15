@@ -350,5 +350,14 @@ namespace SampleServerClasses
 		{
 			return (new ManualSerializableLargeObject(new Memory<byte>(_someData, 2, 5)), new ManualSerializableLargeObject(_someData), 33);
 		}
+
+		public bool GetMyImportantList(out IList<CustomSerializableObject> customSerializableObjects)
+		{
+			List<CustomSerializableObject> theList = new List<CustomSerializableObject>();
+			theList.Add(new CustomSerializableObject(1, DateTime.Now, 1.1, new SerializableType("Test1", 1)));
+			theList.Add(new CustomSerializableObject(2, DateTime.UtcNow, 2.2, new SerializableType("Test2", 2)));
+			customSerializableObjects = theList;
+			return true;
+		}
 	}
 }

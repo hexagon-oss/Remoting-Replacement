@@ -101,7 +101,7 @@ namespace NewRemoting
 			KillProcessWhenChannelDisconnected = false;
 
 			// This instance will only be finally initialized once the return channel is opened
-			_messageHandler = new MessageHandler(_instanceManager, _formatterFactory);
+			_messageHandler = new MessageHandler(_instanceManager, _formatterFactory, Logger);
 			AppDomain.CurrentDomain.AssemblyResolve += AssemblyResolver;
 			RegisterStandardServices();
 		}
@@ -1011,7 +1011,7 @@ namespace NewRemoting
 		/// <param name="disconnected">True if the client has already logically disconnected</param>
 		public void Terminate(bool disconnected)
 		{
-			_messageHandler.PrintStats(Logger);
+			_messageHandler.PrintStats();
 			if (!disconnected)
 			{
 				MemoryStream ms = new MemoryStream();

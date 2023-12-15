@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using Castle.DynamicProxy;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using NewRemoting;
 using NUnit.Framework;
@@ -26,7 +27,7 @@ namespace NewRemotingUnitTest
 			_instanceManager = new InstanceManager(new ProxyGenerator(), null);
 			_streamMock = new Mock<Stream>();
 			_streamMock.Setup(x => x.CanRead).Returns(true);
-			_messageHandler = new MessageHandler(_instanceManager, new FormatterFactory(_instanceManager));
+			_messageHandler = new MessageHandler(_instanceManager, new FormatterFactory(_instanceManager), NullLogger.Instance);
 			_messageHandler.AddInterceptor(new ClientSideInterceptor("OtherSide", "ThisSide", true, _streamMock.Object, _messageHandler, null));
 		}
 
