@@ -20,7 +20,7 @@ namespace NewRemoting
 		private readonly Func<FileInfo, bool> _shouldFileBeUploadedFunc;
 		private readonly FileHashCalculator _fileHashCalculator;
 		private readonly string _extraArguments;
-		private readonly TimeSpan _remoteProcessConnectionTimeout = TimeSpan.FromSeconds(20);
+		private readonly TimeSpan _remoteProcessConnectionTimeout = TimeSpan.FromSeconds(120);
 
 		private IRemoteServerService _remoteServer;
 		private Client _remotingClient;
