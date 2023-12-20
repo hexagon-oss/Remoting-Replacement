@@ -44,18 +44,6 @@ namespace NewRemoting
 			}
 		}
 
-		/*
-		public void GetObjectData(object obj, SerializationInfo info, StreamingContext context)
-		{
-			if (!(obj is IManualSerialization manual))
-			{
-				throw new InvalidOperationException("Instance must be of type IManualSerialization");
-			}
-
-			info.AddValue("AssemblyQualifiedName", obj.GetType().AssemblyQualifiedName);
-			_list.Add(manual);
-		}*/
-
 		public void PerformManualSerialization(BinaryWriter w)
 		{
 			int threadId = Thread.CurrentThread.ManagedThreadId;

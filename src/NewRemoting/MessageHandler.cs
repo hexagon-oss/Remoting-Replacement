@@ -18,6 +18,7 @@ using System.Threading.Tasks;
 using Castle.Core.Logging;
 using Castle.DynamicProxy;
 using Microsoft.Extensions.Logging;
+using NewRemoting.Toolkit;
 using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace NewRemoting
@@ -347,8 +348,10 @@ namespace NewRemoting
 				string originalTypeName = originalType.AssemblyQualifiedName ?? string.Empty;
 				w.Write(originalTypeName);
 			}
-			else if (t.IsAssignableTo(typeof(MarshalByRefObject)))
+			else if (t.IsAssignableTo(typeof(MarshalByRefObject)) && t != typeof(PooledMemoryStream))
 			{
+				// The later requires serialization instead of by-reference semantics (note that in the future we might need a
+				// list of objects that _should be_ MarshalByRefObject but are technically not, since new BCL objects don't get that dependency)
 				string objectId = _instanceManager.RegisterRealObjectAndGetId(data, referencesWillBeSentTo);
 				w.Write((int)RemotingReferenceType.RemoteReference);
 				LogMsg(RemotingReferenceType.RemoteReference);
