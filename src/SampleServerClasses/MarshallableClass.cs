@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using NewRemoting.Toolkit;
 
 namespace SampleServerClasses
 {
@@ -351,13 +352,22 @@ namespace SampleServerClasses
 			return (new ManualSerializableLargeObject(new Memory<byte>(_someData, 2, 5)), new ManualSerializableLargeObject(_someData), 33);
 		}
 
-		public bool GetMyImportantList(out IList<CustomSerializableObject> customSerializableObjects)
+		public virtual bool GetMyImportantList(out IList<CustomSerializableObject> customSerializableObjects)
 		{
 			List<CustomSerializableObject> theList = new List<CustomSerializableObject>();
 			theList.Add(new CustomSerializableObject(1, DateTime.Now, 1.1, new SerializableType("Test1", 1)));
 			theList.Add(new CustomSerializableObject(2, DateTime.UtcNow, 2.2, new SerializableType("Test2", 2)));
 			customSerializableObjects = theList;
 			return true;
+		}
+
+		public virtual Stream GetPooledStream()
+		{
+			PooledMemoryStream ms = new PooledMemoryStream(1000);
+			ms.WriteByte(0xfe);
+			ms.WriteByte(0xfb);
+			ms.Write(new byte[200]);
+			return ms;
 		}
 	}
 }

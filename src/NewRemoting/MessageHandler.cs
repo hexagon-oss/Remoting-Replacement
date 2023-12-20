@@ -81,6 +81,18 @@ namespace NewRemoting
 		}
 
 		/// <summary>
+		/// List of objects that should use marshalbyref semantics.
+		/// The later requires serialization instead of by-reference semantics (note that in the future we might need a
+		/// list of objects that _should be_ MarshalByRefObject but are technically not, since new BCL objects don't get that dependency)
+		/// </summary>
+		/// <param name="t">A type</param>
+		/// <returns>True or false</returns>
+		public static bool IsMarshalByRefType(Type t)
+		{
+			return t.IsAssignableTo(typeof(MarshalByRefObject)) && t != typeof(PooledMemoryStream);
+		}
+
+		/// <summary>
 		/// Handles the given delegate-type argument by using a local proxy in between. Addition of delegate - it does not exist, the proxy
 		/// is created and sent to the server, otherwise no action is needed aside from registering the delegate on the proxy.
 		/// Similarly removal of a delegates is handled.
@@ -348,10 +360,8 @@ namespace NewRemoting
 				string originalTypeName = originalType.AssemblyQualifiedName ?? string.Empty;
 				w.Write(originalTypeName);
 			}
-			else if (t.IsAssignableTo(typeof(MarshalByRefObject)) && t != typeof(PooledMemoryStream))
+			else if (IsMarshalByRefType(t))
 			{
-				// The later requires serialization instead of by-reference semantics (note that in the future we might need a
-				// list of objects that _should be_ MarshalByRefObject but are technically not, since new BCL objects don't get that dependency)
 				string objectId = _instanceManager.RegisterRealObjectAndGetId(data, referencesWillBeSentTo);
 				w.Write((int)RemotingReferenceType.RemoteReference);
 				LogMsg(RemotingReferenceType.RemoteReference);

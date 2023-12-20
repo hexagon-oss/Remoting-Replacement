@@ -22,7 +22,7 @@ namespace SampleServerClasses
 
 		public DateTime Time { get; set; }
 
-		public double AnotherValue { get; private set; }
+		public double AnotherValue { get; set; }
 
 		public IMyDto MyDto { get; set; }
 

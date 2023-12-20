@@ -720,6 +720,18 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
+		public void GetMemoryStreamFromServer()
+		{
+			CreateClientServer();
+			var server = CreateRemoteInstance();
+			Stream s = server.GetPooledStream();
+			Assert.That(s.Length == 202);
+			byte b = (byte)s.ReadByte();
+			Assert.AreEqual(0xfe, b);
+			Assert.DoesNotThrow(() => server.CreateCalc()); // Just to make sure the stream is still in sync
+		}
+
+		[Test]
 		public void FileStreamFromClientToServer()
 		{
 			CreateClientServer();

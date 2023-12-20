@@ -4,7 +4,7 @@ using System.IO;
 
 namespace NewRemoting.Toolkit
 {
-	public class PooledMemoryStream : Stream, IManualSerialization
+	public sealed class PooledMemoryStream : Stream, IManualSerialization
 	{
 		private byte[] _pooledObject;
 		private int _contentLength;
@@ -78,13 +78,18 @@ namespace NewRemoting.Toolkit
 		public void Serialize(BinaryWriter serializerTarget)
 		{
 			serializerTarget.Write(_contentLength);
-			serializerTarget.Write(new ReadOnlySpan<byte>(_streamImplementation.GetBuffer(), 0, _contentLength));
+			serializerTarget.Write(new ReadOnlySpan<byte>(_pooledObject, 0, _contentLength));
 		}
 
 		public void Deserialize(BinaryReader serializerSource)
 		{
 			_contentLength = serializerSource.ReadInt32();
 			_pooledObject = ArrayPool<byte>.Shared.Rent(_contentLength);
+			if (serializerSource.Read(_pooledObject, 0, _contentLength) != _contentLength)
+			{
+				throw new RemotingException("End of stream detected while deserializing object");
+			}
+
 			_streamImplementation = new MemoryStream(_pooledObject, 0, _contentLength, true);
 			_streamImplementation.Position = 0;
 		}

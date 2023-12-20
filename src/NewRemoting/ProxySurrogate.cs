@@ -21,7 +21,7 @@ namespace NewRemoting
 
 		public override bool CanConvert(Type typeToConvert)
 		{
-			return typeToConvert.IsAssignableTo(typeof(MarshalByRefObject));
+			return MessageHandler.IsMarshalByRefType(typeToConvert);
 		}
 
 		public override void Write(Utf8JsonWriter writer, object value, JsonSerializerOptions options)
