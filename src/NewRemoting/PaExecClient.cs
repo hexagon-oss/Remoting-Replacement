@@ -297,10 +297,16 @@ namespace NewRemoting
 		/// <param name="arguments">Arguments to remote process</param>
 		/// <param name="dependenciesFile">A file containing the set of files to copy to the remote machine before execution</param>
 		/// <param name="remoteFileDirectory">The directory on the remote machine where the file should be copied to</param>
+		/// <param name="paexecArgs">args passed to paexec</param>
+		/// <param name="clientConnectionLogger">a logger</param>
 		/// <returns>The created process. Do NOT dispose the returned process instance directly, but dispose the <see cref="PaExecClient"/> instance instead.</returns>
 		public virtual IProcess LaunchProcess(CancellationToken externalToken, bool? isRemoteHostOnLocalMachine, string processName, string arguments,
-			string dependenciesFile, string remoteFileDirectory, string paexec_args = null)
+			string dependenciesFile, string remoteFileDirectory, string paexecArgs = null, ILogger clientConnectionLogger = null)
 		{
+			var simpleLogger = clientConnectionLogger as SimpleLogFileWriter;
+			clientConnectionLogger?.LogInformation($"LaunchProcess {processName}");
+			simpleLogger?.Flush();
+
 			var sw = Stopwatch.StartNew();
 			if (!isRemoteHostOnLocalMachine.HasValue)
 			{
@@ -309,6 +315,8 @@ namespace NewRemoting
 
 			if (!PingUtil.CancellableTryWaitForPingResponse(RemoteHost, TimeSpan.MaxValue, externalToken))
 			{
+				clientConnectionLogger?.LogError($"Could not ping {RemoteHost}");
+				simpleLogger?.Flush();
 				_process = null;
 				return _process;
 			}
@@ -316,6 +324,9 @@ namespace NewRemoting
 			// try to launch the remote process.. retry until canceled
 			while (_process == null)
 			{
+				clientConnectionLogger?.LogInformation($"Attempting to create remote process");
+				simpleLogger?.Flush();
+
 				if (isRemoteHostOnLocalMachine.Value)
 				{
 					remoteFileDirectory = ResolveTempFolder(remoteFileDirectory, true);
@@ -323,8 +334,12 @@ namespace NewRemoting
 
 				var process = isRemoteHostOnLocalMachine.Value ?
 					CreateProcessLocal(PrependAppDomainPath(processName), arguments, remoteFileDirectory) :
-					CreateProcessOnRemoteMachine(externalToken, processName, dependenciesFile, remoteFileDirectory, arguments, paexec_args);
+					CreateProcessOnRemoteMachine(externalToken, processName, dependenciesFile, remoteFileDirectory, arguments, paexecArgs);
 				_logger.LogInformation("Process created after '{0}'ms", sw.ElapsedMilliseconds);
+
+				clientConnectionLogger?.LogInformation($"Process created after {sw.ElapsedMilliseconds} ms");
+				simpleLogger?.Flush();
+
 				// Cancel operation if process exits or canceled externally
 				lock (_internalCancellationTokenSourceLock)
 				{
@@ -363,18 +378,31 @@ namespace NewRemoting
 						}
 					};
 					Logger.LogInformation(FormattableString.Invariant($"Starting remote process: {process.StartInfo.FileName} in {process.StartInfo.WorkingDirectory}"));
+
+					clientConnectionLogger?.LogInformation($"Starting remote process: {process.StartInfo.FileName} in {process.StartInfo.WorkingDirectory}");
+					simpleLogger?.Flush();
+
 					process.Start();
 					process.BeginOutputReadLine();
 					process.BeginErrorReadLine();
 					Logger.LogInformation("Process started after '{0}'ms", sw.ElapsedMilliseconds);
+
+					clientConnectionLogger?.LogInformation("Process start called");
+					simpleLogger?.Flush();
+
 					if (WaitForRemoteProcessStartup(linkedCancellationTokenSource, process))
 					{
+						clientConnectionLogger?.LogInformation("Process has started");
+						simpleLogger?.Flush();
 						_process = process; // remote server is running and remote interface is available --> exit the loop
 						break;
 					}
 
 					try
 					{
+						clientConnectionLogger?.LogError("Process start was cancelled");
+						simpleLogger?.Flush();
+
 						// throw canceled exception if it was external canceled
 						externalToken.ThrowIfCancellationRequested();
 
@@ -383,6 +411,8 @@ namespace NewRemoting
 						{
 							var errorMsg = string.Format(CultureInfo.InvariantCulture, "Could not get interface of remote loader on machine {0} ", RemoteHost);
 							Logger.LogError(errorMsg);
+							clientConnectionLogger?.LogError(errorMsg);
+							simpleLogger?.Flush();
 
 							process.Kill(); // if process is still running, we didn't receive the process exit event - this should never happen but just in case we terminate the remote process
 							throw new RemotingException(errorMsg);
@@ -391,12 +421,19 @@ namespace NewRemoting
 						int errorCode = process.ExitCode;
 						if (IsPaexecRetryableErrorCode(errorCode)) // this can happen after ping was successfully but service manager is not yet running
 						{
-							Logger.LogInformation(FormattableString.Invariant($"Paexec service cound not be installed, error code {errorCode} - retrying"));
+							var msg = FormattableString.Invariant($"Paexec service could not be installed, error code {errorCode} - retrying");
+							Logger.LogError(msg);
+							clientConnectionLogger?.LogError(msg);
+							simpleLogger?.Flush();
 						}
 						else
 						{
 							var errorMsg = string.Format(CultureInfo.InvariantCulture, "Could not launch remote loader on machine {0} Error Code: {1} Arguments {2}", RemoteHost, errorCode, arguments);
 							Logger.LogError(errorMsg);
+
+							clientConnectionLogger?.LogError(errorMsg);
+							simpleLogger?.Flush();
+
 							throw new RemotingException(errorMsg);
 						}
 					}

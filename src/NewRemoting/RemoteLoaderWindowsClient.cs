@@ -20,7 +20,7 @@ namespace NewRemoting
 		private readonly Func<FileInfo, bool> _shouldFileBeUploadedFunc;
 		private readonly FileHashCalculator _fileHashCalculator;
 		private readonly string _extraArguments;
-		private readonly TimeSpan _remoteProcessConnectionTimeout = TimeSpan.FromSeconds(20);
+		private readonly TimeSpan _remoteProcessConnectionTimeout = TimeSpan.FromSeconds(120);
 
 		private IRemoteServerService _remoteServer;
 		private Client _remotingClient;
@@ -138,10 +138,10 @@ namespace NewRemoting
 			return _remotingClient.RequestRemoteInstance<T>();
 		}
 
-		public IProcess LaunchProcess(CancellationToken externalCancellation, bool isRemoteHostOnLocalMachine)
+		public IProcess LaunchProcess(CancellationToken externalCancellation, bool isRemoteHostOnLocalMachine, ILogger clientConnectionLogger)
 		{
 			var workingDir = isRemoteHostOnLocalMachine ? AppDomain.CurrentDomain.BaseDirectory : REMOTELOADER_DIRECTORY;
-			return LaunchProcess(externalCancellation, isRemoteHostOnLocalMachine, REMOTELOADER_EXECUTABLE, _extraArguments, REMOTELOADER_DEPENDENCIES_FILENAME, workingDir);
+			return LaunchProcess(externalCancellation, isRemoteHostOnLocalMachine, REMOTELOADER_EXECUTABLE, _extraArguments, REMOTELOADER_DEPENDENCIES_FILENAME, workingDir, clientConnectionLogger: clientConnectionLogger);
 		}
 
 		protected override bool WaitForRemoteProcessStartup(CancellationTokenSource linkedCancellationTokenSource, IProcess process)
@@ -161,11 +161,13 @@ namespace NewRemoting
 		/// <inheritdoc />
 		public void Connect(CancellationToken externalToken, ILogger clientConnectionLogger)
 		{
+			var simpleLogger = Logger as SimpleLogFileWriter;
 			Logger.LogInformation("Connecting to RemotingServer");
+			simpleLogger?.Flush();
 
 			var isRemoteHostOnLocalMachine = NetworkUtil.IsLocalIpAddress(RemoteHost);
 
-			var process = LaunchProcess(externalToken, isRemoteHostOnLocalMachine);
+			var process = LaunchProcess(externalToken, isRemoteHostOnLocalMachine, Logger);
 
 			_remotingClient = null;
 
@@ -177,13 +179,16 @@ namespace NewRemoting
 				{
 					lastError = null;
 					Logger.LogInformation("Creating remoting client");
+					simpleLogger?.Flush();
 					_remotingClient = new Client(RemoteHost, RemotePort, Credentials.Certificate, Logger, clientConnectionLogger);
 					Logger.LogInformation("Remoting client creation succeeded");
+					simpleLogger?.Flush();
 					break;
 				}
 				catch (Exception x) when (x is IOException || x is SocketException || x is UnauthorizedAccessException)
 				{
 					Logger.LogError(x, $"Unable to connect to remote server. Attempt {retries + 1}: {x.Message}");
+					simpleLogger?.Flush();
 					lastError = x;
 
 					if (process is { HasExited: true, ExitCode: -1 })
@@ -199,6 +204,7 @@ namespace NewRemoting
 				catch (Exception x)
 				{
 					Logger.LogError(x, $"Unable to connect to remote server. Attempt {retries + 1}: {x.Message}, aborting");
+					simpleLogger?.Flush();
 					throw;
 				}
 
@@ -208,11 +214,13 @@ namespace NewRemoting
 			if (lastError != null)
 			{
 				Logger.LogError($"Unable to connect to remote server, aborting");
+				simpleLogger?.Flush();
 				throw lastError;
 			}
 
 			_remoteServer = _remotingClient.RequestRemoteInstance<IRemoteServerService>();
 			Logger.LogInformation("Got interface to {0}", _remoteServer.GetType().Name);
+			simpleLogger?.Flush();
 			if (_remoteServer == null)
 			{
 				throw new RemotingException("Could not connect to remote loader interface");
@@ -224,6 +232,8 @@ namespace NewRemoting
 				throw new RemotingException(verifyResult);
 			}
 
+			Logger.LogInformation("BinaryUpload start");
+			simpleLogger?.Flush();
 			Stopwatch sw = Stopwatch.StartNew();
 			// if the remote host is not a local machine we have to upload all necessary binaries and files
 			if (!isRemoteHostOnLocalMachine)
@@ -233,11 +243,14 @@ namespace NewRemoting
 			}
 
 			Logger.LogInformation("BinaryUpload finished after '{0}'ms", sw.ElapsedMilliseconds);
+			simpleLogger?.Flush();
 		}
 
 		public bool Connect(bool checkExistingInstance, CancellationToken cancellationToken, ILogger clientConnectionLogger = null)
 		{
 			clientConnectionLogger?.LogInformation($"Connection sequence for {REMOTELOADER_EXECUTABLE} started.");
+			var simpleLogger = clientConnectionLogger as SimpleLogFileWriter;
+			simpleLogger?.Flush();
 
 			if (checkExistingInstance)
 			{
@@ -249,11 +262,14 @@ namespace NewRemoting
 					if (processes.Length > 0)
 					{
 						clientConnectionLogger?.LogInformation($"{REMOTELOADER_EXECUTABLE} process already exist.");
+						simpleLogger?.Flush();
 						return false;
 					}
 				}
 				else
 				{
+					clientConnectionLogger?.LogInformation($"checking if {REMOTELOADER_EXECUTABLE} process already exist.");
+					simpleLogger?.Flush();
 					var workingDir = Environment.GetFolderPath(Environment.SpecialFolder.System);
 					var powershell = "powershell";
 					// if the process count is greater than 0
@@ -266,15 +282,20 @@ namespace NewRemoting
 
 						using (var proc = remoteConsole.CreateProcess(powershell + " " + args, enableUserInterfaceInteraction: false, fileListPath: null, workingDirectory: workingDir, redirectStandardOutput: true, redirectStandardError: true))
 						{
+							clientConnectionLogger?.LogInformation("powershell command about to start.");
+							simpleLogger?.Flush();
 							proc.Start();
 							while (!proc.HasExited && !combinedCancellation.IsCancellationRequested)
 							{
+								clientConnectionLogger?.LogInformation("waiting for powershell command process to exit.");
+								simpleLogger?.Flush();
 								proc.WaitForExit(100);
 							}
 
 							if (combinedCancellation.IsCancellationRequested)
 							{
 								clientConnectionLogger?.LogError($"Timeout waiting starting remote process {REMOTELOADER_EXECUTABLE}.");
+								simpleLogger?.Flush();
 								throw new OperationCanceledException(
 									$"Timeout waiting starting remote process {REMOTELOADER_EXECUTABLE}.");
 							}
@@ -284,14 +305,16 @@ namespace NewRemoting
 							if (!string.IsNullOrEmpty(err))
 							{
 								clientConnectionLogger?.LogWarning($"Powershell standard error output {err}.");
+								simpleLogger?.Flush();
 							}
 
-							if (proc.ExitCode == 0)
+							if (proc.HasExited && proc.ExitCode == 0)
 							{
 								var output = proc.StandardOutput.ReadToEnd();
 								if (output.StartsWith("True"))
 								{
 									clientConnectionLogger?.LogWarning($"{REMOTELOADER_EXECUTABLE} process already exist on the remote machine.");
+									simpleLogger?.Flush();
 									return false;
 								}
 							}
@@ -305,6 +328,7 @@ namespace NewRemoting
 			}
 
 			clientConnectionLogger?.LogInformation("Starting Connection to remote server.");
+			simpleLogger?.Flush();
 			Connect(cancellationToken, clientConnectionLogger);
 			return true;
 		}
