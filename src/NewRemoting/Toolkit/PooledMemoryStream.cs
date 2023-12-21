@@ -100,6 +100,12 @@ namespace NewRemoting.Toolkit
 			{
 				return Task.FromCanceled<int>(cancellationToken);
 			}
+
+			if (_streamImplementation == null)
+			{
+				return Task.FromResult(0);
+			}
+
 			if (_streamImplementation.Position >= _contentLength)
 			{
 				return Task.FromResult(0);
