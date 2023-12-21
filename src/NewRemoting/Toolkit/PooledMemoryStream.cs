@@ -22,27 +22,73 @@ namespace NewRemoting.Toolkit
 			_streamImplementation = null;
 		}
 
-		public override bool CanRead => _streamImplementation.CanRead;
+		public override bool CanRead
+		{
+			get
+			{
+				if (_streamImplementation == null)
+				{
+					return false;
+				}
 
-		public override bool CanSeek => _streamImplementation.CanSeek;
+				return _streamImplementation.CanRead;
+			}
+		}
 
-		public override bool CanWrite => _streamImplementation.CanWrite;
+		public override bool CanSeek
+		{
+			get
+			{
+				if (_streamImplementation == null)
+				{
+					return false;
+				}
 
-		public override long Length => _contentLength;
+				return _streamImplementation.CanSeek;
+			}
+		}
+
+		public override bool CanWrite
+		{
+			get
+			{
+				if (_streamImplementation == null)
+				{
+					return false;
+				}
+
+				return _streamImplementation.CanWrite;
+			}
+		}
+
+		public override long Length
+		{
+			get { return _contentLength; }
+		}
 
 		public override long Position
 		{
-			get => _streamImplementation.Position;
-			set => _streamImplementation.Position = value;
+			get { return _streamImplementation.Position; }
+			set { _streamImplementation.Position = value; }
 		}
 
 		public override void Flush()
 		{
+			if (_streamImplementation == null)
+			{
+				return;
+			}
+
 			_streamImplementation.Flush();
 		}
 
 		public override int Read(byte[] buffer, int offset, int count)
 		{
+			if (_streamImplementation.Position >= _contentLength)
+			{
+				return 0;
+			}
+
 			return _streamImplementation.Read(buffer, offset, count);
 		}
 
