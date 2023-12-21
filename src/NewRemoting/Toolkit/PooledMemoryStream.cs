@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Buffers;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace NewRemoting.Toolkit
 {
@@ -90,6 +92,20 @@ namespace NewRemoting.Toolkit
 			}
 
 			return _streamImplementation.Read(buffer, offset, count);
+		}
+
+		public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+		{
+			if (cancellationToken.IsCancellationRequested)
+			{
+				return Task.FromCanceled<int>(cancellationToken);
+			}
+			if (_streamImplementation.Position >= _contentLength)
+			{
+				return Task.FromResult(0);
+			}
+
+			return base.ReadAsync(buffer, offset, count, cancellationToken);
 		}
 
 		public override long Seek(long offset, SeekOrigin origin)
