@@ -77,10 +77,12 @@ jobs:
 
     # Run build
     - name: Run build
+      timeout-minutes: 25
       run: ./build.cmd --target pack --configuration ${{ matrix.configuration }}
 
     # Upload artifacts (to github, not to Nuget)
     - name: Upload artifacts to github
+      if: ${{ always() }}
       uses: actions/upload-artifact@v3
       with:
          name: artifacts
