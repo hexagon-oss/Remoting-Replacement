@@ -382,7 +382,13 @@ namespace NewRemoting
 					clientConnectionLogger?.LogInformation($"Starting remote process: {process.StartInfo.FileName} in {process.StartInfo.WorkingDirectory}");
 					simpleLogger?.Flush();
 
-					process.Start();
+					if (!process.Start())
+					{
+						var msg = "Process failed to start";
+						Logger.LogError(msg);
+						throw new RemotingException(msg);
+					}
+
 					process.BeginOutputReadLine();
 					process.BeginErrorReadLine();
 					Logger.LogInformation("Process started after '{0}'ms", sw.ElapsedMilliseconds);
