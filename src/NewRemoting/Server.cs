@@ -827,7 +827,7 @@ namespace NewRemoting
 
 		public static Type GetTypeFromAnyAssembly(string assemblyQualifiedName)
 		{
-			Type t = Type.GetType(assemblyQualifiedName);
+			Type t = Type.GetType(assemblyQualifiedName, false);
 			if (t != null)
 			{
 				return t;
@@ -843,28 +843,35 @@ namespace NewRemoting
 			int idx = assemblyQualifiedName.IndexOf(',', start);
 			if (idx > 0)
 			{
-				string assemblyName = assemblyQualifiedName.Substring(idx + 2);
-				AssemblyName name = new AssemblyName(assemblyName);
-
-				string typeName = assemblyQualifiedName.Substring(0, idx);
-
 				try
 				{
-					Assembly ass = Assembly.Load(name);
+					string assemblyName = assemblyQualifiedName.Substring(idx + 2);
+					AssemblyName name = new AssemblyName(assemblyName);
+
+					string typeName = assemblyQualifiedName.Substring(0, idx);
+
 					try
 					{
-						return ass.GetType(assemblyQualifiedName, true);
+						Assembly ass = Assembly.Load(name);
+						try
+						{
+							return ass.GetType(assemblyQualifiedName, true);
+						}
+						catch (ArgumentException)
+						{
+							return ass.GetType(typeName, true);
+						}
 					}
-					catch (ArgumentException)
+					catch (FileNotFoundException)
 					{
+						// Try the legacy way
+						Assembly ass = Assembly.LoadFrom(name.Name + ".dll");
 						return ass.GetType(typeName, true);
 					}
 				}
-				catch (FileNotFoundException)
+				catch (Exception e) when (!(e is NullReferenceException))
 				{
-					// Try the legacy way
-					Assembly ass = Assembly.LoadFrom(name.Name + ".dll");
-					return ass.GetType(typeName, true);
+					throw new TypeLoadException($"Unable to load type {assemblyQualifiedName}. Probably cannot find the assembly it's defined in", e);
 				}
 			}
 
