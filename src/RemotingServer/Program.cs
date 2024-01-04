@@ -3,6 +3,7 @@ using System.Configuration;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net.Sockets;
 using Castle.Core.Internal;
 using CommandLine;
 using Microsoft.Extensions.Logging;
@@ -126,12 +127,12 @@ namespace RemotingServer
 
 			return true;
 		}
-			catch (Exception e)
+			catch (SocketException e)
 			{
 				Console.WriteLine(e);
 				var process = Process.GetCurrentProcess();
-				logger?.LogError($"process {process.Id} start server failed {e.Message}");
-				throw;
+				logger?.LogError(e, $"start server failed, process id {process.Id}");
+				return false;
 	}
 			finally
 			{
@@ -139,6 +140,5 @@ namespace RemotingServer
 				logger?.LogInformation($"end of startserver ({process.Id})");
 			}
 		}
-
 	}
 }
