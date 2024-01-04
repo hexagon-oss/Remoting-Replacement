@@ -184,7 +184,7 @@ namespace NewRemoting
 				}
 			}
 
-			AddInstance(instance, id, willBeSentTo, instance.GetType(), true);
+			AddInstance(instance, id, willBeSentTo, instance.GetType(), instance.GetType().AssemblyQualifiedName, true);
 			return id;
 		}
 
@@ -239,7 +239,7 @@ namespace NewRemoting
 			return false;
 		}
 
-		public InstanceInfo AddInstance(object instance, string objectId, string willBeSentTo, Type originalType, bool doThrowOnDuplicate)
+		public InstanceInfo AddInstance(object instance, string objectId, string willBeSentTo, Type originalType, string originalTypeName, bool doThrowOnDuplicate)
 		{
 			if (instance == null)
 			{
@@ -251,10 +251,18 @@ namespace NewRemoting
 				throw new ArgumentException("The original type cannot be a proxy", nameof(originalType));
 			}
 
+			if (originalType != null)
+			{
+				if (originalType.AssemblyQualifiedName != originalTypeName)
+				{
+					throw new ArgumentException("This method must be called with type and typename matching the same instance");
+				}
+			}
+
 			var ret = s_objects.AddOrUpdate(objectId, s =>
 			{
 				// Not found in list - insert new info object
-				var ii = new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), originalType.AssemblyQualifiedName, this);
+				var ii = new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), originalTypeName, this);
 				MarkInstanceAsInUseBy(willBeSentTo, ii);
 				_logger?.LogDebug($"Added new instance {ii.Identifier} to instance manager");
 				return ii;
@@ -289,7 +297,7 @@ namespace NewRemoting
 				}
 			});
 
-			s_instanceNames.AddOrUpdate(ret.QueryInstance(), new ReverseInstanceInfo(objectId, originalType.AssemblyQualifiedName));
+			s_instanceNames.AddOrUpdate(ret.QueryInstance(), new ReverseInstanceInfo(objectId, originalTypeName));
 			return ret;
 		}
 
@@ -594,7 +602,7 @@ namespace NewRemoting
 				instance = ProxyGenerator.CreateClassProxy(type, interfaces, interceptor);
 			}
 
-			InstanceInfo inst = AddInstance(instance, objectId, null, type, false);
+			InstanceInfo inst = AddInstance(instance, objectId, null, type, typeName, false);
 
 			return inst.QueryInstance();
 		}

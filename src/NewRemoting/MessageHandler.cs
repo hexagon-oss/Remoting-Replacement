@@ -240,7 +240,7 @@ namespace NewRemoting
 				if (del.Target != null)
 				{
 					string instanceId = _instanceManager.GetDelegateTargetIdentifier(del, remoteInstanceId);
-					_instanceManager.AddInstance(del, instanceId, otherSideProcessId, del.GetType(), true);
+					_instanceManager.AddInstance(del, instanceId, otherSideProcessId, del.GetType(), del.GetType().AssemblyQualifiedName, true);
 					w.Write(instanceId);
 				}
 				else
@@ -1038,7 +1038,7 @@ namespace NewRemoting
 							var interceptor = InstanceManager.GetInterceptor(_interceptors, instanceId);
 							internalSink = new DelegateInternalSink(interceptor, instanceId, methodInfoOfTarget);
 							var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideProcessId,
-								internalSink.GetType(), false);
+								internalSink.GetType(), internalSink.GetType().AssemblyQualifiedName, false);
 
 							internalSink = (DelegateInternalSink)usedInstance.QueryInstance();
 						}
@@ -1075,7 +1075,7 @@ namespace NewRemoting
 						// create the local server side delegate
 						Delegate newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
 						string delegateId = _instanceManager.GetDelegateTargetIdentifier(newDelegate, otherSideProcessId);
-						var actualInstance = _instanceManager.AddInstance(newDelegate, delegateId, otherSideProcessId, newDelegate.GetType(), false);
+						var actualInstance = _instanceManager.AddInstance(newDelegate, delegateId, otherSideProcessId, newDelegate.GetType(), newDelegate.GetType().AssemblyQualifiedName, false);
 						var actualDelegate = (Delegate)actualInstance.QueryInstance();
 						if (ReferenceEquals(actualDelegate, newDelegate))
 						{
@@ -1156,7 +1156,7 @@ namespace NewRemoting
 					{
 						internalSink = new DelegateInternalSink(interceptor, instanceId, methodInfoOfTarget);
 						var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideProcessId,
-							internalSink.GetType(), false);
+							internalSink.GetType(), internalSink.GetType().AssemblyQualifiedName, false);
 						internalSink = (DelegateInternalSink)usedInstance.QueryInstance();
 					}
 
