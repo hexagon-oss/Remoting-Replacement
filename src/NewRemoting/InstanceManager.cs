@@ -479,7 +479,8 @@ namespace NewRemoting
 			}
 		}
 
-		public object CreateOrGetProxyForObjectId(IInvocation invocation, bool canAttemptToInstantiate, Type typeOfArgument, string typeName, string objectId)
+		public object CreateOrGetProxyForObjectId(IInvocation invocation, bool canAttemptToInstantiate,
+			Type typeOfArgument, string typeName, string objectId, List<string> knownInterfaceNames)
 		{
 			if (!_interceptors.Any())
 			{
@@ -487,7 +488,7 @@ namespace NewRemoting
 			}
 
 			object instance;
-			Type type = string.IsNullOrEmpty(typeName) ? null : Server.GetTypeFromAnyAssembly(typeName);
+			Type type = string.IsNullOrEmpty(typeName) ? null : Server.GetTypeFromAnyAssembly(typeName, knownInterfaceNames.Count == 0);
 			if (type == null)
 			{
 				// The type name may be omitted if the client knows that this instance must exist
@@ -498,7 +499,10 @@ namespace NewRemoting
 					return instance;
 				}
 
-				throw new RemotingException("Unknown type found in argument stream");
+				if (knownInterfaceNames.Count == 0)
+				{
+					throw new RemotingException("Unknown type found in argument stream");
+				}
 			}
 			else
 			{
@@ -516,7 +520,22 @@ namespace NewRemoting
 
 			var interceptor = GetInterceptor(_interceptors, objectId);
 			// Create a class proxy with all interfaces proxied as well.
-			var interfaces = type.GetInterfaces();
+			Type[] interfaces = null;
+			if (type != null)
+			{
+				interfaces = type.GetInterfaces();
+			}
+			else
+			{
+				interfaces = new Type[knownInterfaceNames.Count];
+				for (var index = 0; index < knownInterfaceNames.Count; index++)
+				{
+					var interfaceToFind = knownInterfaceNames[index];
+					var tt = Server.GetTypeFromAnyAssembly(interfaceToFind, true);
+					interfaces[index] = tt;
+				}
+			}
+
 			ManualInvocation mi = invocation as ManualInvocation;
 			if (typeOfArgument != null && typeOfArgument.IsInterface)
 			{

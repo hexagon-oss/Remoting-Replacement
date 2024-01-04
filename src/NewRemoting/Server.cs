@@ -352,7 +352,7 @@ namespace NewRemoting
 			_threadRunning = true;
 			Thread ts = new Thread(ServerStreamHandler);
 			ts.Name = "Server stream handler for client side";
-			var td = new ThreadData(ts, _preopenedStream, new BinaryReader(_preopenedStream, MessageHandler.DefaultStringEncoding), otherSideProcessId);
+			var td = new ThreadData(ts, _preopenedStream, new BinaryReader(_preopenedStream, MessageHandler.DefaultStringEncoding), otherSideProcessId, false);
 			_threads.Add(td);
 			ts.Start(td);
 		}
@@ -391,7 +391,7 @@ namespace NewRemoting
 						throw new RemotingException("Incorrect data stream - sync lost");
 					}
 
-					if (ExecuteCommand(hd, r, td.OtherSideProcessId, out bool clientDisconnecting))
+					if (ExecuteCommand(hd, r, td, out bool clientDisconnecting))
 					{
 						if (clientDisconnecting)
 						{
@@ -441,7 +441,7 @@ namespace NewRemoting
 						RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
 						hdReturnValue1.WriteHeaderNoLock(answerWriter);
 						// Can this fail? Typically, this is a reference type, so it shouldn't.
-						_messageHandler.WriteArgumentToStream(answerWriter, newInstance, td.OtherSideProcessId);
+						_messageHandler.WriteArgumentToStream(answerWriter, newInstance, td.OtherSideProcessId, td.InterfaceOnlyClient);
 
 						SendAnswer(td, ms);
 
@@ -462,7 +462,7 @@ namespace NewRemoting
 						{
 							// Constructors are selected dynamically on the server side (below), therefore we can't pass the argument type here.
 							// This may disallow calling a constructor with a client-side reference. It is yet to clarify whether that's a problem or not.
-							ctorArgs[i] = _messageHandler.ReadArgumentFromStream(r, null, null, false, null, td.OtherSideProcessId);
+							ctorArgs[i] = _messageHandler.ReadArgumentFromStream(r, null, null, false, null, td.OtherSideProcessId, td.InterfaceOnlyClient);
 						}
 
 						Type t = null;
@@ -480,7 +480,7 @@ namespace NewRemoting
 
 						RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
 						hdReturnValue1.WriteHeaderNoLock(answerWriter);
-						_messageHandler.WriteArgumentToStream(answerWriter, newInstance, td.OtherSideProcessId);
+						_messageHandler.WriteArgumentToStream(answerWriter, newInstance, td.OtherSideProcessId, td.InterfaceOnlyClient);
 
 						SendAnswer(td, ms);
 						continue;
@@ -498,7 +498,7 @@ namespace NewRemoting
 						object newInstance = ServiceContainer.GetService(t);
 						RemotingCallHeader hdReturnValue1 = new RemotingCallHeader(RemotingFunctionType.MethodReply, hd.Sequence);
 						hdReturnValue1.WriteHeaderNoLock(answerWriter);
-						_messageHandler.WriteArgumentToStream(answerWriter, newInstance, td.OtherSideProcessId);
+						_messageHandler.WriteArgumentToStream(answerWriter, newInstance, td.OtherSideProcessId, td.InterfaceOnlyClient);
 
 						SendAnswer(td, ms);
 						continue;
@@ -564,7 +564,7 @@ namespace NewRemoting
 					object[] args = new object[numArgs];
 					for (int i = 0; i < numArgs; i++)
 					{
-						var decodedArg = _messageHandler.ReadArgumentFromStream(r, methodToCall, null, false, methodToCall.GetParameters()[i].ParameterType, td.OtherSideProcessId);
+						var decodedArg = _messageHandler.ReadArgumentFromStream(r, methodToCall, null, false, methodToCall.GetParameters()[i].ParameterType, td.OtherSideProcessId, td.InterfaceOnlyClient);
 						args[i] = decodedArg;
 					}
 
@@ -572,7 +572,7 @@ namespace NewRemoting
 					{
 						try
 						{
-							InvokeRealInstance(methodToCall, realInstance, args, hd, answerWriter, td.OtherSideProcessId, wasDelegateTarget);
+							InvokeRealInstance(methodToCall, realInstance, args, hd, answerWriter, td, wasDelegateTarget);
 						}
 						catch (SerializationException x)
 						{
@@ -648,7 +648,7 @@ namespace NewRemoting
 			return true;
 		}
 
-		private void InvokeRealInstance(MethodInfo me, object realInstance, object[] args, RemotingCallHeader hd, BinaryWriter w, string otherSideProcessId, bool wasDelegateTarget)
+		private void InvokeRealInstance(MethodInfo me, object realInstance, object[] args, RemotingCallHeader hd, BinaryWriter w, ThreadData td, bool wasDelegateTarget)
 		{
 			// Here, the actual target method of the proxied call is invoked.
 			Logger.Log(LogLevel.Debug, $"MainServer: Invoking {me}, sequence {hd.Sequence}");
@@ -699,7 +699,7 @@ namespace NewRemoting
 						x = x.InnerException;
 					}
 
-					_messageHandler.SendExceptionReply(x, w, hd.Sequence, otherSideProcessId);
+					_messageHandler.SendExceptionReply(x, w, hd.Sequence, td.OtherSideProcessId);
 				}
 
 				return;
@@ -722,7 +722,7 @@ namespace NewRemoting
 						Logger.Log(LogLevel.Debug, $"MainServer: {hd.Sequence} reply is of type {returnValue.GetType()}");
 					}
 
-					_messageHandler.WriteArgumentToStream(w, returnValue, otherSideProcessId);
+					_messageHandler.WriteArgumentToStream(w, returnValue, td.OtherSideProcessId, td.InterfaceOnlyClient);
 				}
 
 				int index = 0;
@@ -731,11 +731,11 @@ namespace NewRemoting
 					// Hack to make sure the contents of the array argument in calls to Stream.Read(byte[], int, int) are marshalled both ways
 					if (byRefArguments.ParameterType.IsArray && me.DeclaringType != null && me.DeclaringType.IsSubclassOf(typeof(Stream)))
 					{
-						_messageHandler.WriteArgumentToStream(w, args[index], otherSideProcessId);
+						_messageHandler.WriteArgumentToStream(w, args[index], td.OtherSideProcessId, td.InterfaceOnlyClient);
 					}
 					else if (byRefArguments.ParameterType.IsByRef)
 					{
-						_messageHandler.WriteArgumentToStream(w, args[index], otherSideProcessId);
+						_messageHandler.WriteArgumentToStream(w, args[index], td.OtherSideProcessId, td.InterfaceOnlyClient);
 					}
 
 					index++;
@@ -743,7 +743,7 @@ namespace NewRemoting
 			}
 		}
 
-		private bool ExecuteCommand(RemotingCallHeader hd, BinaryReader r, string otherSideProcessId, out bool clientDisconnecting)
+		private bool ExecuteCommand(RemotingCallHeader hd, BinaryReader r, ThreadData td, out bool clientDisconnecting)
 		{
 			clientDisconnecting = false;
 			if (hd.Function == RemotingFunctionType.OpenReverseChannel)
@@ -759,7 +759,7 @@ namespace NewRemoting
 					Thread.Sleep(20);
 				}
 
-				var newInterceptor = new ClientSideInterceptor(initialOtherSideProcessId, _instanceManager.ProcessIdentifier, false, streamToUse, _messageHandler, Logger);
+				var newInterceptor = new ClientSideInterceptor(initialOtherSideProcessId, _instanceManager.ProcessIdentifier, false, td.InterfaceOnlyClient, streamToUse, _messageHandler, Logger);
 
 				newInterceptor.Start();
 				_messageHandler.AddInterceptor(newInterceptor);
@@ -810,7 +810,7 @@ namespace NewRemoting
 				for (int i = 0; i < cnt; i++)
 				{
 					string objectId = r.ReadString();
-					_instanceManager.Remove(objectId, otherSideProcessId, false);
+					_instanceManager.Remove(objectId, td.OtherSideProcessId, false);
 				}
 
 				return true;
@@ -825,7 +825,7 @@ namespace NewRemoting
 			return false;
 		}
 
-		public static Type GetTypeFromAnyAssembly(string assemblyQualifiedName)
+		public static Type GetTypeFromAnyAssembly(string assemblyQualifiedName, bool throwOnError = true)
 		{
 			Type t = Type.GetType(assemblyQualifiedName, false);
 			if (t != null)
@@ -871,11 +871,25 @@ namespace NewRemoting
 				}
 				catch (Exception e) when (!(e is NullReferenceException))
 				{
-					throw new TypeLoadException($"Unable to load type {assemblyQualifiedName}. Probably cannot find the assembly it's defined in", e);
+					if (throwOnError)
+					{
+						throw new TypeLoadException($"Unable to load type {assemblyQualifiedName}. Probably cannot find the assembly it's defined in", e);
+					}
+					else
+					{
+						return null;
+					}
 				}
 			}
 
-			throw new TypeLoadException($"Type {assemblyQualifiedName} not found. No assembly specified");
+			if (throwOnError)
+			{
+				throw new TypeLoadException($"Type {assemblyQualifiedName} not found. No assembly specified");
+			}
+			else
+			{
+				return null;
+			}
 		}
 
 		/// <summary>
@@ -963,10 +977,11 @@ namespace NewRemoting
 						continue;
 					}
 
+					bool interfaceOnlyClient = authenticationToken[5] == 1;
 					Thread ts = new Thread(ServerStreamHandler);
 					ts.Name = $"Remote server client {tcpClient.Client.RemoteEndPoint}";
 					var td = new ThreadData(ts, stream, new BinaryReader(stream, MessageHandler.DefaultStringEncoding),
-						otherSideInstanceId);
+						otherSideInstanceId, interfaceOnlyClient);
 					_threads.Add(td);
 					ts.Start(td);
 
@@ -1077,12 +1092,13 @@ namespace NewRemoting
 
 		private sealed class ThreadData
 		{
-			public ThreadData(Thread thread, Stream stream, BinaryReader binaryReader, string otherSideProcessId)
+			public ThreadData(Thread thread, Stream stream, BinaryReader binaryReader, string otherSideProcessId, bool interfaceOnlyClient)
 			{
 				Thread = thread;
 				Stream = stream;
 				BinaryReader = binaryReader;
 				OtherSideProcessId = otherSideProcessId;
+				InterfaceOnlyClient = interfaceOnlyClient;
 			}
 
 			public Thread Thread { get; }
@@ -1090,6 +1106,7 @@ namespace NewRemoting
 			public BinaryReader BinaryReader { get; }
 
 			public string OtherSideProcessId { get; }
+			public bool InterfaceOnlyClient { get; }
 		}
 	}
 }

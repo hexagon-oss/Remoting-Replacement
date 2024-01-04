@@ -277,7 +277,8 @@ namespace NewRemoting
 		/// <param name="w">The data sink</param>
 		/// <param name="data">The object to write</param>
 		/// <param name="referencesWillBeSentTo">Destination identifier (used to keep track of references that are eventually encoded in the stream)</param>
-		public void WriteArgumentToStream(BinaryWriter w, object data, string referencesWillBeSentTo)
+		/// <param name="interfaceOnlyClient">Client doesn't have full type info - either send it or send the interface list or...?</param>
+		public void WriteArgumentToStream(BinaryWriter w, object data, string referencesWillBeSentTo, bool interfaceOnlyClient)
 		{
 			if (!_initialized)
 			{
@@ -295,6 +296,7 @@ namespace NewRemoting
 			{
 				// System.Type (and arrays of that, see below) need special handling, because it is not serializable nor Marshal-By-Ref, but still
 				// has an exact match on the remote side.
+				// TODO: For interfaceOnlyClient, this works on interfaces only
 				w.Write((int)RemotingReferenceType.InstanceOfSystemType);
 				w.Write(type.AssemblyQualifiedName);
 				LogMsg(RemotingReferenceType.InstanceOfSystemType);
@@ -309,6 +311,7 @@ namespace NewRemoting
 			}
 			else if (data is Type[] typeArray)
 			{
+				// TODO: For interfaceOnlyClient, this works on interfaces only
 				w.Write((int)RemotingReferenceType.ArrayOfSystemType);
 				w.Write(typeArray.Length);
 				LogMsg(RemotingReferenceType.ArrayOfSystemType);
@@ -335,7 +338,7 @@ namespace NewRemoting
 				{
 					// Recursively write the arguments
 					w.Write(true);
-					WriteArgumentToStream(w, obj, referencesWillBeSentTo);
+					WriteArgumentToStream(w, obj, referencesWillBeSentTo, interfaceOnlyClient);
 				}
 
 				w.Write(false); // Terminate the array
@@ -356,7 +359,7 @@ namespace NewRemoting
 				LogMsg(RemotingReferenceType.RemoteReference);
 				w.Write((int)RemotingReferenceType.RemoteReference);
 				w.Write(objectId);
-				// string originalTypeName = Client.GetUnproxiedType(data).AssemblyQualifiedName ?? String.Empty;
+
 				string originalTypeName = originalType.AssemblyQualifiedName ?? string.Empty;
 				w.Write(originalTypeName);
 			}
@@ -368,8 +371,22 @@ namespace NewRemoting
 				w.Write(objectId);
 
 				// If this is not a proxy, this should always work correctly
-				var assemblyQualitfiedTypeName = Client.GetUnproxiedType(data).AssemblyQualifiedName ?? String.Empty;
+				Type typeToSend = Client.GetUnproxiedType(data);
+				var assemblyQualitfiedTypeName = typeToSend.AssemblyQualifiedName ?? String.Empty;
 				w.Write(assemblyQualitfiedTypeName);
+				if (interfaceOnlyClient)
+				{
+					var interfaces = typeToSend.GetInterfaces().Where(x => x.IsPublic).ToList();
+					w.Write(interfaces.Count);
+					foreach (var ip in interfaces)
+					{
+						w.Write(ip.AssemblyQualifiedName ?? string.Empty);
+					}
+				}
+				else
+				{
+					w.Write(0);
+				}
 			}
 			else
 			{
@@ -632,7 +649,7 @@ namespace NewRemoting
 			return false;
 		}
 
-		public void ProcessCallResponse(IInvocation invocation, BinaryReader reader, string otherSideProcessId)
+		public void ProcessCallResponse(IInvocation invocation, BinaryReader reader, string otherSideProcessId, bool interfaceOnlyClient)
 		{
 			if (!_initialized)
 			{
@@ -646,7 +663,7 @@ namespace NewRemoting
 				methodBase = mi.Constructor;
 
 				object returnValue = ReadArgumentFromStream(reader, methodBase, invocation, true,
-					methodBase.DeclaringType, otherSideProcessId);
+					methodBase.DeclaringType, otherSideProcessId, interfaceOnlyClient);
 				invocation.ReturnValue = returnValue;
 				// out or ref arguments on ctors are rare, but not generally forbidden, so we continue here
 			}
@@ -654,7 +671,7 @@ namespace NewRemoting
 			{
 				// This happens if we request a remote instance directly (by interface type)
 				object returnValue = ReadArgumentFromStream(reader, mi2.Method, invocation, true, mi2.TargetType,
-					otherSideProcessId);
+					otherSideProcessId, interfaceOnlyClient);
 				invocation.ReturnValue = returnValue;
 				return;
 			}
@@ -665,7 +682,7 @@ namespace NewRemoting
 				if (me.ReturnType != typeof(void))
 				{
 					object returnValue = ReadArgumentFromStream(reader, methodBase, invocation, true, me.ReturnType,
-						otherSideProcessId);
+						otherSideProcessId, interfaceOnlyClient);
 					invocation.ReturnValue = returnValue;
 				}
 			}
@@ -678,7 +695,7 @@ namespace NewRemoting
 				{
 					// Copy the contents of the array-to-be-filled
 					object byRefValue = ReadArgumentFromStream(reader, methodBase, invocation, false,
-						byRefArguments.ParameterType, otherSideProcessId);
+						byRefArguments.ParameterType, otherSideProcessId, interfaceOnlyClient);
 					Array source = (Array)byRefValue; // The data from the remote side
 					Array destination = ((Array)invocation.Arguments[index]); // The argument to be filled
 					if (source.Length != destination.Length)
@@ -691,7 +708,7 @@ namespace NewRemoting
 				else if (byRefArguments.ParameterType.IsByRef)
 				{
 					object byRefValue = ReadArgumentFromStream(reader, methodBase, invocation, false,
-						byRefArguments.ParameterType, otherSideProcessId);
+						byRefArguments.ParameterType, otherSideProcessId, interfaceOnlyClient);
 					invocation.Arguments[index] = byRefValue;
 				}
 
@@ -700,7 +717,7 @@ namespace NewRemoting
 		}
 
 		public object ReadArgumentFromStream(BinaryReader r, MethodBase callingMethod, IInvocation invocation,
-			bool canAttemptToInstantiate, Type typeOfArgument, string otherSideProcessId)
+			bool canAttemptToInstantiate, Type typeOfArgument, string otherSideProcessId, bool interfaceOnlyClient)
 		{
 			if (!_initialized)
 			{
@@ -730,9 +747,21 @@ namespace NewRemoting
 					// The server sends a reference to an object that he owns
 					string objectId = r.ReadString();
 					string typeName = r.ReadString();
+					int providedInterfaces = r.ReadInt32();
+					List<string> knownInterfaces = null;
+					for (int i = 0; i < providedInterfaces; i++)
+					{
+						if (knownInterfaces == null)
+						{
+							knownInterfaces = new List<string>();
+						}
+
+						knownInterfaces.Add(r.ReadString());
+					}
+
 					object instance = null;
 					instance = InstanceManager.CreateOrGetProxyForObjectId(invocation, canAttemptToInstantiate,
-						typeOfArgument, typeName, objectId);
+						typeOfArgument, typeName, objectId, knownInterfaces);
 					return instance;
 				}
 
@@ -774,7 +803,7 @@ namespace NewRemoting
 					while (cont)
 					{
 						var nextElem = ReadArgumentFromStream(r, callingMethod, invocation, canAttemptToInstantiate,
-							contentType, otherSideProcessId);
+							contentType, otherSideProcessId, interfaceOnlyClient);
 						list.Add(nextElem);
 						cont = r.ReadBoolean();
 					}

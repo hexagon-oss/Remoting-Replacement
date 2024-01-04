@@ -25,6 +25,7 @@ namespace NewRemoting
 	{
 		private const int NumberOfCallsForGc = 100;
 		private static readonly TimeSpan GcLoopTime = new TimeSpan(0, 0, 0, 20);
+		private readonly bool _interfaceOnlyClient;
 		private readonly Stream _serverLink;
 		private readonly MessageHandler _messageHandler;
 		private readonly ILogger _logger;
@@ -43,7 +44,8 @@ namespace NewRemoting
 		/// </summary>
 		private BinaryReader _reader;
 
-		public ClientSideInterceptor(string otherSideProcessId, string thisSideProcessId, bool clientSide, Stream serverLink, MessageHandler messageHandler, ILogger logger)
+		public ClientSideInterceptor(string otherSideProcessId, string thisSideProcessId, bool clientSide, bool interfaceOnlyClient,
+			Stream serverLink, MessageHandler messageHandler, ILogger logger)
 		{
 			_receiving = true;
 			_numberOfCallsInspected = 0;
@@ -51,6 +53,7 @@ namespace NewRemoting
 			ThisSideProcessId = thisSideProcessId;
 			DebuggerToStringBehavior = DebuggerToStringBehavior.ReturnProxyName;
 			_sequence = clientSide ? 1 : 10000;
+			_interfaceOnlyClient = interfaceOnlyClient;
 			_serverLink = serverLink;
 			_messageHandler = messageHandler ?? throw new ArgumentNullException(nameof(messageHandler));
 			_logger = logger;
@@ -273,7 +276,7 @@ namespace NewRemoting
 				}
 				else
 				{
-					_messageHandler.WriteArgumentToStream(writer, argument, OtherSideProcessId);
+					_messageHandler.WriteArgumentToStream(writer, argument, OtherSideProcessId, _interfaceOnlyClient);
 				}
 			}
 
@@ -427,7 +430,7 @@ namespace NewRemoting
 						else
 						{
 							_logger.Log(LogLevel.Debug, $"{ThisSideProcessId}: Receiving reply for {ctx.Invocation.Method}");
-							_messageHandler.ProcessCallResponse(ctx.Invocation, _reader, ThisSideProcessId);
+							_messageHandler.ProcessCallResponse(ctx.Invocation, _reader, ThisSideProcessId, _interfaceOnlyClient);
 							ctx.Set();
 						}
 					}

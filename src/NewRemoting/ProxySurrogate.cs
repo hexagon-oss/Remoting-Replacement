@@ -46,6 +46,14 @@ namespace NewRemoting
 				writer.WriteStartObject();
 				writer.WriteString("AssemblyQualifiedName", value.GetType().AssemblyQualifiedName);
 				writer.WriteString("ObjectId", objectId);
+				writer.WritePropertyName("Interfaces");
+				writer.WriteStartArray();
+				foreach (var elem in value.GetType().GetInterfaces().Where(x => x.IsPublic))
+				{
+					writer.WriteStringValue(elem.AssemblyQualifiedName);
+				}
+
+				writer.WriteEndArray();
 				writer.WriteEndObject();
 			}
 		}
@@ -59,6 +67,7 @@ namespace NewRemoting
 
 			string objectId = null;
 			string typeName = null;
+			List<string> interfaceList = new List<string>();
 			while (reader.Read())
 			{
 				if (reader.TokenType == JsonTokenType.EndObject)
@@ -93,11 +102,11 @@ namespace NewRemoting
 			if (!string.IsNullOrEmpty(typeName))
 			{
 				Type targetType = Server.GetTypeFromAnyAssembly(typeName);
-				newProxy = _instanceManager.CreateOrGetProxyForObjectId(null, false, targetType, typeName, objectId);
+				newProxy = _instanceManager.CreateOrGetProxyForObjectId(null, false, targetType, typeName, objectId, interfaceList);
 			}
 			else
 			{
-				newProxy = _instanceManager.CreateOrGetProxyForObjectId(null, false, null, typeName, objectId);
+				newProxy = _instanceManager.CreateOrGetProxyForObjectId(null, false, null, typeName, objectId, interfaceList);
 			}
 
 			return newProxy;
