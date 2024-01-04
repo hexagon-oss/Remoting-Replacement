@@ -362,6 +362,7 @@ namespace NewRemoting
 
 				string originalTypeName = originalType.AssemblyQualifiedName ?? string.Empty;
 				w.Write(originalTypeName);
+				w.Write(0);
 			}
 			else if (IsMarshalByRefType(t))
 			{

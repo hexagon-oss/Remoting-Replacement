@@ -488,7 +488,8 @@ namespace NewRemoting
 			}
 
 			object instance;
-			Type type = string.IsNullOrEmpty(typeName) ? null : Server.GetTypeFromAnyAssembly(typeName, knownInterfaceNames.Count == 0);
+			Type type = string.IsNullOrEmpty(typeName) ? null : Server.GetTypeFromAnyAssembly(typeName,
+				knownInterfaceNames == null || knownInterfaceNames.Count == 0);
 			if (type == null)
 			{
 				// The type name may be omitted if the client knows that this instance must exist

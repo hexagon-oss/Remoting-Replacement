@@ -77,14 +77,20 @@ namespace NewRemoting
 
 				string propertyName = reader.GetString()!;
 				reader.Read();
-				string propertyValue = reader.GetString();
 				if (propertyName.Equals("ObjectId", StringComparison.Ordinal))
 				{
-					objectId = propertyValue;
+					objectId = reader.GetString();
 				}
 				else if (propertyName.Equals("AssemblyQualifiedName", StringComparison.Ordinal))
 				{
-					typeName = propertyValue;
+					typeName = reader.GetString();
+				}
+				else if (propertyName.Equals("Interfaces", StringComparison.Ordinal) && reader.TokenType == JsonTokenType.StartArray)
+				{
+					while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+					{
+						interfaceList.Add(reader.GetString());
+					}
 				}
 				else
 				{
