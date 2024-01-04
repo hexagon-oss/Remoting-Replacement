@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Configuration;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using Castle.Core.Internal;
@@ -26,6 +27,9 @@ namespace RemotingServer
 
 		public static bool StartServer(string[] args)
 		{
+			ILogger logger = null;
+			try
+			{
 			var parsed = Parser.Default.ParseArguments<CommandLineOptions>(args);
 			int port = Client.DefaultNetworkPort;
 			CommandLineOptions options = null;
@@ -37,19 +41,19 @@ namespace RemotingServer
 					port = options.Port.Value;
 				}
 
-				ILogger logger = null;
-
 				if (!string.IsNullOrWhiteSpace(options.LogFile))
 				{
 					try
 					{
 						var info = new FileInfo(options.LogFile);
 						info.Directory?.Create();
-						logger = new SimpleLogFileWriter(options.LogFile, "ServerLog", options.Verbose ? LogLevel.Trace : LogLevel.Information);
+							logger = new SimpleLogFileWriter(options.LogFile, "ServerLog",
+								options.Verbose ? LogLevel.Trace : LogLevel.Information);
 					}
 					catch (IOException)
 					{
-						logger = new SimpleLogFileWriter(Path.Combine(Path.GetTempPath(), options.LogFile), "ServerLog",
+							logger = new SimpleLogFileWriter(Path.Combine(Path.GetTempPath(), options.LogFile),
+								"ServerLog",
 							options.Verbose ? LogLevel.Trace : LogLevel.Information);
 					}
 				}
@@ -57,6 +61,9 @@ namespace RemotingServer
 				{
 					logger = new ConsoleAndDebugLogger("RemotingServer");
 				}
+
+					Process currentProcess = Process.GetCurrentProcess();
+					logger?.LogInformation($"current process id {currentProcess.Id}");
 
 				var allKeys = ConfigurationManager.AppSettings.AllKeys;
 				string certificate = null;
@@ -119,5 +126,19 @@ namespace RemotingServer
 
 			return true;
 		}
+			catch (Exception e)
+			{
+				Console.WriteLine(e);
+				var process = Process.GetCurrentProcess();
+				logger?.LogError($"process {process.Id} start server failed {e.Message}");
+				throw;
+	}
+			finally
+			{
+				var process = Process.GetCurrentProcess();
+				logger?.LogInformation($"end of startserver ({process.Id})");
+			}
+		}
+
 	}
 }
