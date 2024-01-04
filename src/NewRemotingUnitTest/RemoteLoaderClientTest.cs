@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
+using Microsoft.Extensions.Logging;
 using NewRemoting;
 using NUnit.Framework;
 
@@ -72,8 +73,8 @@ namespace NewRemotingUnitTest
 				using IRemoteLoaderClient client = new RemoteLoaderWindowsClient(_remoteCredentials, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(2), arguments, remoteLoaderClientLogger);
 				try
 				{
-				client.Connect(errorTokenSource.Token, clientLogger);
-				clientLogger.LogInformation("Client connect done");
+					client.Connect(errorTokenSource.Token, clientLogger);
+					clientLogger.LogInformation("Client connect done");
 				}
 				catch (Exception e)
 				{
