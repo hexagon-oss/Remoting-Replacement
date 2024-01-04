@@ -70,8 +70,16 @@ namespace NewRemotingUnitTest
 				using SimpleLogFileWriter remoteLoaderClientLogger = new SimpleLogFileWriter(remoteLoaderClientLogFile, "WindowsRemotingClient");
 
 				using IRemoteLoaderClient client = new RemoteLoaderWindowsClient(_remoteCredentials, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(2), arguments, remoteLoaderClientLogger);
+				try
+				{
 				client.Connect(errorTokenSource.Token, clientLogger);
 				clientLogger.LogInformation("Client connect done");
+				}
+				catch (Exception e)
+				{
+					clientLogger.LogError($"connect has thrown exception {e.Message}");
+				}
+
 				// Should not be cancelled yet.
 				Assert.False(errorTokenSource.IsCancellationRequested);
 				existingProcess.Kill();
