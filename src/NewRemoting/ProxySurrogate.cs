@@ -30,7 +30,7 @@ namespace NewRemoting
 			if (Client.IsRemoteProxy(value))
 			{
 				// This should have an unit test, but I have not yet found out what test code causes this situation
-				if (!_instanceManager.TryGetObjectId(value, out objectId, out Type originalType))
+				if (!_instanceManager.TryGetObjectId(value, out objectId, out _))
 				{
 					throw new RemotingException("Couldn't find matching objectId, although should be there");
 				}

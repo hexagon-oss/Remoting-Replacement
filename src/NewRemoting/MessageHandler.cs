@@ -351,7 +351,7 @@ namespace NewRemoting
 			else if (Client.IsRemoteProxy(data))
 			{
 				// Proxies are never serializable
-				if (!_instanceManager.TryGetObjectId(data, out string objectId, out Type originalType))
+				if (!_instanceManager.TryGetObjectId(data, out string objectId, out string originalTypeName))
 				{
 					throw new RemotingException("A proxy has no existing reference");
 				}
@@ -359,8 +359,6 @@ namespace NewRemoting
 				LogMsg(RemotingReferenceType.RemoteReference);
 				w.Write((int)RemotingReferenceType.RemoteReference);
 				w.Write(objectId);
-
-				string originalTypeName = originalType.AssemblyQualifiedName ?? string.Empty;
 				w.Write(originalTypeName);
 				w.Write(0);
 			}

@@ -254,7 +254,7 @@ namespace NewRemoting
 			var ret = s_objects.AddOrUpdate(objectId, s =>
 			{
 				// Not found in list - insert new info object
-				var ii = new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), originalType, this);
+				var ii = new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), originalType.AssemblyQualifiedName, this);
 				MarkInstanceAsInUseBy(willBeSentTo, ii);
 				_logger?.LogDebug($"Added new instance {ii.Identifier} to instance manager");
 				return ii;
@@ -289,14 +289,14 @@ namespace NewRemoting
 				}
 			});
 
-			s_instanceNames.AddOrUpdate(ret.QueryInstance(), new ReverseInstanceInfo(objectId, originalType));
+			s_instanceNames.AddOrUpdate(ret.QueryInstance(), new ReverseInstanceInfo(objectId, originalType.AssemblyQualifiedName));
 			return ret;
 		}
 
 		/// <summary>
 		/// Gets the instance id for a given object.
 		/// </summary>
-		public bool TryGetObjectId(object instance, out string instanceId, out Type originalType)
+		public bool TryGetObjectId(object instance, out string instanceId, out string originalTypeName)
 		{
 			if (ReferenceEquals(instance, null))
 			{
@@ -307,7 +307,7 @@ namespace NewRemoting
 			if (s_instanceNames.TryGetValue(instance, out ri))
 			{
 				instanceId = ri.ObjectId;
-				originalType = ri.ObjectType;
+				originalTypeName = ri.ObjectType;
 				return true;
 			}
 
@@ -318,13 +318,13 @@ namespace NewRemoting
 				if (ReferenceEquals(v.QueryInstance(), instance))
 				{
 					instanceId = v.Identifier;
-					originalType = v.OriginalType;
+					originalTypeName = v.OriginalType;
 					return true;
 				}
 			}
 
 			instanceId = null;
-			originalType = null;
+			originalTypeName = null;
 			return false;
 		}
 
@@ -701,13 +701,13 @@ namespace NewRemoting
 			private object _instanceHardReference;
 			private WeakReference _instanceWeakReference;
 
-			public InstanceInfo(object obj, string identifier, bool isLocal, Type originalType, InstanceManager owner)
+			public InstanceInfo(object obj, string identifier, bool isLocal, string originalTypeName, InstanceManager owner)
 			{
 				IsLocal = isLocal;
 				SetInstance(obj);
 
 				Identifier = identifier;
-				OriginalType = originalType ?? throw new ArgumentNullException(nameof(originalType));
+				OriginalType = originalTypeName ?? throw new ArgumentNullException(nameof(originalTypeName));
 				_owningInstanceManager = owner;
 				ReferenceBitVector = 0;
 			}
@@ -719,7 +719,7 @@ namespace NewRemoting
 
 			public bool IsLocal { get; }
 
-			public Type OriginalType
+			public string OriginalType
 			{
 				get;
 			}
@@ -801,7 +801,7 @@ namespace NewRemoting
 
 		private class ReverseInstanceInfo
 		{
-			public ReverseInstanceInfo(string objectId, Type objectType)
+			public ReverseInstanceInfo(string objectId, string objectType)
 			{
 				ObjectId = objectId;
 				ObjectType = objectType;
@@ -809,7 +809,7 @@ namespace NewRemoting
 
 			public string ObjectId { get; }
 
-			public Type ObjectType { get; }
+			public string ObjectType { get; }
 		}
 	}
 }
