@@ -8,6 +8,7 @@ namespace NewRemoting.Toolkit
 {
 	public sealed class PooledMemoryStream : Stream, IManualSerialization
 	{
+		private readonly object _lock = new object();
 		private byte[] _pooledObject;
 		private int _contentLength;
 		private MemoryStream _streamImplementation;
@@ -28,12 +29,15 @@ namespace NewRemoting.Toolkit
 		{
 			get
 			{
-				if (_streamImplementation == null)
+				lock (_lock)
 				{
-					return false;
-				}
+					if (_streamImplementation == null)
+					{
+						return false;
+					}
 
-				return _streamImplementation.CanRead;
+					return _streamImplementation.CanRead;
+				}
 			}
 		}
 
@@ -41,12 +45,15 @@ namespace NewRemoting.Toolkit
 		{
 			get
 			{
-				if (_streamImplementation == null)
+				lock (_lock)
 				{
-					return false;
-				}
+					if (_streamImplementation == null)
+					{
+						return false;
+					}
 
-				return _streamImplementation.CanSeek;
+					return _streamImplementation.CanSeek;
+				}
 			}
 		}
 
@@ -54,12 +61,15 @@ namespace NewRemoting.Toolkit
 		{
 			get
 			{
-				if (_streamImplementation == null)
+				lock (_lock)
 				{
-					return false;
-				}
+					if (_streamImplementation == null)
+					{
+						return false;
+					}
 
-				return _streamImplementation.CanWrite;
+					return _streamImplementation.CanWrite;
+				}
 			}
 		}
 
@@ -70,28 +80,59 @@ namespace NewRemoting.Toolkit
 
 		public override long Position
 		{
-			get { return _streamImplementation.Position; }
-			set { _streamImplementation.Position = value; }
+			get
+			{
+				lock (_lock)
+				{
+					if (_streamImplementation == null)
+					{
+						return 0;
+					}
+
+					return _streamImplementation.Position;
+				}
+			}
+			set
+			{
+				lock (_lock)
+				{
+					if (_streamImplementation != null)
+					{
+						_streamImplementation.Position = value;
+					}
+				}
+			}
 		}
 
 		public override void Flush()
 		{
-			if (_streamImplementation == null)
+			lock (_lock)
 			{
-				return;
-			}
+				if (_streamImplementation == null)
+				{
+					return;
+				}
 
-			_streamImplementation.Flush();
+				_streamImplementation.Flush();
+			}
 		}
 
 		public override int Read(byte[] buffer, int offset, int count)
 		{
-			if (_streamImplementation.Position >= _contentLength)
+			lock (_lock)
 			{
-				return 0;
-			}
+				if (_streamImplementation == null)
+				{
+					return 0;
+				}
 
-			return _streamImplementation.Read(buffer, offset, count);
+				if (_streamImplementation.Position >= _contentLength)
+				{
+					return 0;
+				}
+
+				return _streamImplementation.Read(buffer, offset, count);
+			}
 		}
 
 		public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
@@ -101,12 +142,13 @@ namespace NewRemoting.Toolkit
 				return Task.FromCanceled<int>(cancellationToken);
 			}
 
-			if (_streamImplementation == null)
+			var impl = _streamImplementation;
+			if (impl == null)
 			{
 				return Task.FromResult(0);
 			}
 
-			if (_streamImplementation.Position >= _contentLength)
+			if (impl.Position >= _contentLength)
 			{
 				return Task.FromResult(0);
 			}
@@ -116,7 +158,15 @@ namespace NewRemoting.Toolkit
 
 		public override long Seek(long offset, SeekOrigin origin)
 		{
-			return _streamImplementation.Seek(offset, origin);
+			lock (_lock)
+			{
+				if (_streamImplementation == null)
+				{
+					return 0;
+				}
+
+				return _streamImplementation.Seek(offset, origin);
+			}
 		}
 
 		public override void SetLength(long value)
