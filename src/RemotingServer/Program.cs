@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Configuration;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
-using Castle.Core.Internal;
 using CommandLine;
 using Microsoft.Extensions.Logging;
 using NewRemoting;
@@ -16,17 +14,12 @@ namespace RemotingServer
 		public static int Main(string[] args)
 		{
 			Console.WriteLine("Hello World of Remoting Servers!");
-			if (!StartServer(args))
-			{
-				Console.WriteLine("Server failed to start.");
-				return -1;
-			}
-
-			Console.WriteLine("Server gracefully exiting");
-			return 0;
+			var exitCode = StartServer(args);
+			Console.WriteLine(exitCode != ExitCode.Success ? "Server failed to start." : "Server gracefully exiting");
+			return (int)exitCode;
 		}
 
-		public static bool StartServer(string[] args)
+		public static ExitCode StartServer(string[] args)
 		{
 			ILogger logger = null;
 			try
@@ -96,7 +89,7 @@ namespace RemotingServer
 						if (!File.Exists(certificate))
 						{
 							Console.WriteLine($"Certificate {certificate} does not exist");
-							return false;
+							return ExitCode.StartFailure;
 						}
 					}
 
@@ -119,13 +112,13 @@ namespace RemotingServer
 					}
 				}
 
-				return true;
+				return ExitCode.Success;
 			}
 			catch (SocketException e)
 			{
 				Console.WriteLine(e);
 				logger?.LogError(e, "start server failed");
-				return false;
+				return ExitCode.SocketCreationFailure;
 			}
 			finally
 			{
