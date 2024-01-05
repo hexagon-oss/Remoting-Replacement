@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
+using Microsoft.Extensions.Logging;
 using NewRemoting;
 using NUnit.Framework;
 
@@ -46,11 +47,15 @@ namespace NewRemotingUnitTest
 				_helper?.TearDown();
 			}
 
+			/// <summary>
+			/// This test ensures : we properly handle the case where many instances of remoting exists.
+			/// New instances should throw a remoting exception if the same port is used, or if the process fails to start.
+			/// The client should connect to the first instance which created the socket.
+			/// </summary>
 			[Test]
 			public void CorrectlyHandleAlreadyExistingRemoteLoader()
 			{
-				string arguments = string.Empty; // TODO: Fix
-				var existingProcess = PaExecClient.CreateProcessLocal(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, RemoteLoaderWindowsClient.REMOTELOADER_EXECUTABLE), arguments);
+				var existingProcess = PaExecClient.CreateProcessLocal(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, RemoteLoaderWindowsClient.REMOTELOADER_EXECUTABLE), string.Empty);
 				existingProcess.Start();
 				Assert.IsNotNull(existingProcess);
 				Thread.Sleep(2000);
@@ -58,12 +63,24 @@ namespace NewRemotingUnitTest
 
 				CancellationTokenSource errorTokenSource = new CancellationTokenSource();
 				errorTokenSource.CancelAfter(TimeSpan.FromSeconds(60));
-				IRemoteLoaderClient client = new RemoteLoaderWindowsClient(_remoteCredentials, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(2), string.Empty);
-				client.Connect(errorTokenSource.Token, null);
+
+				using IRemoteLoaderClient client = new RemoteLoaderWindowsClient(_remoteCredentials, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(2), string.Empty);
+				// the above client will start a new remoting process, as we have already one process running and using the
+				// same port, the new process will throw a socket exception.the above client object is waiting one second to check if the new process started
+				// if the socket exception did not yet happen the client continues and connect to the other instance.
+				// if the socket exception already happened we catch the remotingException throw after the one second wait.
+				try
+				{
+					client.Connect(errorTokenSource.Token);
+				}
+				catch (RemotingException e)
+				{
+					Console.WriteLine($"connect has thrown exception {e.Message}");
+				}
+
 				// Should not be cancelled yet.
 				Assert.False(errorTokenSource.IsCancellationRequested);
 				existingProcess.Kill();
-				client.Dispose();
 			}
 
 			/// <summary>

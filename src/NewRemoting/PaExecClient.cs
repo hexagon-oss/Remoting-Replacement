@@ -303,9 +303,7 @@ namespace NewRemoting
 		public virtual IProcess LaunchProcess(CancellationToken externalToken, bool? isRemoteHostOnLocalMachine, string processName, string arguments,
 			string dependenciesFile, string remoteFileDirectory, string paexecArgs = null, ILogger clientConnectionLogger = null)
 		{
-			var simpleLogger = clientConnectionLogger as SimpleLogFileWriter;
 			clientConnectionLogger?.LogInformation($"LaunchProcess {processName}");
-			simpleLogger?.Flush();
 
 			var sw = Stopwatch.StartNew();
 			if (!isRemoteHostOnLocalMachine.HasValue)
@@ -316,7 +314,6 @@ namespace NewRemoting
 			if (!PingUtil.CancellableTryWaitForPingResponse(RemoteHost, TimeSpan.MaxValue, externalToken))
 			{
 				clientConnectionLogger?.LogError($"Could not ping {RemoteHost}");
-				simpleLogger?.Flush();
 				_process = null;
 				return _process;
 			}
@@ -325,7 +322,6 @@ namespace NewRemoting
 			while (_process == null)
 			{
 				clientConnectionLogger?.LogInformation($"Attempting to create remote process");
-				simpleLogger?.Flush();
 
 				if (isRemoteHostOnLocalMachine.Value)
 				{
@@ -338,7 +334,6 @@ namespace NewRemoting
 				_logger.LogInformation("Process created after '{0}'ms", sw.ElapsedMilliseconds);
 
 				clientConnectionLogger?.LogInformation($"Process created after {sw.ElapsedMilliseconds} ms");
-				simpleLogger?.Flush();
 
 				// Cancel operation if process exits or canceled externally
 				lock (_internalCancellationTokenSourceLock)
@@ -380,20 +375,23 @@ namespace NewRemoting
 					Logger.LogInformation(FormattableString.Invariant($"Starting remote process: {process.StartInfo.FileName} in {process.StartInfo.WorkingDirectory}"));
 
 					clientConnectionLogger?.LogInformation($"Starting remote process: {process.StartInfo.FileName} in {process.StartInfo.WorkingDirectory}");
-					simpleLogger?.Flush();
 
-					process.Start();
+					if (!process.Start())
+					{
+						var msg = "Process failed to start";
+						Logger.LogError(msg);
+						throw new RemotingException(msg);
+					}
+
 					process.BeginOutputReadLine();
 					process.BeginErrorReadLine();
 					Logger.LogInformation("Process started after '{0}'ms", sw.ElapsedMilliseconds);
 
 					clientConnectionLogger?.LogInformation("Process start called");
-					simpleLogger?.Flush();
 
 					if (WaitForRemoteProcessStartup(linkedCancellationTokenSource, process))
 					{
 						clientConnectionLogger?.LogInformation("Process has started");
-						simpleLogger?.Flush();
 						_process = process; // remote server is running and remote interface is available --> exit the loop
 						break;
 					}
@@ -401,7 +399,6 @@ namespace NewRemoting
 					try
 					{
 						clientConnectionLogger?.LogError("Process start was cancelled");
-						simpleLogger?.Flush();
 
 						// throw canceled exception if it was external canceled
 						externalToken.ThrowIfCancellationRequested();
@@ -412,7 +409,6 @@ namespace NewRemoting
 							var errorMsg = string.Format(CultureInfo.InvariantCulture, "Could not get interface of remote loader on machine {0} ", RemoteHost);
 							Logger.LogError(errorMsg);
 							clientConnectionLogger?.LogError(errorMsg);
-							simpleLogger?.Flush();
 
 							process.Kill(); // if process is still running, we didn't receive the process exit event - this should never happen but just in case we terminate the remote process
 							throw new RemotingException(errorMsg);
@@ -424,7 +420,6 @@ namespace NewRemoting
 							var msg = FormattableString.Invariant($"Paexec service could not be installed, error code {errorCode} - retrying");
 							Logger.LogError(msg);
 							clientConnectionLogger?.LogError(msg);
-							simpleLogger?.Flush();
 						}
 						else
 						{
@@ -432,8 +427,6 @@ namespace NewRemoting
 							Logger.LogError(errorMsg);
 
 							clientConnectionLogger?.LogError(errorMsg);
-							simpleLogger?.Flush();
-
 							throw new RemotingException(errorMsg);
 						}
 					}

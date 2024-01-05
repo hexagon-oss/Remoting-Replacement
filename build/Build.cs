@@ -82,7 +82,7 @@ class Build : NukeBuild
 			    .EnableNoBuild()
 			    .EnableNoRestore()
 			    .SetVerbosity(DotNetVerbosity.Normal)
-			    .SetResultsDirectory(RootDirectory / string.Concat("TestResult.UnitTest.", Platform, ".", Configuration, ".", "net6.0"));
+			    .SetSettingsFile("src/NewRemotingUnitTest/test.runsettings");
 		    DotNetTest(settings);
 
 	    });
