@@ -146,7 +146,6 @@ namespace NewRemoting
 
 		protected override bool WaitForRemoteProcessStartup(CancellationTokenSource linkedCancellationTokenSource, IProcess process)
 		{
-			// TODO: Implement FCMS-8056
 			Thread.Sleep(1000);
 			if (process.HasExited)
 			{
