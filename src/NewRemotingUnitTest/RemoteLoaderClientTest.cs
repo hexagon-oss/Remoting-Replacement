@@ -50,13 +50,7 @@ namespace NewRemotingUnitTest
 			[Test]
 			public void CorrectlyHandleAlreadyExistingRemoteLoader()
 			{
-				string withAuth = _helper != null ? "with" : "none";
-				var now = DateTime.UtcNow.ToString("yyyyMMdd_hhmmsf");
-				string logFile = AppDomain.CurrentDomain.BaseDirectory + $"../../../../../artifacts/CorrectlyHandleAlreadyExistingRemoteLoader_{now}_{withAuth}.log";
-				string clientFile = AppDomain.CurrentDomain.BaseDirectory + $"../../../../../artifacts/CorrectlyHandleAlreadyExistingRemoteLoader_client_{now}_{withAuth}.log";
-				using SimpleLogFileWriter clientLogger = new SimpleLogFileWriter(clientFile, "client");
-				string arguments = $"-v -l {logFile}";
-				var existingProcess = PaExecClient.CreateProcessLocal(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, RemoteLoaderWindowsClient.REMOTELOADER_EXECUTABLE), arguments);
+				var existingProcess = PaExecClient.CreateProcessLocal(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, RemoteLoaderWindowsClient.REMOTELOADER_EXECUTABLE), string.Empty);
 				existingProcess.Start();
 				Assert.IsNotNull(existingProcess);
 				Thread.Sleep(2000);
@@ -64,21 +58,15 @@ namespace NewRemotingUnitTest
 
 				CancellationTokenSource errorTokenSource = new CancellationTokenSource();
 				errorTokenSource.CancelAfter(TimeSpan.FromSeconds(60));
-				logFile = AppDomain.CurrentDomain.BaseDirectory + $"../../../../../artifacts/CorrectlyHandleAlreadyExistingRemoteLoader_second_instance_{now}.log";
-				arguments = $"-v -l {logFile}";
 
-				string remoteLoaderClientLogFile = AppDomain.CurrentDomain.BaseDirectory + $"../../../../../artifacts/CorrectlyHandleAlreadyExistingRemoteLoader_windowsRemotingClient_{now}_{withAuth}.log";
-				using SimpleLogFileWriter remoteLoaderClientLogger = new SimpleLogFileWriter(remoteLoaderClientLogFile, "WindowsRemotingClient");
-
-				using IRemoteLoaderClient client = new RemoteLoaderWindowsClient(_remoteCredentials, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(2), arguments, remoteLoaderClientLogger);
+				using IRemoteLoaderClient client = new RemoteLoaderWindowsClient(_remoteCredentials, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(2), string.Empty);
 				try
 				{
-					client.Connect(errorTokenSource.Token, clientLogger);
-					clientLogger.LogInformation("Client connect done");
+					client.Connect(errorTokenSource.Token);
 				}
 				catch (Exception e)
 				{
-					clientLogger.LogError($"connect has thrown exception {e.Message}");
+					Console.WriteLine($"connect has thrown exception {e.Message}");
 				}
 
 				// Should not be cancelled yet.
