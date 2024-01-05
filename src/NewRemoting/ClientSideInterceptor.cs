@@ -86,13 +86,13 @@ namespace NewRemoting
 		/// </summary>
 		private static long GetGcMemoryInfoIndex()
 		{
-			if (!OperatingSystem.IsAndroid())
+			if (OperatingSystem.IsAndroid())
 			{
 				return 0;
 			}
 			else
 			{
-				var lastGc = new GCMemoryInfo();
+				var lastGc = GC.GetGCMemoryInfo(GCKind.Any);
 				return lastGc.Index;
 			}
 		}
