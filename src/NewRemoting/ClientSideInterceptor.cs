@@ -81,6 +81,24 @@ namespace NewRemoting
 
 		public string ThisSideProcessId { get; }
 
+		/// <summary>
+		/// The method is not implemented on the mono runtime (which is used e.g. for Android), therefore use this wrapper
+		/// </summary>
+		private static GCMemoryInfo GetGcMemoryInfo()
+		{
+			GCMemoryInfo lastGc;
+			if (!OperatingSystem.IsAndroid())
+			{
+				lastGc = GC.GetGCMemoryInfo(GCKind.Any);
+			}
+			else
+			{
+				lastGc = new GCMemoryInfo();
+			}
+
+			return lastGc;
+		}
+
 		internal int NextSequenceNumber()
 		{
 			return Interlocked.Increment(ref _sequence);
@@ -312,7 +330,8 @@ namespace NewRemoting
 		/// </summary>
 		private void MemoryCollectingThread()
 		{
-			GCMemoryInfo lastGc = GC.GetGCMemoryInfo(GCKind.Any);
+			var lastGc = GetGcMemoryInfo();
+
 			WaitHandle[] handles = new WaitHandle[] { _gcEvent, _terminator.Token.WaitHandle };
 			while (_receiving)
 			{
@@ -324,6 +343,7 @@ namespace NewRemoting
 					_messageHandler.InstanceManager.PerformGc(writer, false);
 					SafeSendToServer(rawDataMessage);
 					Interlocked.Exchange(ref _numberOfCallsInspected, 0);
+					lastGc = GetGcMemoryInfo();
 				}
 
 				int waitEventNo = WaitHandle.WaitAny(handles, GcLoopTime);
@@ -343,7 +363,7 @@ namespace NewRemoting
 				// If we loose an assignment in the worst case here, nothing ugly is going to happen
 				Interlocked.Exchange(ref _numberOfCallsInspected, newValue);
 
-				GCMemoryInfo info = GC.GetGCMemoryInfo(GCKind.Any);
+				GCMemoryInfo info = GetGcMemoryInfo();
 				if (info.Index > lastGc.Index)
 				{
 					// A GC has happened
