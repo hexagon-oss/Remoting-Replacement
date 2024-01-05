@@ -106,10 +106,6 @@ namespace RemotingServer
 					server.WaitForTermination();
 					server.Terminate(false);
 					GC.KeepAlive(server);
-					if (logger is IDisposable disposable)
-					{
-						disposable.Dispose();
-					}
 				}
 
 				return ExitCode.Success;
@@ -123,6 +119,11 @@ namespace RemotingServer
 			finally
 			{
 				logger?.LogInformation("end of program");
+
+				if (logger is IDisposable disposable)
+				{
+					disposable.Dispose();
+				}
 			}
 		}
 	}
