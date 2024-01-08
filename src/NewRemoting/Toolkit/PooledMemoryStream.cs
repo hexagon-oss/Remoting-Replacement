@@ -186,8 +186,12 @@ namespace NewRemoting.Toolkit
 			base.Dispose(disposing);
 			if (disposing && _pooledObject != null)
 			{
-				_streamImplementation?.Dispose();
-				_streamImplementation = null;
+				lock (_lock)
+				{
+					_streamImplementation?.Dispose();
+					_streamImplementation = null;
+				}
+
 				ArrayPool<byte>.Shared.Return(_pooledObject);
 				_pooledObject = null;
 			}
@@ -203,13 +207,24 @@ namespace NewRemoting.Toolkit
 		{
 			_contentLength = serializerSource.ReadInt32();
 			_pooledObject = ArrayPool<byte>.Shared.Rent(_contentLength);
-			if (serializerSource.Read(_pooledObject, 0, _contentLength) != _contentLength)
+			int alreadyRead = 0;
+			while (alreadyRead < _contentLength)
 			{
-				throw new RemotingException("End of stream detected while deserializing object");
+				// On slow(er) connections, sometimes a loop is required
+				int len = serializerSource.Read(_pooledObject, alreadyRead, _contentLength - alreadyRead);
+				if (len == 0)
+				{
+					throw new RemotingException("End of stream detected while deserializing object");
+				}
+
+				alreadyRead += len;
 			}
 
-			_streamImplementation = new MemoryStream(_pooledObject, 0, _contentLength, true);
-			_streamImplementation.Position = 0;
+			lock (_lock)
+			{
+				_streamImplementation = new MemoryStream(_pooledObject, 0, _contentLength, true);
+				_streamImplementation.Position = 0;
+			}
 		}
 	}
 }
