@@ -1199,6 +1199,20 @@ namespace NewRemoting
 			using var lck = hdReturnValue.WriteHeader(w);
 			// We're manually serializing exceptions, because that's apparently how this should be done (since
 			// ExceptionDispatchInfo.SetRemoteStackTrace doesn't work if the stack trace has already been set)
+			EncodeException(exception, w);
+			while (exception.InnerException != null)
+			{
+				// True: Another one follows
+				w.Write(true);
+				exception = exception.InnerException;
+				EncodeException(exception, w);
+			}
+
+			w.Write(false);
+		}
+
+		private static void EncodeException(Exception exception, BinaryWriter w)
+		{
 			w.Write(exception.GetType().AssemblyQualifiedName ?? string.Empty);
 			w.Write(exception.Message);
 			w.Write(exception.HResult);
@@ -1206,6 +1220,33 @@ namespace NewRemoting
 		}
 
 		public Exception DecodeException(BinaryReader reader, string otherSideProcessId)
+		{
+			Exception root = DecodeException(reader, otherSideProcessId);
+			Exception current = root;
+			while (true)
+			{
+				bool more = reader.ReadBoolean();
+				if (more == false)
+				{
+					break;
+				}
+
+				Exception sub = DecodeException(reader, otherSideProcessId);
+
+				// This field is normally read-only
+				var field = current.GetType().GetField("_innerException", BindingFlags.NonPublic | BindingFlags.Instance);
+				if (field != null)
+				{
+					field.SetValue(current, sub);
+				}
+
+				current = sub; // Even if the above fails, we need to make sure we read all elements.
+			}
+
+			return root;
+		}
+
+		private Exception DecodeExceptionInternal(BinaryReader reader, string otherSideProcessId)
 		{
 			string exceptionTypeName = reader.ReadString();
 			string remoteMessage = reader.ReadString();
