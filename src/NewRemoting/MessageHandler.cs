@@ -1221,7 +1221,9 @@ namespace NewRemoting
 
 		public Exception DecodeException(BinaryReader reader, string otherSideProcessId)
 		{
-			Exception root = DecodeException(reader, otherSideProcessId);
+			FieldInfo[] fields = typeof(Exception).GetFields(BindingFlags.NonPublic | BindingFlags.Instance);
+			var field = fields.FirstOrDefault(x => x.Name == "_innerException");
+			Exception root = DecodeExceptionInternal(reader, otherSideProcessId);
 			Exception current = root;
 			while (true)
 			{
@@ -1231,10 +1233,9 @@ namespace NewRemoting
 					break;
 				}
 
-				Exception sub = DecodeException(reader, otherSideProcessId);
+				Exception sub = DecodeExceptionInternal(reader, otherSideProcessId);
 
 				// This field is normally read-only
-				var field = current.GetType().GetField("_innerException", BindingFlags.NonPublic | BindingFlags.Instance);
 				if (field != null)
 				{
 					field.SetValue(current, sub);

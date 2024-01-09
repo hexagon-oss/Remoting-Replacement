@@ -147,7 +147,23 @@ namespace SampleServerClasses
 
 		public virtual int MaybeThrowException(int mustBeZero)
 		{
-			return DoIntegerDivide(10, mustBeZero);
+			if (mustBeZero == 0)
+			{
+				return DoIntegerDivide(10, mustBeZero);
+			}
+			else
+			{
+				try
+				{
+					DoIntegerDivide(10, mustBeZero - 1);
+				}
+				catch (DivideByZeroException x)
+				{
+					throw new ArgumentOutOfRangeException("This is expected", x);
+				}
+			}
+
+			return 1;
 		}
 
 		private int DoIntegerDivide(int a, int b)

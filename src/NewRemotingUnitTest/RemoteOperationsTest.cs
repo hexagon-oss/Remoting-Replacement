@@ -419,6 +419,26 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
+		public void HandleRemoteExceptions()
+		{
+			CreateClientServer();
+			var c = CreateRemoteInstance();
+			bool didThrow = true;
+			try
+			{
+				c.MaybeThrowException(1);
+				didThrow = false;
+			}
+			catch (ArgumentOutOfRangeException x)
+			{
+				Assert.IsNotNull(x);
+				Assert.IsNotNull(x.InnerException);
+			}
+
+			Assert.That(didThrow);
+		}
+
+		[Test]
 		public void GetRemotingServerService()
 		{
 			CreateClientServer();
