@@ -44,7 +44,8 @@ namespace NewRemoting
 					new ManualSerializerSurrogate(_instanceManager),
 					new CultureInfoSerializerSurrogate(),
 					new InterfaceInstantiationSurrogate(),
-				}
+				},
+				ReferenceHandler = ReferenceHandler.Preserve
 			};
 
 			_cusBinaryFormatters.TryAdd(otherSideProcessId, options);
