@@ -24,7 +24,7 @@ namespace NewRemoting
 	/// of this class share the same object lists (this is needed when a process acts as server for many
 	/// processes, or simultaneously as client and as server)
 	/// </summary>
-	internal class InstanceManager
+	internal class InstanceManager : IInstanceManager
 	{
 		private const string DelegateIdentifier = ".Method";
 
@@ -239,6 +239,12 @@ namespace NewRemoting
 			return false;
 		}
 
+		object IInstanceManager.AddInstance(object instance, string objectId, string willBeSentTo, Type originalType, string originalTypeName, bool doThrowOnDuplicate)
+		{
+			var info = AddInstance(instance, objectId, willBeSentTo, originalType, originalTypeName, doThrowOnDuplicate);
+			return info.QueryInstance();
+		}
+
 		public InstanceInfo AddInstance(object instance, string objectId, string willBeSentTo, Type originalType, string originalTypeName, bool doThrowOnDuplicate)
 		{
 			if (instance == null)
@@ -385,7 +391,7 @@ namespace NewRemoting
 		/// Completely clears this instance. Only to be used for testing purposes
 		/// </summary>
 		/// <param name="fullyClear">Pass in true</param>
-		internal void Clear(bool fullyClear)
+		public void Clear(bool fullyClear)
 		{
 			Clear();
 			if (fullyClear)
@@ -485,6 +491,12 @@ namespace NewRemoting
 
 				_logger?.LogDebug($"Instance {ii.Identifier} is removed from the instance manager");
 			}
+		}
+
+		object IInstanceManager.CreateOrGetProxyForObjectId(bool canAttemptToInstantiate,
+			Type typeOfArgument, string typeName, string objectId, List<string> knownInterfaceNames)
+		{
+			return CreateOrGetProxyForObjectId(null, canAttemptToInstantiate, typeOfArgument, typeName, objectId, knownInterfaceNames);
 		}
 
 		public object CreateOrGetProxyForObjectId(IInvocation invocation, bool canAttemptToInstantiate,

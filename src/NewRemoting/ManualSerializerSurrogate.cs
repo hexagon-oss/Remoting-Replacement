@@ -16,13 +16,10 @@ namespace NewRemoting
 {
 	internal class ManualSerializerSurrogate : JsonConverter<object>
 	{
-		private readonly InstanceManager _instanceManager;
-
 		private ConcurrentDictionary<int, List<IManualSerialization>> _list = new();
 
-		public ManualSerializerSurrogate(InstanceManager instanceManager)
+		public ManualSerializerSurrogate()
 		{
-			_instanceManager = instanceManager;
 		}
 
 		public override bool CanConvert(Type typeToConvert)

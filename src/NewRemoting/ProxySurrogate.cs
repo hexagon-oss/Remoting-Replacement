@@ -10,10 +10,10 @@ namespace NewRemoting
 {
 	internal sealed class ProxySurrogate : JsonConverter<object>
 	{
-		private readonly InstanceManager _instanceManager;
+		private readonly IInstanceManager _instanceManager;
 		private readonly string _otherSideInstanceId;
 
-		public ProxySurrogate(InstanceManager instanceManager, string otherSideInstanceId)
+		public ProxySurrogate(IInstanceManager instanceManager, string otherSideInstanceId)
 		{
 			_instanceManager = instanceManager;
 			_otherSideInstanceId = otherSideInstanceId;
@@ -108,11 +108,11 @@ namespace NewRemoting
 			if (!string.IsNullOrEmpty(typeName))
 			{
 				Type targetType = Server.GetTypeFromAnyAssembly(typeName);
-				newProxy = _instanceManager.CreateOrGetProxyForObjectId(null, false, targetType, typeName, objectId, interfaceList);
+				newProxy = _instanceManager.CreateOrGetProxyForObjectId(false, targetType, typeName, objectId, interfaceList);
 			}
 			else
 			{
-				newProxy = _instanceManager.CreateOrGetProxyForObjectId(null, false, null, typeName, objectId, interfaceList);
+				newProxy = _instanceManager.CreateOrGetProxyForObjectId(false, null, typeName, objectId, interfaceList);
 			}
 
 			return newProxy;

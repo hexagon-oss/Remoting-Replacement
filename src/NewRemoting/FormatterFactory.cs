@@ -16,12 +16,17 @@ using NewRemoting.Toolkit;
 
 namespace NewRemoting
 {
-	internal class FormatterFactory
+	/// <summary>
+	/// Provides the factory for the internal Json serializer options and custom serialization.
+	/// This class is public to provide an easy means of verifying proper (de)serialization of complex
+	/// user types in unit tests.
+	/// </summary>
+	public class FormatterFactory
 	{
-		private readonly InstanceManager _instanceManager;
+		private readonly IInstanceManager _instanceManager;
 		private readonly ConcurrentDictionary<string, JsonSerializerOptions> _cusBinaryFormatters;
 
-		public FormatterFactory(InstanceManager instanceManager)
+		public FormatterFactory(IInstanceManager instanceManager)
 		{
 			_instanceManager = instanceManager;
 			_cusBinaryFormatters = new ConcurrentDictionary<string, JsonSerializerOptions>();
@@ -41,7 +46,7 @@ namespace NewRemoting
 				Converters =
 				{
 					new ProxySurrogate(_instanceManager, otherSideProcessId),
-					new ManualSerializerSurrogate(_instanceManager),
+					new ManualSerializerSurrogate(),
 					new CultureInfoSerializerSurrogate(),
 					new InterfaceInstantiationSurrogate(),
 				},
