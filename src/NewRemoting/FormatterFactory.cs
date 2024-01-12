@@ -50,7 +50,8 @@ namespace NewRemoting
 					new CultureInfoSerializerSurrogate(),
 					new InterfaceInstantiationSurrogate(),
 				},
-				ReferenceHandler = ReferenceHandler.Preserve
+				ReferenceHandler = ReferenceHandler.Preserve,
+				NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals
 			};
 
 			_cusBinaryFormatters.TryAdd(otherSideProcessId, options);
