@@ -157,9 +157,6 @@ namespace NewRemoting
 			return id.ToString();
 		}
 
-		/// <summary>
-		/// This has a setter, because of the initialization sequence
-		/// </summary>
 		public bool IsLocalInstanceId(string objectId)
 		{
 			return objectId.StartsWith(ProcessIdentifier);
@@ -251,10 +248,12 @@ namespace NewRemoting
 				throw new ArgumentException("The original type cannot be a proxy", nameof(originalType));
 			}
 
+			object usedInstance = instance;
 			var ret = s_objects.AddOrUpdate(objectId, s =>
 			{
 				// Not found in list - insert new info object
 				var ii = new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), originalType, this);
+				usedInstance = instance;
 				MarkInstanceAsInUseBy(willBeSentTo, ii);
 				_logger?.LogDebug($"Added new instance {ii.Identifier} to instance manager");
 				return ii;
@@ -263,14 +262,16 @@ namespace NewRemoting
 				// Update existing info object with new client information
 				lock (existingInfo)
 				{
+					usedInstance = existingInfo.QueryInstance();
 					if (existingInfo.IsReleased)
 					{
 						// if marked as no longer needed, revive by setting the instance
 						existingInfo.SetInstance(instance);
+						usedInstance = instance;
 					}
 					else
 					{
-						if (doThrowOnDuplicate && !ReferenceEquals(existingInfo.QueryInstance(), instance))
+						if (doThrowOnDuplicate && !ReferenceEquals(usedInstance, instance))
 						{
 							var msg = FormattableString.Invariant(
 								$"Added new instance of {instance.GetType()} is not equals to {existingInfo.Identifier} to instance manager, but no duplicate was expected");
@@ -289,7 +290,12 @@ namespace NewRemoting
 				}
 			});
 
-			s_instanceNames.AddOrUpdate(ret.QueryInstance(), new ReverseInstanceInfo(objectId, originalType));
+			// Very rare situation, if just at this very moment, the instance gets freed again.
+			if (usedInstance != null)
+			{
+				s_instanceNames.AddOrUpdate(usedInstance, new ReverseInstanceInfo(objectId, originalType));
+			}
+
 			return ret;
 		}
 
