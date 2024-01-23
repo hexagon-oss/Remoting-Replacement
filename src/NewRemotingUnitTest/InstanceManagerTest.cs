@@ -92,11 +92,18 @@ namespace NewRemotingUnitTest
 			_instanceManager.AddInstance(myInstance, "A", "1", myInstance.GetType(), false);
 			var my2ndInstance = new MarshallableClass("Instance2");
 			var addedInstance = _instanceManager.AddInstance(my2ndInstance, "A", "1", my2ndInstance.GetType(), false);
-			Assert.IsTrue(ReferenceEquals(myInstance, addedInstance.QueryInstance()));
-			Assert.IsFalse(ReferenceEquals(my2ndInstance, addedInstance.QueryInstance()));
+			Assert.IsTrue(ReferenceEquals(myInstance, addedInstance));
+			Assert.IsFalse(ReferenceEquals(my2ndInstance, addedInstance));
 
 			// If the last argument is true, the same operation throws
 			Assert.Throws<InvalidOperationException>(() => _instanceManager.AddInstance(my2ndInstance, "A", "1", my2ndInstance.GetType(), true));
+		}
+
+		[Test]
+		public void StrangeError()
+		{
+			var myInstance = new MarshallableClass("Instance1");
+			Assert.Throws<ArgumentNullException>(() => _instanceManager.AddInstance(myInstance, null, "1", myInstance.GetType(), true));
 		}
 	}
 }
