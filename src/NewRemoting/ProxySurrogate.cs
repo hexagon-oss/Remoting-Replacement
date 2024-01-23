@@ -108,11 +108,11 @@ namespace NewRemoting
 			if (!string.IsNullOrEmpty(typeName))
 			{
 				Type targetType = Server.GetTypeFromAnyAssembly(typeName);
-				newProxy = _instanceManager.CreateOrGetProxyForObjectId(false, targetType, typeName, objectId, interfaceList);
+				newProxy = _instanceManager.CreateOrGetProxyForObjectId(true, targetType, typeName, objectId, interfaceList);
 			}
 			else
 			{
-				newProxy = _instanceManager.CreateOrGetProxyForObjectId(false, null, typeName, objectId, interfaceList);
+				newProxy = _instanceManager.CreateOrGetProxyForObjectId(true, null, typeName, objectId, interfaceList);
 			}
 
 			return newProxy;
