@@ -236,7 +236,7 @@ namespace NewRemoting
 			return false;
 		}
 
-		public InstanceInfo AddInstance(object instance, string objectId, string willBeSentTo, Type originalType, bool doThrowOnDuplicate)
+		public object AddInstance(object instance, string objectId, string willBeSentTo, Type originalType, bool doThrowOnDuplicate)
 		{
 			if (instance == null)
 			{
@@ -290,13 +290,10 @@ namespace NewRemoting
 				}
 			});
 
-			// Very rare situation, if just at this very moment, the instance gets freed again.
-			if (usedInstance != null)
-			{
-				s_instanceNames.AddOrUpdate(usedInstance, new ReverseInstanceInfo(objectId, originalType));
-			}
+			// usedInstance cannot and must not be null here.
+			s_instanceNames.AddOrUpdate(usedInstance, new ReverseInstanceInfo(objectId, originalType));
 
-			return ret;
+			return usedInstance;
 		}
 
 		/// <summary>
@@ -580,9 +577,9 @@ namespace NewRemoting
 				instance = ProxyGenerator.CreateClassProxy(type, interfaces, interceptor);
 			}
 
-			InstanceInfo inst = AddInstance(instance, objectId, null, type, false);
+			object instance2 = AddInstance(instance, objectId, null, type, false);
 
-			return inst.QueryInstance();
+			return instance2;
 		}
 
 		/// <summary>
