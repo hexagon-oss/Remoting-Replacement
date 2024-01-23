@@ -157,9 +157,6 @@ namespace NewRemoting
 			return id.ToString();
 		}
 
-		/// <summary>
-		/// This has a setter, because of the initialization sequence
-		/// </summary>
 		public bool IsLocalInstanceId(string objectId)
 		{
 			return objectId.StartsWith(ProcessIdentifier);
@@ -239,13 +236,7 @@ namespace NewRemoting
 			return false;
 		}
 
-		object IInstanceManager.AddInstance(object instance, string objectId, string willBeSentTo, Type originalType, string originalTypeName, bool doThrowOnDuplicate)
-		{
-			var info = AddInstance(instance, objectId, willBeSentTo, originalType, originalTypeName, doThrowOnDuplicate);
-			return info.QueryInstance();
-		}
-
-		public InstanceInfo AddInstance(object instance, string objectId, string willBeSentTo, Type originalType, string originalTypeName, bool doThrowOnDuplicate)
+		public object AddInstance(object instance, string objectId, string willBeSentTo, Type originalType, string originalTypeName, bool doThrowOnDuplicate)
 		{
 			if (instance == null)
 			{
@@ -265,10 +256,12 @@ namespace NewRemoting
 				}
 			}
 
+			object usedInstance = instance;
 			var ret = s_objects.AddOrUpdate(objectId, s =>
 			{
 				// Not found in list - insert new info object
 				var ii = new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), originalTypeName, this);
+				usedInstance = instance;
 				MarkInstanceAsInUseBy(willBeSentTo, ii);
 				_logger?.LogDebug($"Added new instance {ii.Identifier} to instance manager");
 				return ii;
@@ -277,14 +270,16 @@ namespace NewRemoting
 				// Update existing info object with new client information
 				lock (existingInfo)
 				{
+					usedInstance = existingInfo.QueryInstance();
 					if (existingInfo.IsReleased)
 					{
 						// if marked as no longer needed, revive by setting the instance
 						existingInfo.SetInstance(instance);
+						usedInstance = instance;
 					}
 					else
 					{
-						if (doThrowOnDuplicate && !ReferenceEquals(existingInfo.QueryInstance(), instance))
+						if (doThrowOnDuplicate && !ReferenceEquals(usedInstance, instance))
 						{
 							var msg = FormattableString.Invariant(
 								$"Added new instance of {instance.GetType()} is not equals to {existingInfo.Identifier} to instance manager, but no duplicate was expected");
@@ -303,8 +298,10 @@ namespace NewRemoting
 				}
 			});
 
-			s_instanceNames.AddOrUpdate(ret.QueryInstance(), new ReverseInstanceInfo(objectId, originalTypeName));
-			return ret;
+			// usedInstance cannot and must not be null here.
+			s_instanceNames.AddOrUpdate(usedInstance, new ReverseInstanceInfo(objectId, originalTypeName));
+
+			return usedInstance;
 		}
 
 		/// <summary>
@@ -614,9 +611,9 @@ namespace NewRemoting
 				instance = ProxyGenerator.CreateClassProxy(type, interfaces, interceptor);
 			}
 
-			InstanceInfo inst = AddInstance(instance, objectId, null, type, typeName, false);
+			object instance2 = AddInstance(instance, objectId, null, type, typeName, false);
 
-			return inst.QueryInstance();
+			return instance2;
 		}
 
 		/// <summary>

@@ -1040,7 +1040,7 @@ namespace NewRemoting
 							var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideProcessId,
 								internalSink.GetType(), internalSink.GetType().AssemblyQualifiedName, false);
 
-							internalSink = (DelegateInternalSink)usedInstance.QueryInstance();
+							internalSink = (DelegateInternalSink)usedInstance;
 						}
 
 						internalSink.RegisterInstance(otherSideProcessId);
@@ -1076,7 +1076,7 @@ namespace NewRemoting
 						Delegate newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
 						string delegateId = _instanceManager.GetDelegateTargetIdentifier(newDelegate, otherSideProcessId);
 						var actualInstance = _instanceManager.AddInstance(newDelegate, delegateId, otherSideProcessId, newDelegate.GetType(), newDelegate.GetType().AssemblyQualifiedName, false);
-						var actualDelegate = (Delegate)actualInstance.QueryInstance();
+						var actualDelegate = (Delegate)actualInstance;
 						if (ReferenceEquals(actualDelegate, newDelegate))
 						{
 							if (internalSink.TheActualDelegate != null)
@@ -1157,7 +1157,7 @@ namespace NewRemoting
 						internalSink = new DelegateInternalSink(interceptor, instanceId, methodInfoOfTarget);
 						var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideProcessId,
 							internalSink.GetType(), internalSink.GetType().AssemblyQualifiedName, false);
-						internalSink = (DelegateInternalSink)usedInstance.QueryInstance();
+						internalSink = (DelegateInternalSink)usedInstance;
 					}
 
 					IEnumerable<MethodInfo> possibleSinks = null;

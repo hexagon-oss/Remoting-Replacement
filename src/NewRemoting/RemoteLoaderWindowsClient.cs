@@ -20,7 +20,7 @@ namespace NewRemoting
 		private readonly Func<FileInfo, bool> _shouldFileBeUploadedFunc;
 		private readonly FileHashCalculator _fileHashCalculator;
 		private readonly string _extraArguments;
-		private readonly TimeSpan _remoteProcessConnectionTimeout = TimeSpan.FromSeconds(20);
+		private readonly TimeSpan _remoteProcessConnectionTimeout = TimeSpan.FromSeconds(120);
 
 		private IRemoteServerService _remoteServer;
 		private Client _remotingClient;
@@ -138,15 +138,14 @@ namespace NewRemoting
 			return _remotingClient.RequestRemoteInstance<T>();
 		}
 
-		public IProcess LaunchProcess(CancellationToken externalCancellation, bool isRemoteHostOnLocalMachine)
+		public IProcess LaunchProcess(CancellationToken externalCancellation, bool isRemoteHostOnLocalMachine, ILogger clientConnectionLogger)
 		{
 			var workingDir = isRemoteHostOnLocalMachine ? AppDomain.CurrentDomain.BaseDirectory : REMOTELOADER_DIRECTORY;
-			return LaunchProcess(externalCancellation, isRemoteHostOnLocalMachine, REMOTELOADER_EXECUTABLE, _extraArguments, REMOTELOADER_DEPENDENCIES_FILENAME, workingDir);
+			return LaunchProcess(externalCancellation, isRemoteHostOnLocalMachine, REMOTELOADER_EXECUTABLE, _extraArguments, REMOTELOADER_DEPENDENCIES_FILENAME, workingDir, clientConnectionLogger: clientConnectionLogger);
 		}
 
 		protected override bool WaitForRemoteProcessStartup(CancellationTokenSource linkedCancellationTokenSource, IProcess process)
 		{
-			// TODO: Implement FCMS-8056
 			Thread.Sleep(1000);
 			if (process.HasExited)
 			{
@@ -165,7 +164,7 @@ namespace NewRemoting
 
 			var isRemoteHostOnLocalMachine = NetworkUtil.IsLocalIpAddress(RemoteHost);
 
-			var process = LaunchProcess(externalToken, isRemoteHostOnLocalMachine);
+			var process = LaunchProcess(externalToken, isRemoteHostOnLocalMachine, Logger);
 
 			_remotingClient = null;
 
@@ -186,9 +185,9 @@ namespace NewRemoting
 					Logger.LogError(x, $"Unable to connect to remote server. Attempt {retries + 1}: {x.Message}");
 					lastError = x;
 
-					if (process is { HasExited: true, ExitCode: -1 })
+					if (process is { HasExited: true, ExitCode: (int)ExitCode.StartFailure })
 					{
-						var ex = new RemotingException(message: "Process exited with exit code -1.")
+						var ex = new RemotingException(message: $"Process exited with exit code {(int)ExitCode.StartFailure}.")
 						{
 							AdditionalInfo = RemotingExceptionAdditionalInfo.ProcessStartFailure
 						};
@@ -224,6 +223,7 @@ namespace NewRemoting
 				throw new RemotingException(verifyResult);
 			}
 
+			Logger.LogInformation("BinaryUpload start");
 			Stopwatch sw = Stopwatch.StartNew();
 			// if the remote host is not a local machine we have to upload all necessary binaries and files
 			if (!isRemoteHostOnLocalMachine)
@@ -254,6 +254,7 @@ namespace NewRemoting
 				}
 				else
 				{
+					clientConnectionLogger?.LogInformation($"checking if {REMOTELOADER_EXECUTABLE} process already exist.");
 					var workingDir = Environment.GetFolderPath(Environment.SpecialFolder.System);
 					var powershell = "powershell";
 					// if the process count is greater than 0
@@ -266,17 +267,18 @@ namespace NewRemoting
 
 						using (var proc = remoteConsole.CreateProcess(powershell + " " + args, enableUserInterfaceInteraction: false, fileListPath: null, workingDirectory: workingDir, redirectStandardOutput: true, redirectStandardError: true))
 						{
+							clientConnectionLogger?.LogInformation("powershell command about to start.");
 							proc.Start();
 							while (!proc.HasExited && !combinedCancellation.IsCancellationRequested)
 							{
+								clientConnectionLogger?.LogInformation("waiting for powershell command process to exit.");
 								proc.WaitForExit(100);
 							}
 
 							if (combinedCancellation.IsCancellationRequested)
 							{
 								clientConnectionLogger?.LogError($"Timeout waiting starting remote process {REMOTELOADER_EXECUTABLE}.");
-								throw new OperationCanceledException(
-									$"Timeout waiting starting remote process {REMOTELOADER_EXECUTABLE}.");
+								throw new OperationCanceledException($"Timeout waiting starting remote process {REMOTELOADER_EXECUTABLE}.");
 							}
 
 							var err = proc.StandardError.ReadToEnd();
@@ -286,7 +288,7 @@ namespace NewRemoting
 								clientConnectionLogger?.LogWarning($"Powershell standard error output {err}.");
 							}
 
-							if (proc.ExitCode == 0)
+							if (proc.HasExited && proc.ExitCode == 0)
 							{
 								var output = proc.StandardOutput.ReadToEnd();
 								if (output.StartsWith("True"))

@@ -63,6 +63,7 @@ namespace NewRemoting
 				lock (_writer)
 				{
 					_writer.WriteLine(formatted);
+					_writer.Flush();
 				}
 			}
 		}

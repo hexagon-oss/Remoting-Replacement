@@ -42,7 +42,7 @@ namespace NewRemoting
 			// Try to add proxy to instance manager - this may return another, existing instance due to a race condition
 			// In this case, we only need to register, like in the case where we already found the object in the list.
 			var usedInstance = instanceManager.AddInstance(this, instanceId, otherSideProcessId, GetType(), GetType().AssemblyQualifiedName, false);
-			DelegateProxyOnClientBase usedProxy = (DelegateProxyOnClientBase)usedInstance.QueryInstance();
+			DelegateProxyOnClientBase usedProxy = (DelegateProxyOnClientBase)usedInstance;
 			lock (usedProxy)
 			{
 				// Make sure to do this after the AddInstance above, to be sure to register on the correct proxy
