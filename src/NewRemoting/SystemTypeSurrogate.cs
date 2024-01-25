@@ -21,7 +21,6 @@ namespace NewRemoting
 			}
 
 			string typeName = null;
-			List<string> interfaceList = new List<string>();
 			while (reader.Read())
 			{
 				if (reader.TokenType == JsonTokenType.EndObject)
@@ -42,7 +41,6 @@ namespace NewRemoting
 				throw new JsonException("Not a valid type reference. Metadata item \"AssemblyQualifiedName\" required.");
 			}
 
-			// We don't know better here. We do not know what the static type of the field is that will store this reference.
 			var type = Server.GetTypeFromAnyAssembly(typeName, true);
 			return type;
 		}

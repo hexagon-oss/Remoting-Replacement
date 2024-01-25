@@ -50,6 +50,7 @@ namespace NewRemoting
 					new CultureInfoSerializerSurrogate(),
 					new InterfaceInstantiationSurrogate(),
 					new SystemTypeSurrogate(),
+					new IpAddressSurrogate(),
 				},
 				ReferenceHandler = ReferenceHandler.Preserve,
 				NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals
