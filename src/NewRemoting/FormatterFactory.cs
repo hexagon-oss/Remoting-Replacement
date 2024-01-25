@@ -49,6 +49,7 @@ namespace NewRemoting
 					new ManualSerializerSurrogate(),
 					new CultureInfoSerializerSurrogate(),
 					new InterfaceInstantiationSurrogate(),
+					new SystemTypeSurrogate(),
 				},
 				ReferenceHandler = ReferenceHandler.Preserve,
 				NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals
