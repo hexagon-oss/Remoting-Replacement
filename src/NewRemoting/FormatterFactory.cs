@@ -49,7 +49,6 @@ namespace NewRemoting
 					new ProxySurrogate(_instanceManager, otherSideProcessId),
 					new ManualSerializerSurrogate(),
 					new CultureInfoSerializerSurrogate(),
-					new InterfaceInstantiationSurrogate(),
 					new SystemTypeSurrogate(),
 					new IpAddressSurrogate(),
 				},

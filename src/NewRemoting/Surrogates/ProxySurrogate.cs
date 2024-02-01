@@ -21,39 +21,55 @@ namespace NewRemoting.Surrogates
 
 		public override bool CanConvert(Type typeToConvert)
 		{
-			return MessageHandler.IsMarshalByRefType(typeToConvert);
+			return MessageHandler.IsMarshalByRefType(typeToConvert) || typeToConvert.IsInterface;
 		}
 
 		public override void Write(Utf8JsonWriter writer, object value, JsonSerializerOptions options)
 		{
 			string objectId;
-			if (Client.IsRemoteProxy(value))
+			// Since we can't do that in CanConvert, we now need to do the test on the actual type
+			if (MessageHandler.IsMarshalByRefType(value.GetType()))
 			{
-				// This should have an unit test, but I have not yet found out what test code causes this situation
-				if (!_instanceManager.TryGetObjectId(value, out objectId, out _))
+				if (Client.IsRemoteProxy(value))
 				{
-					throw new RemotingException("Couldn't find matching objectId, although should be there");
-				}
+					// This should have an unit test, but I have not yet found out what test code causes this situation
+					if (!_instanceManager.TryGetObjectId(value, out objectId, out _))
+					{
+						throw new RemotingException("Couldn't find matching objectId, although should be there");
+					}
 
-				writer.WriteStartObject();
-				writer.WriteString("AssemblyQualifiedName", string.Empty);
-				writer.WriteString("ObjectId", objectId);
-				writer.WriteEndObject();
+					writer.WriteStartObject();
+					writer.WriteString("ReferenceType", "RemoteProxy");
+					writer.WriteString("AssemblyQualifiedName", string.Empty);
+					writer.WriteString("ObjectId", objectId);
+					writer.WriteEndObject();
+				}
+				else
+				{
+					objectId = _instanceManager.RegisterRealObjectAndGetId(value, _otherSideInstanceId);
+					writer.WriteStartObject();
+					writer.WriteString("ReferenceType", "RemoteObject");
+					writer.WriteString("AssemblyQualifiedName", value.GetType().AssemblyQualifiedName);
+					writer.WriteString("ObjectId", objectId);
+					writer.WritePropertyName("Interfaces");
+					writer.WriteStartArray();
+					foreach (var elem in value.GetType().GetInterfaces().Where(x => x.IsPublic))
+					{
+						writer.WriteStringValue(elem.AssemblyQualifiedName);
+					}
+
+					writer.WriteEndArray();
+					writer.WriteEndObject();
+				}
 			}
 			else
 			{
-				objectId = _instanceManager.RegisterRealObjectAndGetId(value, _otherSideInstanceId);
+				// Now this is a serializable object, but used with an interface reference
 				writer.WriteStartObject();
+				writer.WriteString("ReferenceType", "SerializedObject");
 				writer.WriteString("AssemblyQualifiedName", value.GetType().AssemblyQualifiedName);
-				writer.WriteString("ObjectId", objectId);
-				writer.WritePropertyName("Interfaces");
-				writer.WriteStartArray();
-				foreach (var elem in value.GetType().GetInterfaces().Where(x => x.IsPublic))
-				{
-					writer.WriteStringValue(elem.AssemblyQualifiedName);
-				}
-
-				writer.WriteEndArray();
+				writer.WritePropertyName("Instance");
+				JsonSerializer.Serialize(writer, value, options);
 				writer.WriteEndObject();
 			}
 		}
@@ -67,7 +83,9 @@ namespace NewRemoting.Surrogates
 
 			string objectId = null;
 			string typeName = null;
+			string referenceType = null;
 			List<string> interfaceList = new List<string>();
+			object newInstance = null;
 			while (reader.Read())
 			{
 				if (reader.TokenType == JsonTokenType.EndObject)
@@ -77,7 +95,11 @@ namespace NewRemoting.Surrogates
 
 				string propertyName = reader.GetString()!;
 				reader.Read();
-				if (propertyName.Equals("ObjectId", StringComparison.Ordinal))
+				if (propertyName.Equals("ReferenceType", StringComparison.Ordinal))
+				{
+					referenceType = reader.GetString();
+				}
+				else if (propertyName.Equals("ObjectId", StringComparison.Ordinal))
 				{
 					objectId = reader.GetString();
 				}
@@ -92,30 +114,42 @@ namespace NewRemoting.Surrogates
 						interfaceList.Add(reader.GetString());
 					}
 				}
+				else if (propertyName.Equals("Instance", StringComparison.Ordinal) && typeName != null)
+				{
+					Type concreteType = Server.GetTypeFromAnyAssembly(typeName);
+					newInstance = JsonSerializer.Deserialize(ref reader, concreteType, options);
+				}
 				else
 				{
 					throw new JsonException($"Unknown property {propertyName} seen");
 				}
 			}
 
-			if (objectId == null || typeName == null)
+			if (typeName == null || referenceType == null)
 			{
 				throw new JsonException("Invalid reference found");
 			}
 
 			// We don't know better here. We do not know what the static type of the field is that will store this reference.
-			object newProxy;
-			if (!string.IsNullOrEmpty(typeName))
+			if (!referenceType.Equals("SerializedObject"))
 			{
-				Type targetType = Server.GetTypeFromAnyAssembly(typeName);
-				newProxy = _instanceManager.CreateOrGetProxyForObjectId(true, targetType, typeName, objectId, interfaceList);
-			}
-			else
-			{
-				newProxy = _instanceManager.CreateOrGetProxyForObjectId(true, null, typeName, objectId, interfaceList);
+				if (objectId == null)
+				{
+					throw new JsonException("ObjectId not set");
+				}
+
+				if (!string.IsNullOrEmpty(typeName))
+				{
+					Type targetType = Server.GetTypeFromAnyAssembly(typeName);
+					newInstance = _instanceManager.CreateOrGetProxyForObjectId(true, targetType, typeName, objectId, interfaceList);
+				}
+				else
+				{
+					newInstance = _instanceManager.CreateOrGetProxyForObjectId(true, null, typeName, objectId, interfaceList);
+				}
 			}
 
-			return newProxy;
+			return newInstance;
 		}
 	}
 }
