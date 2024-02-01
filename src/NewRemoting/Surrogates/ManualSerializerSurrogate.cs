@@ -12,7 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NewRemoting.Toolkit;
 
-namespace NewRemoting
+namespace NewRemoting.Surrogates
 {
 	internal class ManualSerializerSurrogate : JsonConverter<object>
 	{

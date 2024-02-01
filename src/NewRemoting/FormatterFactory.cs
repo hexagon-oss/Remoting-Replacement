@@ -12,6 +12,7 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using Castle.DynamicProxy;
+using NewRemoting.Surrogates;
 using NewRemoting.Toolkit;
 
 namespace NewRemoting

@@ -6,10 +6,10 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
-namespace NewRemoting
+namespace NewRemoting.Surrogates
 {
 	/// <summary>
-	/// Replaces an instance of <see cref="System.Type"/> in a json stream
+	/// Replaces an instance of <see cref="Type"/> in a json stream
 	/// </summary>
 	internal class SystemTypeSurrogate : JsonConverter<Type>
 	{

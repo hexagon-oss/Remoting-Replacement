@@ -6,14 +6,14 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
-namespace NewRemoting
+namespace NewRemoting.Surrogates
 {
 	internal class InterfaceInstantiationSurrogate : JsonConverter<object>
 	{
 		public override bool CanConvert(Type typeToConvert)
 		{
 			// A non-marshal-by-ref type and an interface
-			return typeToConvert.IsAssignableTo(typeof(MarshalByRefObject)) == false && typeToConvert.IsInterface;
+			return typeToConvert.IsAssignableTo(typeof(MarshalByRefObject)) == false && typeToConvert.IsInterface && Client.IsProxyType(typeToConvert) == false;
 		}
 
 		public override object Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)

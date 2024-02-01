@@ -3,7 +3,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace NewRemoting
+namespace NewRemoting.Surrogates
 {
 	/// <summary>
 	/// Provides serialization for some system types that are not marked as serializable but for which there is a more or less obvious way to serialize them
