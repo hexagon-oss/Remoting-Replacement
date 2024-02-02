@@ -49,6 +49,7 @@ namespace NewRemoting
 					new ProxySurrogate(_instanceManager, otherSideProcessId),
 					new ManualSerializerSurrogate(),
 					new CultureInfoSerializerSurrogate(),
+					new ByteArraySurrogate(),
 					new SystemTypeSurrogate(),
 					new IpAddressSurrogate(),
 				},
@@ -62,14 +63,18 @@ namespace NewRemoting
 
 		public void FinalizeSerialization(BinaryWriter w, JsonSerializerOptions formatter)
 		{
-			var manualSerializer = (ManualSerializerSurrogate)formatter.Converters.First(x => x is ManualSerializerSurrogate);
-			manualSerializer.PerformManualSerialization(w);
+			foreach (IInternalManualSerializerSurrogate manualSerializer in formatter.Converters.Where(x => x is IInternalManualSerializerSurrogate))
+			{
+				manualSerializer.PerformManualSerialization(w);
+			}
 		}
 
 		public void FinalizeDeserialization(BinaryReader r, JsonSerializerOptions formatter)
 		{
-			var manualSerializer = (ManualSerializerSurrogate)formatter.Converters.First(x => x is ManualSerializerSurrogate);
-			manualSerializer.PerformManualDeserialization(r);
+			foreach (IInternalManualSerializerSurrogate manualSerializer in formatter.Converters.Where(x => x is IInternalManualSerializerSurrogate))
+			{
+				manualSerializer.PerformManualDeserialization(r);
+			}
 		}
 	}
 }

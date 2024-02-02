@@ -14,10 +14,8 @@ using NewRemoting.Toolkit;
 
 namespace NewRemoting.Surrogates
 {
-	internal class ManualSerializerSurrogate : JsonConverter<object>
+	internal class ManualSerializerSurrogate : BlobSurrogate<object, IManualSerialization>
 	{
-		private ConcurrentDictionary<int, List<IManualSerialization>> _list = new();
-
 		public ManualSerializerSurrogate()
 		{
 		}
@@ -29,28 +27,18 @@ namespace NewRemoting.Surrogates
 
 		public override void Write(Utf8JsonWriter writer, object value, JsonSerializerOptions options)
 		{
-			int threadId = Thread.CurrentThread.ManagedThreadId;
 			writer.WriteStringValue(value.GetType().AssemblyQualifiedName);
-			if (_list.TryGetValue(threadId, out var myList))
-			{
-				myList.Add((IManualSerialization)value);
-			}
-			else
-			{
-				_list.TryAdd(threadId, new List<IManualSerialization>() { (IManualSerialization)value });
-			}
+			RegisterForBinaryWriter(value);
 		}
 
-		public void PerformManualSerialization(BinaryWriter w)
+		protected override void Deserialize(IManualSerialization item, BinaryReader r)
 		{
-			int threadId = Thread.CurrentThread.ManagedThreadId;
-			if (_list.TryRemove(threadId, out var myList))
-			{
-				foreach (var item in myList)
-				{
-					item.Serialize(w);
-				}
-			}
+			item.Deserialize(r);
+		}
+
+		protected override void Serialize(IManualSerialization item, BinaryWriter w)
+		{
+			item.Serialize(w);
 		}
 
 		public override object Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
@@ -63,39 +51,10 @@ namespace NewRemoting.Surrogates
 				throw new RemotingException($"No default constructor on type {typeToConvert} found");
 			}
 
-			int threadId = Thread.CurrentThread.ManagedThreadId;
 			IManualSerialization manual = (IManualSerialization)defaultCtor.Invoke(Array.Empty<object>());
-			if (_list.TryGetValue(threadId, out var myList))
-			{
-				myList.Add(manual);
-			}
-			else
-			{
-				_list.TryAdd(threadId, new List<IManualSerialization>() { manual });
-			}
+			RegisterForBinaryReader(manual);
 
 			return manual;
-		}
-
-		/*
-		public object SetObjectData(object obj, SerializationInfo info, StreamingContext context, ISurrogateSelector selector)
-		{
-			// The instance has actually already been created
-			_list.Add(obj as IManualSerialization);
-			return obj;
-		}
-		*/
-
-		public void PerformManualDeserialization(BinaryReader r)
-		{
-			int threadId = Thread.CurrentThread.ManagedThreadId;
-			if (_list.TryRemove(threadId, out var myList))
-			{
-				foreach (var item in myList)
-				{
-					item.Deserialize(r);
-				}
-			}
 		}
 	}
 }
