@@ -145,6 +145,11 @@ namespace SampleServerClasses
 			return list;
 		}
 
+		public virtual CustomStructWithoutSetters GetStruct()
+		{
+			return new CustomStructWithoutSetters(10, 24.22);
+		}
+
 		public virtual int MaybeThrowException(int mustBeZero)
 		{
 			if (mustBeZero == 0)

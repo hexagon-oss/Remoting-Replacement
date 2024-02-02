@@ -901,6 +901,16 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
+		public void UseStructAsReturnType()
+		{
+			CreateClientServer();
+			var server = _client.CreateRemoteInstance<MarshallableClass>();
+			var result = server.GetStruct();
+			Assert.AreEqual(10, result.Data1);
+			Assert.AreEqual(24.22, result.Data2, 1E-10);
+		}
+
+		[Test]
 		public void CanReadAndWriteLargeRemoteFile()
 		{
 			const int blocks = 10;
