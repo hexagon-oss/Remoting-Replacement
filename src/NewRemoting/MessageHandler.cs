@@ -360,7 +360,19 @@ namespace NewRemoting
 				w.Write((int)RemotingReferenceType.RemoteReference);
 				w.Write(objectId);
 				w.Write(originalTypeName);
-				w.Write(0);
+				if (interfaceOnlyClient)
+				{
+					var interfaces = data.GetType().GetInterfaces().Where(x => x.IsPublic).ToList();
+					w.Write(interfaces.Count);
+					foreach (var ip in interfaces)
+					{
+						w.Write(ip.AssemblyQualifiedName ?? string.Empty);
+					}
+				}
+				else
+				{
+					w.Write(0);
+				}
 			}
 			else if (IsMarshalByRefType(t))
 			{
