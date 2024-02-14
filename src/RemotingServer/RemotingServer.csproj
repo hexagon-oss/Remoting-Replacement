@@ -19,9 +19,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Castle.Core" Version="5.1.0" />
+    <PackageReference Include="Castle.Core" Version="5.1.1" />
     <PackageReference Include="CommandLineParser" Version="2.9.1" />
-    <PackageReference Include="System.Configuration.ConfigurationManager" Version="6.0.0" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="8.0.0" />
   </ItemGroup>
 	<PropertyGroup Condition="$(TargetFramework.Contains('windows'))">
 		<!-- The project doesn't actualy use these, but this allows loading WPF or Winforms dlls into the process' appdomain -->

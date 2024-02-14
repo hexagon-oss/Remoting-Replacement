@@ -23,7 +23,7 @@ namespace NewRemotingUnitTest
 			string path = null;
 			Server.GetBestRuntimeDll(input, ref path);
 
-			Assert.AreEqual(input[1], path);
+			Assert.That(path, Is.EqualTo(input[1]));
 		}
 
 		[Test]
