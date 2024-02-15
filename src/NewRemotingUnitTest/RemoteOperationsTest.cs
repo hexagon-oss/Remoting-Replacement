@@ -915,6 +915,26 @@ namespace NewRemotingUnitTest
 			Assert.AreNotEqual(6, obj.B[0]);
 		}
 
+		[Test]
+		public void DoSomeCallback()
+		{
+			CreateClientServer();
+			var server = CreateRemoteInstance();
+			CallWithCallback(server, 10);
+			GC.Collect();
+			GC.WaitForPendingFinalizers();
+			_client.ForceGc();
+			CallWithCallback(server, 12);
+			CallWithCallback(server, 55);
+		}
+
+		private void CallWithCallback(MarshallableClass server, double value)
+		{
+			double result = 0;
+			server.DoSomeCallBack(value, x => result = x);
+			Assert.AreEqual(value, result, 1E-10);
+		}
+
 		private void ExecuteCallbacks(IMarshallInterface instance, int overallIterations, int iterations,
 			ref int expectedCounter)
 		{
