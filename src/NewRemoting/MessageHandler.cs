@@ -361,7 +361,7 @@ namespace NewRemoting
 				if (settings.InterfaceOnlyClient)
 				{
 					// We mustn't use IProxyTargetAccessor in CreateInterfaceProxy, so don't even attempt to include it in the transmission
-					var interfaces = data.GetType().GetInterfaces().Where(x => x.IsPublic && x != typeof(IProxyTargetAccessor)).ToList();
+					var interfaces = data.GetType().GetInterfaces().Where(x => settings.ClientTypeFilter(x) && x != typeof(IProxyTargetAccessor)).ToList();
 					w.Write(interfaces.Count);
 					foreach (var ip in interfaces)
 					{
@@ -386,7 +386,7 @@ namespace NewRemoting
 				w.Write(assemblyQualitfiedTypeName);
 				if (settings.InterfaceOnlyClient)
 				{
-					var interfaces = typeToSend.GetInterfaces().Where(x => x.IsPublic).ToList();
+					var interfaces = typeToSend.GetInterfaces().Where(settings.ClientTypeFilter).ToList();
 					w.Write(interfaces.Count);
 					foreach (var ip in interfaces)
 					{

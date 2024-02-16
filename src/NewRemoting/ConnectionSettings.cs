@@ -12,6 +12,17 @@ namespace NewRemoting
 		public ConnectionSettings()
 		{
 			InterfaceOnlyClient = false;
+			ClientTypeFilter = t => t.IsPublic && t.IsInterface;
+		}
+
+		internal ConnectionSettings(bool interfaceOnlyClient, Func<Type, bool> clientTypeFilter)
+		: this()
+		{
+			InterfaceOnlyClient = interfaceOnlyClient;
+			if (clientTypeFilter != null)
+			{
+				ClientTypeFilter = clientTypeFilter;
+			}
 		}
 
 		/// <summary>
@@ -40,6 +51,14 @@ namespace NewRemoting
 		{
 			get;
 			init;
+		}
+
+		/// <summary>
+		/// Used on the server side only: Filter for interfaces to send to the client, only used if <see cref="InterfaceOnlyClient"/> is true.
+		/// </summary>
+		internal Func<Type, bool> ClientTypeFilter
+		{
+			get;
 		}
 	}
 }

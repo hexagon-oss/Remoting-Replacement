@@ -51,6 +51,7 @@ namespace NewRemoting
 		private readonly MessageHandler _messageHandler;
 		private readonly FormatterFactory _formatterFactory;
 		private readonly AuthenticationInformation _authenticationInformation;
+		private readonly Func<Type, bool> _clientInterfaceFilter;
 
 		/// <summary>
 		/// This is the interceptor list for calls from the server to the client using a server-side proxy (i.e. an interface registered for a callback)
@@ -83,10 +84,14 @@ namespace NewRemoting
 		/// </summary>
 		/// <param name="networkPort">Network port to open server on</param>
 		/// <param name="authenticationInformation">the certificate filename, and password</param>
+		/// <param name="clientInterfaceFilter">This filter method is called for each type that is sent to the client if the client registers
+		/// as InterfaceOnlyClient. Otherwise, the callback is ignored. The default is to include all public interfaces.</param>
 		/// <param name="logger">Optional logger instance, for debugging purposes</param>
-		public Server(int networkPort, AuthenticationInformation authenticationInformation, ILogger logger = null)
+		public Server(int networkPort, AuthenticationInformation authenticationInformation, Func<Type, bool> clientInterfaceFilter = null, ILogger logger = null)
 		{
 			_authenticationInformation = authenticationInformation;
+			_clientInterfaceFilter = clientInterfaceFilter;
+
 			Logger = logger ?? NullLogger.Instance;
 			_interceptorLock = new object();
 			_networkPort = networkPort;
@@ -978,10 +983,7 @@ namespace NewRemoting
 					}
 
 					bool interfaceOnlyClient = authenticationToken[5] == 1;
-					ConnectionSettings settings = new ConnectionSettings()
-					{
-						InterfaceOnlyClient = interfaceOnlyClient,
-					};
+					ConnectionSettings settings = new ConnectionSettings(interfaceOnlyClient, _clientInterfaceFilter);
 
 					Thread ts = new Thread(ServerStreamHandler);
 					ts.Name = $"Remote server client {tcpClient.Client.RemoteEndPoint}";

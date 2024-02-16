@@ -41,7 +41,7 @@ namespace NewRemotingUnitTest
 		{
 		}
 
-		public AuthenticationInformation CreateClientServer()
+		public AuthenticationInformation CreateClientServer(bool interfaceOnly = false)
 		{
 			FileInfo fi = new FileInfo(Assembly.GetExecutingAssembly().Location);
 			var psi = new ProcessStartInfo(Path.Combine(fi.DirectoryName, "RemotingServer.exe"));
@@ -54,7 +54,11 @@ namespace NewRemotingUnitTest
 			Assert.IsNotNull(_serverProcess);
 
 			// Port is currently hardcoded
-			_client = new Client("localhost", Client.DefaultNetworkPort, authenticationInfo, new ConnectionSettings());
+			_client = new Client("localhost", Client.DefaultNetworkPort, authenticationInfo, new ConnectionSettings()
+			{
+				InterfaceOnlyClient = interfaceOnly,
+			});
+
 			_client.Start();
 			return authenticationInfo;
 		}
@@ -979,6 +983,15 @@ namespace NewRemotingUnitTest
 			Assert.AreEqual(1, data[0].Value);
 			Assert.AreEqual(2, data[1].Value);
 			Assert.AreNotEqual(0, data[1].AnotherValue);
+		}
+
+		[Test]
+		public void StartInterfaceOnlyClient()
+		{
+			CreateClientServer(true);
+			var server = CreateRemoteInstance();
+			var interf = server.GetInterface<IDisposable>();
+			Assert.IsNotNull(interf);
 		}
 
 		private void ExecuteCallbacks(IMarshallInterface instance, int overallIterations, int iterations,
