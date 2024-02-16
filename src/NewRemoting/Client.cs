@@ -33,7 +33,6 @@ namespace NewRemoting
 		private readonly InstanceManager _instanceManager;
 		private readonly FormatterFactory _formatterFactory;
 		private readonly AuthenticationInformation _clientAuthentication;
-		private readonly bool _interfaceOnlyClient;
 
 		private TcpClient _client;
 		private BinaryWriter _writer;
@@ -54,28 +53,13 @@ namespace NewRemoting
 		/// <param name="server">Server name or IP</param>
 		/// <param name="port">Network port</param>
 		/// <param name="authenticationInformation"> credentials for authentication</param>
-		/// <param name="instanceManagerLogger">Optional logging sink (for diagnostic messages)</param>
-		/// <param name="connectionLogger">Logger to trace this very client</param>
-		public Client(string server, int port, AuthenticationInformation authenticationInformation, ILogger instanceManagerLogger = null, ILogger connectionLogger = null)
-			: this(server, port, authenticationInformation, false, instanceManagerLogger, connectionLogger)
+		/// <param name="settings">Advanced connection settings</param>
+		public Client(string server, int port, AuthenticationInformation authenticationInformation, ConnectionSettings settings)
 		{
-		}
-
-		/// <summary>
-		/// Creates a remoting client for the given server and opens the network connection
-		/// </summary>
-		/// <param name="server">Server name or IP</param>
-		/// <param name="port">Network port</param>
-		/// <param name="interfaceOnlyClient">True if this client cannot access the implementation assemblies. Restricts the client
-		/// from using certain ways of casting the provided remote objects.</param>
-		/// <param name="authenticationInformation"> credentials for authentication</param>
-		/// <param name="instanceManagerLogger">Optional logging sink (for diagnostic messages)</param>
-		/// <param name="connectionLogger">Logger to trace this very client</param>
-		public Client(string server, int port, AuthenticationInformation authenticationInformation, bool interfaceOnlyClient, ILogger instanceManagerLogger = null, ILogger connectionLogger = null)
-		{
+			Settings = settings ?? throw new ArgumentNullException(nameof(settings));
 			_clientAuthentication = authenticationInformation;
-			var instanceLogger = instanceManagerLogger ?? NullLogger.Instance;
-			Logger = connectionLogger ?? NullLogger.Instance;
+			var instanceLogger = Settings.InstanceManagerLogger ?? NullLogger.Instance;
+			Logger = Settings.ConnectionLogger ?? NullLogger.Instance;
 			_accessLock = new object();
 			_connectionConfigured = false;
 			_disconnected = false;
@@ -104,13 +88,12 @@ namespace NewRemoting
 			_messageHandler = new MessageHandler(_instanceManager, _formatterFactory, Logger);
 
 			// A client side has only one server, so there's also only one interceptor and only one server side
-			_interceptor = new ClientSideInterceptor(string.Empty, _instanceManager.ProcessIdentifier, true, interfaceOnlyClient, stream, _messageHandler, Logger);
+			_interceptor = new ClientSideInterceptor(string.Empty, _instanceManager.ProcessIdentifier, true, Settings, stream, _messageHandler, Logger);
 			_instanceManager.AddInterceptor(_interceptor);
 			_messageHandler.AddInterceptor(_interceptor);
 
 			Logger.LogInformation(FormattableString.Invariant($"Client to {server} creation - writing basic client authentication header"));
-			_interfaceOnlyClient = interfaceOnlyClient;
-			WriteProtocolHeader(stream, false, interfaceOnlyClient);
+			WriteProtocolHeader(stream, false, Settings.InterfaceOnlyClient);
 			WaitForConnectionReply(stream);
 			Logger.LogInformation("Received basic client authentication reply");
 
@@ -123,7 +106,7 @@ namespace NewRemoting
 			}
 
 			Logger.LogInformation("Writing basic server authentication header");
-			WriteProtocolHeader(s, true, interfaceOnlyClient);
+			WriteProtocolHeader(s, true, settings.InterfaceOnlyClient);
 			WaitForConnectionReply(s);
 			Logger.LogInformation("Received basic server authentication reply");
 
@@ -134,6 +117,8 @@ namespace NewRemoting
 			// This is used as return channel
 			_server = new Server(s, _messageHandler, _interceptor);
 		}
+
+		public ConnectionSettings Settings { get; }
 
 		private void WriteProtocolHeader(Stream destination, bool callbackStream, bool clientUsesInterfaceProxiesOnly)
 		{
@@ -507,7 +492,7 @@ namespace NewRemoting
 						_writer.Write(args.Length); // but we need to provide the number of arguments that follow
 						foreach (var a in args)
 						{
-							_messageHandler.WriteArgumentToStream(_writer, a, _interceptor.OtherSideProcessId, _interfaceOnlyClient);
+							_messageHandler.WriteArgumentToStream(_writer, a, _interceptor.OtherSideProcessId, Settings);
 						}
 					}
 				}

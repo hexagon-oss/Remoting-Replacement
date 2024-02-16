@@ -176,7 +176,12 @@ namespace RemotingClient
 				var logWriter = new SimpleLogFileWriter("ClientLog.log", "ClientLog", LogLevel.Trace);
 				try
 				{
-					Client client = new Client(ip, Client.DefaultNetworkPort, certificate, logWriter);
+					var settings = new ConnectionSettings()
+					{
+						InstanceManagerLogger = logWriter,
+					};
+
+					Client client = new Client(ip, Client.DefaultNetworkPort, certificate, settings);
 					return client;
 				}
 				catch (SocketException x)

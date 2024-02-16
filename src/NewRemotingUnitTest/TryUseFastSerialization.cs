@@ -28,7 +28,7 @@ namespace NewRemotingUnitTest
 			_streamMock = new Mock<Stream>();
 			_streamMock.Setup(x => x.CanRead).Returns(true);
 			_messageHandler = new MessageHandler(_instanceManager, new FormatterFactory(_instanceManager), NullLogger.Instance);
-			_messageHandler.AddInterceptor(new ClientSideInterceptor("OtherSide", "ThisSide", true, false, _streamMock.Object, _messageHandler, null));
+			_messageHandler.AddInterceptor(new ClientSideInterceptor("OtherSide", "ThisSide", true, new ConnectionSettings(), _streamMock.Object, _messageHandler, null));
 		}
 
 		[Test]
@@ -40,7 +40,7 @@ namespace NewRemotingUnitTest
 			ms.Position = 0;
 			var r = new BinaryReader(ms, MessageHandler.DefaultStringEncoding);
 			object result =
-				_messageHandler.ReadArgumentFromStream(r, MethodBase.GetCurrentMethod(), null, true, null, "Blah", false);
+				_messageHandler.ReadArgumentFromStream(r, MethodBase.GetCurrentMethod(), null, true, null, "Blah", new ConnectionSettings());
 
 			Assert.IsNotNull(result);
 			Int32 casted = (Int32)result;
@@ -57,7 +57,7 @@ namespace NewRemotingUnitTest
 			ms.Position = 0;
 			var r = new BinaryReader(ms, MessageHandler.DefaultStringEncoding);
 			object result =
-				_messageHandler.ReadArgumentFromStream(r, MethodBase.GetCurrentMethod(), null, true, null, "Blah", false);
+				_messageHandler.ReadArgumentFromStream(r, MethodBase.GetCurrentMethod(), null, true, null, "Blah", new ConnectionSettings());
 
 			Assert.IsNotNull(result);
 			Assert.AreEqual(test, result);
@@ -69,14 +69,14 @@ namespace NewRemotingUnitTest
 			var test = new SerializableClassWithMarshallableMembers(2, null);
 			MemoryStream ms = new MemoryStream();
 			var w = new BinaryWriter(ms, MessageHandler.DefaultStringEncoding);
-			_messageHandler.WriteArgumentToStream(w, test, "Blah", false);
-			_messageHandler.WriteArgumentToStream(w, (int)99, "Blah", false);
+			_messageHandler.WriteArgumentToStream(w, test, "Blah", new ConnectionSettings());
+			_messageHandler.WriteArgumentToStream(w, (int)99, "Blah", new ConnectionSettings());
 			byte[] data = ms.GetBuffer();
 			string text = Encoding.UTF8.GetString(data.AsSpan(4));
 			ms.Position = 0;
 			var r = new BinaryReader(ms, MessageHandler.DefaultStringEncoding);
-			SerializableClassWithMarshallableMembers result = (SerializableClassWithMarshallableMembers)_messageHandler.ReadArgumentFromStream(r, MethodBase.GetCurrentMethod(), null, true, null, "Blah", false);
-			int x = (int)_messageHandler.ReadArgumentFromStream(r, MethodBase.GetCurrentMethod(), null, true, null, "Blah", false);
+			SerializableClassWithMarshallableMembers result = (SerializableClassWithMarshallableMembers)_messageHandler.ReadArgumentFromStream(r, MethodBase.GetCurrentMethod(), null, true, null, "Blah", new ConnectionSettings());
+			int x = (int)_messageHandler.ReadArgumentFromStream(r, MethodBase.GetCurrentMethod(), null, true, null, "Blah", new ConnectionSettings());
 			Assert.IsNotNull(result);
 			Assert.AreEqual(test.Idx, result.Idx);
 			Assert.AreEqual(99, x); // to verify the stream is still in sync

@@ -54,7 +54,7 @@ namespace NewRemotingUnitTest
 			Assert.IsNotNull(_serverProcess);
 
 			// Port is currently hardcoded
-			_client = new Client("localhost", Client.DefaultNetworkPort, authenticationInfo, null, null);
+			_client = new Client("localhost", Client.DefaultNetworkPort, authenticationInfo, new ConnectionSettings());
 			_client.Start();
 			return authenticationInfo;
 		}
@@ -478,7 +478,7 @@ namespace NewRemotingUnitTest
 		public void TwoClientsCanConnect()
 		{
 			AuthenticationInformation authenticationInfo = CreateClientServer();
-			var client2 = new Client("localhost", Client.DefaultNetworkPort, authenticationInfo);
+			var client2 = new Client("localhost", Client.DefaultNetworkPort, authenticationInfo, new ConnectionSettings());
 			client2.Start();
 
 			var firstInstance = _client.CreateRemoteInstance<MarshallableClass>();

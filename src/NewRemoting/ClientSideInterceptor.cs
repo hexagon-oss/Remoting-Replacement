@@ -25,7 +25,7 @@ namespace NewRemoting
 	{
 		private const int NumberOfCallsForGc = 100;
 		private static readonly TimeSpan GcLoopTime = new TimeSpan(0, 0, 0, 20);
-		private readonly bool _interfaceOnlyClient;
+		private readonly ConnectionSettings _settings;
 		private readonly Stream _serverLink;
 		private readonly MessageHandler _messageHandler;
 		private readonly ILogger _logger;
@@ -44,7 +44,7 @@ namespace NewRemoting
 		/// </summary>
 		private BinaryReader _reader;
 
-		public ClientSideInterceptor(string otherSideProcessId, string thisSideProcessId, bool clientSide, bool interfaceOnlyClient,
+		public ClientSideInterceptor(string otherSideProcessId, string thisSideProcessId, bool clientSide, ConnectionSettings settings,
 			Stream serverLink, MessageHandler messageHandler, ILogger logger)
 		{
 			_receiving = true;
@@ -53,7 +53,7 @@ namespace NewRemoting
 			ThisSideProcessId = thisSideProcessId;
 			DebuggerToStringBehavior = DebuggerToStringBehavior.ReturnProxyName;
 			_sequence = clientSide ? 1 : 10000;
-			_interfaceOnlyClient = interfaceOnlyClient;
+			_settings = settings;
 			_serverLink = serverLink;
 			_messageHandler = messageHandler ?? throw new ArgumentNullException(nameof(messageHandler));
 			_logger = logger;
@@ -86,7 +86,7 @@ namespace NewRemoting
 		/// </summary>
 		private static long GetGcMemoryInfoIndex()
 		{
-			if (OperatingSystem.IsAndroid())
+			if (OperatingSystem.IsAndroid() || OperatingSystem.IsIOS())
 			{
 				return 0;
 			}
@@ -292,7 +292,7 @@ namespace NewRemoting
 				}
 				else
 				{
-					_messageHandler.WriteArgumentToStream(writer, argument, OtherSideProcessId, _interfaceOnlyClient);
+					_messageHandler.WriteArgumentToStream(writer, argument, OtherSideProcessId, _settings);
 				}
 			}
 
@@ -448,7 +448,7 @@ namespace NewRemoting
 						else
 						{
 							_logger.Log(LogLevel.Debug, $"{ThisSideProcessId}: Receiving reply for {ctx.Invocation.Method}");
-							_messageHandler.ProcessCallResponse(ctx.Invocation, _reader, ThisSideProcessId, _interfaceOnlyClient);
+							_messageHandler.ProcessCallResponse(ctx.Invocation, _reader, ThisSideProcessId, _settings);
 							ctx.Set();
 						}
 					}
