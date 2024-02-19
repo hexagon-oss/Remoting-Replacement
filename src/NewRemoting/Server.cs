@@ -38,6 +38,11 @@ namespace NewRemoting
 		/// </summary>
 		private static X509Certificate _serverCertificate;
 
+		/// <summary>
+		/// This list contains types we know we won't be able to resolve so we don't want to try again.
+		/// </summary>
+		private static ConcurrentDictionary<string, Type> _knownUnknownTypes = new();
+
 		public const string ServerExecutableName = "RemotingServer.exe";
 		private const string RuntimeVersionRegex = "(\\d+\\.\\d)";
 		internal const int AuthenticationSucceededToken = 567223;
@@ -838,6 +843,12 @@ namespace NewRemoting
 				return t;
 			}
 
+			// Normally, this list only contains null-entries, but we could also use it for a fast lookup otherwise
+			if (throwOnError == false && _knownUnknownTypes.TryGetValue(assemblyQualifiedName, out t))
+			{
+				return t;
+			}
+
 			int start = 0;
 			if (assemblyQualifiedName.Contains("]"))
 			{
@@ -882,6 +893,7 @@ namespace NewRemoting
 					}
 					else
 					{
+						_knownUnknownTypes.TryAdd(assemblyQualifiedName, null);
 						return null;
 					}
 				}
@@ -893,6 +905,7 @@ namespace NewRemoting
 			}
 			else
 			{
+				_knownUnknownTypes.TryAdd(assemblyQualifiedName, null);
 				return null;
 			}
 		}
