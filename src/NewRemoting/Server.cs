@@ -837,14 +837,16 @@ namespace NewRemoting
 
 		public static Type GetTypeFromAnyAssembly(string assemblyQualifiedName, bool throwOnError = true)
 		{
-			Type t = Type.GetType(assemblyQualifiedName, false);
-			if (t != null)
+			Type t;
+
+			// Normally, this list only contains null-entries, but we could also use it for a fast lookup otherwise
+			if (throwOnError == false && _knownUnknownTypes.TryGetValue(assemblyQualifiedName, out t))
 			{
 				return t;
 			}
 
-			// Normally, this list only contains null-entries, but we could also use it for a fast lookup otherwise
-			if (throwOnError == false && _knownUnknownTypes.TryGetValue(assemblyQualifiedName, out t))
+			t = Type.GetType(assemblyQualifiedName, false);
+			if (t != null)
 			{
 				return t;
 			}
