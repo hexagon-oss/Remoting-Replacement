@@ -174,7 +174,7 @@ namespace SampleServerClasses
 		public virtual void ThrowAggregateException()
 		{
 			var list = new List<Exception> { new ObjectDisposedException("object disposed"), new ArgumentNullException("arg is null") };
-			AggregateException aex = new AggregateException(list);
+			AggregateException aex = new AggregateException("Inner aggregate exception", list);
 			throw new AggregateException(aex);
 		}
 

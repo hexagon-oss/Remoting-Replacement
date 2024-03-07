@@ -441,7 +441,7 @@ namespace NewRemoting
 						if (hdReturnValue.Function == RemotingFunctionType.ExceptionReturn)
 						{
 							_logger.Log(LogLevel.Debug, $"{ThisSideProcessId}: Receiving exception in reply to {ctx.Invocation.Method}");
-							var exception = _messageHandler.DecodeException(_reader, OtherSideProcessId);
+							var exception = MessageHandler.DecodeException(_reader, OtherSideProcessId);
 							ctx.Exception = exception;
 							ctx.Set();
 						}

@@ -1209,7 +1209,7 @@ namespace NewRemoting
 			EncodeException(exception, w);
 		}
 
-		private static void EncodeException(Exception exception, BinaryWriter w)
+		internal static void EncodeException(Exception exception, BinaryWriter w)
 		{
 			w.Write(exception.GetType().AssemblyQualifiedName ?? string.Empty);
 			w.Write(exception.Message);
@@ -1223,19 +1223,22 @@ namespace NewRemoting
 					EncodeException(inner, w);
 				}
 			}
-
-			while (exception.InnerException != null)
+			else
 			{
-				// True: Another one follows
-				w.Write(true);
-				exception = exception.InnerException;
-				EncodeException(exception, w);
+				// The InnerException property of an AggregateException returns the first exception in the list, so skip this here.
+				while (exception.InnerException != null)
+				{
+					// True: Another one follows
+					w.Write(true);
+					exception = exception.InnerException;
+					EncodeException(exception, w);
+				}
 			}
 
 			w.Write(false);
 		}
 
-		public Exception DecodeException(BinaryReader reader, string otherSideProcessId)
+		public static Exception DecodeException(BinaryReader reader, string otherSideProcessId)
 		{
 			FieldInfo[] fields = typeof(Exception).GetFields(BindingFlags.NonPublic | BindingFlags.Instance);
 			var field = fields.FirstOrDefault(x => x.Name == "_innerException");
@@ -1249,7 +1252,7 @@ namespace NewRemoting
 					break;
 				}
 
-				Exception sub = DecodeExceptionInternal(reader, otherSideProcessId);
+				Exception sub = DecodeException(reader, otherSideProcessId);
 
 				// This field is normally read-only
 				if (field != null)
@@ -1263,7 +1266,7 @@ namespace NewRemoting
 			return root;
 		}
 
-		private Exception DecodeExceptionInternal(BinaryReader reader, string otherSideProcessId)
+		private static Exception DecodeExceptionInternal(BinaryReader reader, string otherSideProcessId)
 		{
 			string exceptionTypeName = reader.ReadString();
 			string remoteMessage = reader.ReadString();
@@ -1283,7 +1286,7 @@ namespace NewRemoting
 				var list = new List<Exception>();
 				for (int i = 0; i < cnt; i++)
 				{
-					list[i] = DecodeException(reader, otherSideProcessId);
+					list.Add(DecodeException(reader, otherSideProcessId));
 				}
 
 				decodedException = new AggregateException(list);
