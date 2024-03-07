@@ -1262,18 +1262,23 @@ namespace NewRemoting
 			string remoteStack = reader.ReadString();
 			Type exceptionType = Server.GetTypeFromAnyAssembly(exceptionTypeName);
 
+			_logger?.LogInformation(FormattableString.Invariant($"DecodeExceptionInternal {exceptionTypeName}: {remoteMessage}"));
+
 			var ctors = exceptionType.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-			// Prefer ctors with many arguments
 			ctors = ctors.OrderByDescending(x => x.GetParameters().Length).ToArray();
 
 			// Manually search the deserialization constructor. Activator.CreateInstance is not helpful when something is wrong
 			Exception decodedException = null;
-			foreach (var ctor in ctors)
+
+			var orderedCtor = ctors.OrderBy(x => x.GetParameters().Length);
+
+			foreach (var ctor in orderedCtor)
 			{
 				var parameters = ctor.GetParameters();
-				if (parameters.Length == 2 && parameters[0].ParameterType == typeof(string) && parameters[1].ParameterType == typeof(Exception))
+
+				if (parameters.Length == 0)
 				{
-					decodedException = (Exception)ctor.Invoke(new object[] { remoteMessage, null });
+					decodedException = (Exception)ctor.Invoke(Array.Empty<Object>());
 					break;
 				}
 
@@ -1283,9 +1288,15 @@ namespace NewRemoting
 					break;
 				}
 
-				if (parameters.Length == 0)
+				if (parameters.Length == 1 && parameters[0].ParameterType == typeof(Exception))
 				{
-					decodedException = (Exception)ctor.Invoke(Array.Empty<Object>());
+					decodedException = (Exception)ctor.Invoke(new object[] { new Exception(remoteMessage) });
+					break;
+				}
+
+				if (parameters.Length == 2 && parameters[0].ParameterType == typeof(string) && parameters[1].ParameterType == typeof(Exception))
+				{
+					decodedException = (Exception)ctor.Invoke(new object[] { remoteMessage, null });
 					break;
 				}
 			}
