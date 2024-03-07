@@ -171,9 +171,11 @@ namespace SampleServerClasses
 			return 1;
 		}
 
-		public void ThrowAggregateException(List<Exception> exceptions)
+		public virtual void ThrowAggregateException()
 		{
-			throw new AggregateException(exceptions);
+			var list = new List<Exception> { new ObjectDisposedException("object disposed"), new ArgumentNullException("arg is null") };
+			AggregateException aex = new AggregateException(list);
+			throw new AggregateException(aex);
 		}
 
 		private int DoIntegerDivide(int a, int b)

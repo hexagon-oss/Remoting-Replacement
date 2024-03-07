@@ -447,11 +447,10 @@ namespace NewRemotingUnitTest
 		{
 			CreateClientServer();
 			var c = CreateRemoteInstance();
-			var list = new List<Exception> { new ObjectDisposedException("object disposed"), new ArgumentNullException("arg is null") };
-			AggregateException aex = new AggregateException(list);
+
 			try
 			{
-				c.ThrowAggregateException(new List<Exception> { aex });
+				c.ThrowAggregateException();
 			}
 			catch (AggregateException x)
 			{
