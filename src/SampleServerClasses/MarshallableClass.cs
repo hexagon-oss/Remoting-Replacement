@@ -171,6 +171,11 @@ namespace SampleServerClasses
 			return 1;
 		}
 
+		public void ThrowAggregateException(List<Exception> exceptions)
+		{
+			throw new AggregateException(exceptions);
+		}
+
 		private int DoIntegerDivide(int a, int b)
 		{
 			return a / b;

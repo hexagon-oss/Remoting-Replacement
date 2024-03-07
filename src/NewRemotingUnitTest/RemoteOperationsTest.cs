@@ -443,6 +443,28 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
+		public void HandleRemoteAggregateExceptions()
+		{
+			CreateClientServer();
+			var c = CreateRemoteInstance();
+			var list = new List<Exception> { new ObjectDisposedException("object disposed"), new ArgumentNullException("arg is null") };
+			AggregateException aex = new AggregateException(list);
+			try
+			{
+				c.ThrowAggregateException(new List<Exception> { aex });
+			}
+			catch (AggregateException x)
+			{
+				Assert.IsNotNull(x);
+				Assert.IsNotNull(x.InnerException);
+				Assert.AreEqual(1, x.InnerExceptions.Count);
+				Assert.That(x.InnerExceptions[0] is AggregateException);
+				var aggregates = x.InnerExceptions[0] as AggregateException;
+				Assert.AreEqual(2, aggregates.InnerExceptions.Count);
+			}
+		}
+
+		[Test]
 		public void GetRemotingServerService()
 		{
 			CreateClientServer();

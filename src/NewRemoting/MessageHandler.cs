@@ -1207,6 +1207,23 @@ namespace NewRemoting
 			// We're manually serializing exceptions, because that's apparently how this should be done (since
 			// ExceptionDispatchInfo.SetRemoteStackTrace doesn't work if the stack trace has already been set)
 			EncodeException(exception, w);
+		}
+
+		private static void EncodeException(Exception exception, BinaryWriter w)
+		{
+			w.Write(exception.GetType().AssemblyQualifiedName ?? string.Empty);
+			w.Write(exception.Message);
+			w.Write(exception.HResult);
+			w.Write(exception.StackTrace ?? string.Empty);
+			if (exception is AggregateException aggregate)
+			{
+				w.Write(aggregate.InnerExceptions.Count);
+				foreach (var inner in aggregate.InnerExceptions)
+				{
+					EncodeException(inner, w);
+				}
+			}
+
 			while (exception.InnerException != null)
 			{
 				// True: Another one follows
@@ -1216,14 +1233,6 @@ namespace NewRemoting
 			}
 
 			w.Write(false);
-		}
-
-		private static void EncodeException(Exception exception, BinaryWriter w)
-		{
-			w.Write(exception.GetType().AssemblyQualifiedName ?? string.Empty);
-			w.Write(exception.Message);
-			w.Write(exception.HResult);
-			w.Write(exception.StackTrace ?? string.Empty);
 		}
 
 		public Exception DecodeException(BinaryReader reader, string otherSideProcessId)
@@ -1268,25 +1277,40 @@ namespace NewRemoting
 
 			// Manually search the deserialization constructor. Activator.CreateInstance is not helpful when something is wrong
 			Exception decodedException = null;
-			foreach (var ctor in ctors)
+			if (exceptionType == typeof(AggregateException))
 			{
-				var parameters = ctor.GetParameters();
-				if (parameters.Length == 2 && parameters[0].ParameterType == typeof(string) && parameters[1].ParameterType == typeof(Exception))
+				var cnt = reader.ReadInt32();
+				var list = new List<Exception>();
+				for (int i = 0; i < cnt; i++)
 				{
-					decodedException = (Exception)ctor.Invoke(new object[] { remoteMessage, null });
-					break;
+					list[i] = DecodeException(reader, otherSideProcessId);
 				}
 
-				if (parameters.Length == 1 && parameters[0].ParameterType == typeof(string))
+				decodedException = new AggregateException(list);
+			}
+			else
+			{
+				foreach (var ctor in ctors)
 				{
-					decodedException = (Exception)ctor.Invoke(new object[] { remoteMessage });
-					break;
-				}
+					var parameters = ctor.GetParameters();
+					if (parameters.Length == 2 && parameters[0].ParameterType == typeof(string) &&
+						parameters[1].ParameterType == typeof(Exception))
+					{
+						decodedException = (Exception)ctor.Invoke(new object[] { remoteMessage, null });
+						break;
+					}
 
-				if (parameters.Length == 0)
-				{
-					decodedException = (Exception)ctor.Invoke(Array.Empty<Object>());
-					break;
+					if (parameters.Length == 1 && parameters[0].ParameterType == typeof(string))
+					{
+						decodedException = (Exception)ctor.Invoke(new object[] { remoteMessage });
+						break;
+					}
+
+					if (parameters.Length == 0)
+					{
+						decodedException = (Exception)ctor.Invoke(Array.Empty<Object>());
+						break;
+					}
 				}
 			}
 
