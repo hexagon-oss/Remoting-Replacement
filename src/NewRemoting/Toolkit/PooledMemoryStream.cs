@@ -15,6 +15,8 @@ namespace NewRemoting.Toolkit
 
 		public PooledMemoryStream(int size)
 		{
+			// This currently only supports streams up to 2GB in size
+			ArgumentOutOfRangeException.ThrowIfGreaterThan(size, Int32.MaxValue, nameof(size));
 			_pooledObject = ArrayPool<byte>.Shared.Rent(size);
 			_streamImplementation = new MemoryStream(_pooledObject);
 		}
@@ -178,7 +180,8 @@ namespace NewRemoting.Toolkit
 		public override void Write(byte[] buffer, int offset, int count)
 		{
 			_streamImplementation.Write(buffer, offset, count);
-			_contentLength += count;
+			// The content length expands only if the write happened at the end of the content
+			_contentLength = (int)Math.Max(_contentLength, _streamImplementation.Position);
 		}
 
 		protected override void Dispose(bool disposing)
