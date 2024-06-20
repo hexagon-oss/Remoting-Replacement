@@ -19,11 +19,4 @@ public class InvalidRemotingOperationException : RemotingException
 		: base(message, inner)
 	{
 	}
-
-	protected InvalidRemotingOperationException(
-		SerializationInfo info,
-		StreamingContext context)
-		: base(info, context)
-	{
-	}
 }

@@ -41,7 +41,7 @@ namespace NewRemotingUnitTest
 		{
 		}
 
-		public AuthenticationInformation CreateClientServer()
+		public AuthenticationInformation CreateClientServer(bool interfaceOnly = false)
 		{
 			FileInfo fi = new FileInfo(Assembly.GetExecutingAssembly().Location);
 			var psi = new ProcessStartInfo(Path.Combine(fi.DirectoryName, "RemotingServer.exe"));
@@ -54,7 +54,11 @@ namespace NewRemotingUnitTest
 			Assert.IsNotNull(_serverProcess);
 
 			// Port is currently hardcoded
-			_client = new Client("localhost", Client.DefaultNetworkPort, authenticationInfo, null, null);
+			_client = new Client("localhost", Client.DefaultNetworkPort, authenticationInfo, new ConnectionSettings()
+			{
+				InterfaceOnlyClient = interfaceOnly,
+			});
+
 			_client.Start();
 			return authenticationInfo;
 		}
@@ -419,6 +423,47 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
+		public void HandleRemoteExceptions()
+		{
+			CreateClientServer();
+			var c = CreateRemoteInstance();
+			bool didThrow = true;
+			try
+			{
+				c.MaybeThrowException(1);
+				didThrow = false;
+			}
+			catch (ArgumentOutOfRangeException x)
+			{
+				Assert.IsNotNull(x);
+				Assert.IsNotNull(x.InnerException);
+			}
+
+			Assert.That(didThrow);
+		}
+
+		[Test]
+		public void HandleRemoteAggregateExceptions()
+		{
+			CreateClientServer();
+			var c = CreateRemoteInstance();
+
+			try
+			{
+				c.ThrowAggregateException();
+			}
+			catch (AggregateException x)
+			{
+				Assert.IsNotNull(x);
+				Assert.IsNotNull(x.InnerException);
+				Assert.AreEqual(1, x.InnerExceptions.Count);
+				Assert.That(x.InnerExceptions[0] is AggregateException);
+				var aggregates = x.InnerExceptions[0] as AggregateException;
+				Assert.AreEqual(2, aggregates.InnerExceptions.Count);
+			}
+		}
+
+		[Test]
 		public void GetRemotingServerService()
 		{
 			CreateClientServer();
@@ -435,6 +480,18 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
+		public void SerializeDtoAsInterface()
+		{
+			CreateClientServer();
+			var cls = CreateRemoteInstance();
+			IMyDto returned = cls.GetDto("Test");
+			Assert.NotNull(returned);
+			Assert.IsInstanceOf<SerializableType>(returned);
+			Assert.AreEqual("Test", returned.Name);
+			Assert.AreEqual(4, returned.Id);
+		}
+
+		[Test]
 		public void SerializeUnserializableReturnType()
 		{
 			CreateClientServer();
@@ -446,7 +503,7 @@ namespace NewRemotingUnitTest
 		public void TwoClientsCanConnect()
 		{
 			AuthenticationInformation authenticationInfo = CreateClientServer();
-			var client2 = new Client("localhost", Client.DefaultNetworkPort, authenticationInfo);
+			var client2 = new Client("localhost", Client.DefaultNetworkPort, authenticationInfo, new ConnectionSettings());
 			client2.Start();
 
 			var firstInstance = _client.CreateRemoteInstance<MarshallableClass>();
@@ -708,6 +765,18 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
+		public void GetMemoryStreamFromServer()
+		{
+			CreateClientServer();
+			var server = CreateRemoteInstance();
+			Stream s = server.GetPooledStream();
+			Assert.That(s.Length == 202);
+			byte b = (byte)s.ReadByte();
+			Assert.AreEqual(0xfe, b);
+			Assert.DoesNotThrow(() => server.CreateCalc()); // Just to make sure the stream is still in sync
+		}
+
+		[Test]
 		public void FileStreamFromClientToServer()
 		{
 			CreateClientServer();
@@ -857,6 +926,16 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
+		public void UseStructAsReturnType()
+		{
+			CreateClientServer();
+			var server = _client.CreateRemoteInstance<MarshallableClass>();
+			var result = server.GetStruct();
+			Assert.AreEqual(10, result.Data1);
+			Assert.AreEqual(24.22, result.Data2, 1E-10);
+		}
+
+		[Test]
 		public void CanReadAndWriteLargeRemoteFile()
 		{
 			const int blocks = 10;
@@ -913,6 +992,27 @@ namespace NewRemotingUnitTest
 			Assert.AreEqual(5, obj.A.Length);
 			Assert.AreEqual(6, obj.A[0]);
 			Assert.AreNotEqual(6, obj.B[0]);
+		}
+
+		[Test]
+		public void CanGetListAsOutParameter()
+		{
+			CreateClientServer();
+			var server = CreateRemoteInstance();
+			Assert.That(server.GetMyImportantList(out var data));
+			CollectionAssert.IsNotEmpty(data);
+			Assert.AreEqual(1, data[0].Value);
+			Assert.AreEqual(2, data[1].Value);
+			Assert.AreNotEqual(0, data[1].AnotherValue);
+		}
+
+		[Test]
+		public void StartInterfaceOnlyClient()
+		{
+			CreateClientServer(true);
+			var server = CreateRemoteInstance();
+			var interf = server.GetInterface<IDisposable>();
+			Assert.IsNotNull(interf);
 		}
 
 		private void ExecuteCallbacks(IMarshallInterface instance, int overallIterations, int iterations,

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Nuke.Common;
@@ -47,8 +47,8 @@ class Build : NukeBuild
         .Before(Restore)
         .Executes(() =>
         {
-            SourceDirectory.GlobDirectories("**/bin", "**/obj").ForEach(DeleteDirectory);
-            EnsureCleanDirectory(ArtifactsDirectory);
+            SourceDirectory.GlobDirectories("**/bin", "**/obj").ForEach(x => x.DeleteDirectory());
+            ArtifactsDirectory.CreateOrCleanDirectory();
         });
 
     Target Restore => _ => _
@@ -75,13 +75,12 @@ class Build : NukeBuild
 	    .DependsOn(CopyOutputAround)
 	    .Executes(() =>
 	    {
-		    var projectsToCheck = Solution.GetProjects("*UnitTest").OrderBy(x => x.Name).ToList();
 		    var settings = new DotNetTestSettings()
 			    .SetConfiguration(Configuration)
 			    .SetProjectFile(Solution)
 			    .EnableNoBuild()
 			    .EnableNoRestore()
-			    .SetVerbosity(DotNetVerbosity.Normal)
+			    .SetVerbosity(DotNetVerbosity.normal)
 			    .SetSettingsFile("src/NewRemotingUnitTest/test.runsettings");
 		    DotNetTest(settings);
 
@@ -97,7 +96,7 @@ class Build : NukeBuild
 				.SetAssemblyVersion(GitVersion.AssemblySemVer)
 			    .SetFileVersion(GitVersion.AssemblySemFileVer)
 			    .SetInformationalVersion(GitVersion.InformationalVersion)
-			    .SetFramework("net6.0-windows")
+			    .SetFramework("net8.0-windows")
 		    );
 	    });
 
@@ -110,15 +109,15 @@ class Build : NukeBuild
 	    .Executes(() =>
 	    {
 			// The code was originally in the post-build step of RemotingClient, but that was wrong, since that runs before the publish step
-			string outDir = SourceDirectory / "RemotingClient" / "bin" / Configuration / "net6.0-windows";
+			string outDir = SourceDirectory / "RemotingClient" / "bin" / Configuration / "net8.0-windows";
 			string solutionDir = SourceDirectory;
 		    string[] commandsToExecute = new string[]
 		    {
-			    @$"xcopy /Y /D /I {outDir}\*.* {solutionDir}\RemotingServer\bin\{Configuration}\net6.0-windows",
-			    @$"xcopy /Y /E /S /I {outDir}\runtimes {solutionDir}\RemotingServer\bin\{Configuration}\net6.0-windows\runtimes",
-			    @$"xcopy /Y /D /I {solutionDir}\RemotingServer\bin\{Configuration}\net6.0-windows {solutionDir}\NewRemotingUnitTest\bin\{Configuration}\net6.0-windows",
-			    @$"xcopy /Y /D /I {outDir}\*.* {solutionDir}\NewRemotingUnitTest\bin\{Configuration}\net6.0-windows",
-			    @$"xcopy /Y /E /S /I {outDir}\runtimes {solutionDir}\NewRemotingUnitTest\bin\{Configuration}\net6.0-windows\runtimes"
+			    @$"xcopy /Y /D /I {outDir}\*.* {solutionDir}\RemotingServer\bin\{Configuration}\net8.0-windows",
+			    @$"xcopy /Y /E /S /I {outDir}\runtimes {solutionDir}\RemotingServer\bin\{Configuration}\net8.0-windows\runtimes",
+			    @$"xcopy /Y /D /I {solutionDir}\RemotingServer\bin\{Configuration}\net8.0-windows {solutionDir}\NewRemotingUnitTest\bin\{Configuration}\net8.0-windows",
+			    @$"xcopy /Y /D /I {outDir}\*.* {solutionDir}\NewRemotingUnitTest\bin\{Configuration}\net8.0-windows",
+			    @$"xcopy /Y /E /S /I {outDir}\runtimes {solutionDir}\NewRemotingUnitTest\bin\{Configuration}\net8.0-windows\runtimes"
 		    };
 
 			foreach (var cmd in commandsToExecute)
@@ -153,7 +152,7 @@ class Build : NukeBuild
 			    .SetVersion(GitVersion.SemVer)
 			    .SetInformationalVersion(GitVersion.InformationalVersion));
 
-		    var publishDir = SourceDirectory / "RemotingServer" / "bin" / Configuration / "net6.0-windows" / "publish";
+		    var publishDir = SourceDirectory / "RemotingServer" / "bin" / Configuration / "net8.0-windows" / "publish";
 
 		    NuGetPack(s => s
 				    .SetBasePath(publishDir)

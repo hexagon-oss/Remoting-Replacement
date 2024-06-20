@@ -24,7 +24,7 @@ namespace NewRemoting
 	/// of this class share the same object lists (this is needed when a process acts as server for many
 	/// processes, or simultaneously as client and as server)
 	/// </summary>
-	internal class InstanceManager
+	internal class InstanceManager : IInstanceManager
 	{
 		private const string DelegateIdentifier = ".Method";
 
@@ -181,7 +181,7 @@ namespace NewRemoting
 				}
 			}
 
-			AddInstance(instance, id, willBeSentTo, instance.GetType(), true);
+			AddInstance(instance, id, willBeSentTo, instance.GetType(), instance.GetType().AssemblyQualifiedName, true);
 			return id;
 		}
 
@@ -236,7 +236,7 @@ namespace NewRemoting
 			return false;
 		}
 
-		public object AddInstance(object instance, string objectId, string willBeSentTo, Type originalType, bool doThrowOnDuplicate)
+		public object AddInstance(object instance, string objectId, string willBeSentTo, Type originalType, string originalTypeName, bool doThrowOnDuplicate)
 		{
 			if (instance == null)
 			{
@@ -248,11 +248,19 @@ namespace NewRemoting
 				throw new ArgumentException("The original type cannot be a proxy", nameof(originalType));
 			}
 
+			if (originalType != null)
+			{
+				if (originalType.AssemblyQualifiedName != originalTypeName)
+				{
+					throw new ArgumentException("This method must be called with type and typename matching the same instance");
+				}
+			}
+
 			object usedInstance = instance;
 			var ret = s_objects.AddOrUpdate(objectId, s =>
 			{
 				// Not found in list - insert new info object
-				var ii = new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), originalType, this);
+				var ii = new InstanceInfo(instance, objectId, IsLocalInstanceId(objectId), originalTypeName, this);
 				usedInstance = instance;
 				MarkInstanceAsInUseBy(willBeSentTo, ii);
 				_logger?.LogDebug($"Added new instance {ii.Identifier} to instance manager");
@@ -291,7 +299,7 @@ namespace NewRemoting
 			});
 
 			// usedInstance cannot and must not be null here.
-			s_instanceNames.AddOrUpdate(usedInstance, new ReverseInstanceInfo(objectId, originalType));
+			s_instanceNames.AddOrUpdate(usedInstance, new ReverseInstanceInfo(objectId, originalTypeName));
 
 			return usedInstance;
 		}
@@ -299,7 +307,7 @@ namespace NewRemoting
 		/// <summary>
 		/// Gets the instance id for a given object.
 		/// </summary>
-		public bool TryGetObjectId(object instance, out string instanceId, out Type originalType)
+		public bool TryGetObjectId(object instance, out string instanceId, out string originalTypeName)
 		{
 			if (ReferenceEquals(instance, null))
 			{
@@ -310,7 +318,7 @@ namespace NewRemoting
 			if (s_instanceNames.TryGetValue(instance, out ri))
 			{
 				instanceId = ri.ObjectId;
-				originalType = ri.ObjectType;
+				originalTypeName = ri.ObjectType;
 				return true;
 			}
 
@@ -321,13 +329,13 @@ namespace NewRemoting
 				if (ReferenceEquals(v.QueryInstance(), instance))
 				{
 					instanceId = v.Identifier;
-					originalType = v.OriginalType;
+					originalTypeName = v.OriginalType;
 					return true;
 				}
 			}
 
 			instanceId = null;
-			originalType = null;
+			originalTypeName = null;
 			return false;
 		}
 
@@ -380,7 +388,7 @@ namespace NewRemoting
 		/// Completely clears this instance. Only to be used for testing purposes
 		/// </summary>
 		/// <param name="fullyClear">Pass in true</param>
-		internal void Clear(bool fullyClear)
+		public void Clear(bool fullyClear)
 		{
 			Clear();
 			if (fullyClear)
@@ -482,7 +490,14 @@ namespace NewRemoting
 			}
 		}
 
-		public object CreateOrGetProxyForObjectId(IInvocation invocation, bool canAttemptToInstantiate, Type typeOfArgument, string typeName, string objectId)
+		object IInstanceManager.CreateOrGetProxyForObjectId(bool canAttemptToInstantiate,
+			Type typeOfArgument, string typeName, string objectId, List<string> knownInterfaceNames)
+		{
+			return CreateOrGetProxyForObjectId(null, canAttemptToInstantiate, typeOfArgument, typeName, objectId, knownInterfaceNames);
+		}
+
+		public object CreateOrGetProxyForObjectId(IInvocation invocation, bool canAttemptToInstantiate,
+			Type typeOfArgument, string typeName, string objectId, List<string> knownInterfaceNames)
 		{
 			if (!_interceptors.Any())
 			{
@@ -490,7 +505,8 @@ namespace NewRemoting
 			}
 
 			object instance;
-			Type type = string.IsNullOrEmpty(typeName) ? null : Server.GetTypeFromAnyAssembly(typeName);
+			Type type = string.IsNullOrEmpty(typeName) ? null : Server.GetTypeFromAnyAssembly(typeName,
+				knownInterfaceNames == null || knownInterfaceNames.Count == 0);
 			if (type == null)
 			{
 				// The type name may be omitted if the client knows that this instance must exist
@@ -501,7 +517,10 @@ namespace NewRemoting
 					return instance;
 				}
 
-				throw new RemotingException("Unknown type found in argument stream");
+				if (knownInterfaceNames.Count == 0)
+				{
+					throw new RemotingException("Unknown type found in argument stream");
+				}
 			}
 			else
 			{
@@ -519,7 +538,22 @@ namespace NewRemoting
 
 			var interceptor = GetInterceptor(_interceptors, objectId);
 			// Create a class proxy with all interfaces proxied as well.
-			var interfaces = type.GetInterfaces();
+			Type[] interfaces = null;
+			if (type != null)
+			{
+				interfaces = type.GetInterfaces();
+			}
+			else
+			{
+				interfaces = new Type[knownInterfaceNames.Count];
+				for (var index = 0; index < knownInterfaceNames.Count; index++)
+				{
+					var interfaceToFind = knownInterfaceNames[index];
+					var tt = Server.GetTypeFromAnyAssembly(interfaceToFind, true);
+					interfaces[index] = tt;
+				}
+			}
+
 			ManualInvocation mi = invocation as ManualInvocation;
 			if (typeOfArgument != null && typeOfArgument.IsInterface)
 			{
@@ -577,7 +611,7 @@ namespace NewRemoting
 				instance = ProxyGenerator.CreateClassProxy(type, interfaces, interceptor);
 			}
 
-			object instance2 = AddInstance(instance, objectId, null, type, false);
+			object instance2 = AddInstance(instance, objectId, null, type, typeName, false);
 
 			return instance2;
 		}
@@ -684,13 +718,13 @@ namespace NewRemoting
 			private object _instanceHardReference;
 			private WeakReference _instanceWeakReference;
 
-			public InstanceInfo(object obj, string identifier, bool isLocal, Type originalType, InstanceManager owner)
+			public InstanceInfo(object obj, string identifier, bool isLocal, string originalTypeName, InstanceManager owner)
 			{
 				IsLocal = isLocal;
 				SetInstance(obj);
 
 				Identifier = identifier;
-				OriginalType = originalType ?? throw new ArgumentNullException(nameof(originalType));
+				OriginalType = originalTypeName ?? throw new ArgumentNullException(nameof(originalTypeName));
 				_owningInstanceManager = owner;
 				ReferenceBitVector = 0;
 			}
@@ -702,7 +736,7 @@ namespace NewRemoting
 
 			public bool IsLocal { get; }
 
-			public Type OriginalType
+			public string OriginalType
 			{
 				get;
 			}
@@ -784,7 +818,7 @@ namespace NewRemoting
 
 		private class ReverseInstanceInfo
 		{
-			public ReverseInstanceInfo(string objectId, Type objectType)
+			public ReverseInstanceInfo(string objectId, string objectType)
 			{
 				ObjectId = objectId;
 				ObjectType = objectType;
@@ -792,7 +826,7 @@ namespace NewRemoting
 
 			public string ObjectId { get; }
 
-			public Type ObjectType { get; }
+			public string ObjectType { get; }
 		}
 	}
 }

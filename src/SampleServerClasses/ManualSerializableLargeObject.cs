@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using NewRemoting.Toolkit;
 
@@ -11,7 +12,9 @@ namespace SampleServerClasses
 	[Serializable]
 	public class ManualSerializableLargeObject : IManualSerialization
 	{
+		[JsonIgnore]
 		private byte[] _data;
+		[JsonIgnore]
 		private Memory<byte> _memory;
 
 		public ManualSerializableLargeObject()
@@ -26,6 +29,7 @@ namespace SampleServerClasses
 			_data = null;
 		}
 
+		[JsonIgnore]
 		public int Length
 		{
 			get
@@ -34,6 +38,7 @@ namespace SampleServerClasses
 			}
 		}
 
+		[JsonIgnore]
 		public byte this[int index]
 		{
 			get

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using NewRemoting.Toolkit;
 
 namespace SampleServerClasses
 {
@@ -36,6 +37,7 @@ namespace SampleServerClasses
 			_someData = new byte[100];
 			_someData[1] = 5;
 			_someData[2] = 6;
+			_someData[9] = 99;
 		}
 
 		public MarshallableClass(string name)
@@ -143,9 +145,37 @@ namespace SampleServerClasses
 			return list;
 		}
 
+		public virtual CustomStructWithoutSetters GetStruct()
+		{
+			return new CustomStructWithoutSetters(10, 24.22);
+		}
+
 		public virtual int MaybeThrowException(int mustBeZero)
 		{
-			return DoIntegerDivide(10, mustBeZero);
+			if (mustBeZero == 0)
+			{
+				return DoIntegerDivide(10, mustBeZero);
+			}
+			else
+			{
+				try
+				{
+					DoIntegerDivide(10, mustBeZero - 1);
+				}
+				catch (DivideByZeroException x)
+				{
+					throw new ArgumentOutOfRangeException("This is expected", x);
+				}
+			}
+
+			return 1;
+		}
+
+		public virtual void ThrowAggregateException()
+		{
+			var list = new List<Exception> { new ObjectDisposedException("object disposed"), new ArgumentNullException("arg is null") };
+			AggregateException aex = new AggregateException("Inner aggregate exception", list);
+			throw new AggregateException(aex);
 		}
 
 		private int DoIntegerDivide(int a, int b)
@@ -313,6 +343,13 @@ namespace SampleServerClasses
 			return new SealedClass();
 		}
 
+		public virtual IMyDto GetDto(string data)
+		{
+			var ret = new SerializableType(data, data.Length);
+			ret.Next = new SerializableType("The next instance", 1);
+			return ret;
+		}
+
 		public virtual bool TakeSomeArguments(int a, Int16 b, UInt16 c, double d)
 		{
 			return Math.Abs(a + b - (c + d)) < 1E-12;
@@ -341,6 +378,24 @@ namespace SampleServerClasses
 		public virtual (ManualSerializableLargeObject A, ManualSerializableLargeObject B, int C) GetSerializedObjects()
 		{
 			return (new ManualSerializableLargeObject(new Memory<byte>(_someData, 2, 5)), new ManualSerializableLargeObject(_someData), 33);
+		}
+
+		public virtual bool GetMyImportantList(out IList<CustomSerializableObject> customSerializableObjects)
+		{
+			List<CustomSerializableObject> theList = new List<CustomSerializableObject>();
+			theList.Add(new CustomSerializableObject(1, DateTime.Now, 1.1, new SerializableType("Test1", 1)));
+			theList.Add(new CustomSerializableObject(2, DateTime.UtcNow, 2.2, new SerializableType("Test2", 2)));
+			customSerializableObjects = theList;
+			return true;
+		}
+
+		public virtual Stream GetPooledStream()
+		{
+			PooledMemoryStream ms = new PooledMemoryStream(1000);
+			ms.WriteByte(0xfe);
+			ms.WriteByte(0xfb);
+			ms.Write(new byte[200]);
+			return ms;
 		}
 	}
 }

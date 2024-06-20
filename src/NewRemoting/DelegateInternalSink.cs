@@ -19,6 +19,7 @@ namespace NewRemoting
 		private readonly string _remoteObjectReference;
 		private readonly MethodInfo _remoteMethodTarget;
 		private List<string> _activeInstances;
+		private bool _disconnected;
 
 		public DelegateInternalSink(IInterceptor interceptor, string remoteObjectReference, MethodInfo remoteMethodTarget)
 		{
@@ -26,6 +27,7 @@ namespace NewRemoting
 			_remoteObjectReference = remoteObjectReference;
 			_remoteMethodTarget = remoteMethodTarget;
 			_activeInstances = new List<string>();
+			_disconnected = false;
 		}
 
 		public void RegisterInstance(string instance)
@@ -105,18 +107,45 @@ namespace NewRemoting
 
 		private void DoCallback(params object[] args)
 		{
+			if (_disconnected)
+			{
+				return;
+			}
+
 			ManualInvocation ri = new ManualInvocation(_remoteMethodTarget, args);
 			ri.Proxy = this; // Works, because this instance is registered as proxy
 
-			_interceptor.Intercept(ri);
+			try
+			{
+				_interceptor.Intercept(ri);
+			}
+			catch (RemotingException)
+			{
+				// Remote connection is down. Todo: Remove this callback
+				_disconnected = true;
+			}
 		}
 
 		private T DoCallback<T>(params object[] args)
 		{
+			if (_disconnected)
+			{
+				return default(T);
+			}
+
 			ManualInvocation ri = new ManualInvocation(_remoteMethodTarget, args);
 			ri.Proxy = this; // Works, because this instance is registered as proxy
 
-			_interceptor.Intercept(ri);
+			try
+			{
+				_interceptor.Intercept(ri);
+			}
+			catch (RemotingException)
+			{
+				_disconnected = true;
+				return default(T);
+			}
+
 			return (T)ri.ReturnValue;
 		}
 

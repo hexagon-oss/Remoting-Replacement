@@ -23,7 +23,7 @@ namespace SampleServerClasses
 			_serverProcess = Process.Start("RemotingServer.exe", $"-p {port}");
 
 			// Port is currently hardcoded
-			_client = new Client("localhost", port, null);
+			_client = new Client("localhost", port, null, new ConnectionSettings());
 			_remoteOperationsServer = _client.RequestRemoteInstance<IRemoteServerService>();
 			if (_remoteOperationsServer == null)
 			{

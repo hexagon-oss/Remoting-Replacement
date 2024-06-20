@@ -9,6 +9,7 @@ using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Castle.Core.Internal;
 using Castle.DynamicProxy;
@@ -38,7 +39,7 @@ namespace NewRemoting
 		private BinaryReader _reader;
 		private DefaultProxyBuilder _builder;
 		private ProxyGenerator _proxy;
-		private IFormatter _formatter;
+		private JsonSerializerOptions _formatter;
 		private Server _server;
 		private object _accessLock;
 		private TcpClient _serverLink;
@@ -52,13 +53,13 @@ namespace NewRemoting
 		/// <param name="server">Server name or IP</param>
 		/// <param name="port">Network port</param>
 		/// <param name="authenticationInformation"> credentials for authentication</param>
-		/// <param name="instanceManagerLogger">Optional logging sink (for diagnostic messages)</param>
-		/// <param name="connectionLogger">Logger to trace this very client</param>
-		public Client(string server, int port, AuthenticationInformation authenticationInformation, ILogger instanceManagerLogger = null, ILogger connectionLogger = null)
+		/// <param name="settings">Advanced connection settings</param>
+		public Client(string server, int port, AuthenticationInformation authenticationInformation, ConnectionSettings settings)
 		{
+			Settings = settings ?? throw new ArgumentNullException(nameof(settings));
 			_clientAuthentication = authenticationInformation;
-			var instanceLogger = instanceManagerLogger ?? NullLogger.Instance;
-			Logger = connectionLogger ?? NullLogger.Instance;
+			var instanceLogger = Settings.InstanceManagerLogger ?? NullLogger.Instance;
+			Logger = Settings.ConnectionLogger ?? NullLogger.Instance;
 			_accessLock = new object();
 			_connectionConfigured = false;
 			_disconnected = false;
@@ -84,15 +85,15 @@ namespace NewRemoting
 			_instanceManager = new InstanceManager(_proxy, instanceLogger);
 			_formatterFactory = new FormatterFactory(_instanceManager);
 
-			_messageHandler = new MessageHandler(_instanceManager, _formatterFactory);
+			_messageHandler = new MessageHandler(_instanceManager, _formatterFactory, Logger);
 
 			// A client side has only one server, so there's also only one interceptor and only one server side
-			_interceptor = new ClientSideInterceptor(string.Empty, _instanceManager.ProcessIdentifier, true, stream, _messageHandler, Logger);
+			_interceptor = new ClientSideInterceptor(string.Empty, _instanceManager.ProcessIdentifier, true, Settings, stream, _messageHandler, Logger);
 			_instanceManager.AddInterceptor(_interceptor);
 			_messageHandler.AddInterceptor(_interceptor);
 
 			Logger.LogInformation(FormattableString.Invariant($"Client to {server} creation - writing basic client authentication header"));
-			WriteAuthenticationHeader(stream, false);
+			WriteProtocolHeader(stream, false, Settings.InterfaceOnlyClient);
 			WaitForConnectionReply(stream);
 			Logger.LogInformation("Received basic client authentication reply");
 
@@ -105,7 +106,7 @@ namespace NewRemoting
 			}
 
 			Logger.LogInformation("Writing basic server authentication header");
-			WriteAuthenticationHeader(s, true);
+			WriteProtocolHeader(s, true, settings.InterfaceOnlyClient);
 			WaitForConnectionReply(s);
 			Logger.LogInformation("Received basic server authentication reply");
 
@@ -117,21 +118,28 @@ namespace NewRemoting
 			_server = new Server(s, _messageHandler, _interceptor);
 		}
 
-		private void WriteAuthenticationHeader(Stream destination, bool callbackStream)
+		public ConnectionSettings Settings { get; }
+
+		private void WriteProtocolHeader(Stream destination, bool callbackStream, bool clientUsesInterfaceProxiesOnly)
 		{
 			// Current use of this connection header:
 			// byte        | Function
 			// 0           | 0 = forwarding stream, 1 = callback stream
 			// 1 - 4       | instance hash of this client
-			// 5 - 99      | reserved
+			// 5           | 1 = Client uses interface proxies only (does not have access to implementation)
+			// 6 - 9       | Protocol version (2)
+			// 10 - 99     | reserved
 			// 100 - 103   | length of identifier
 			// 103 -       | our instance identifier in the default encoding
 			byte[] authenticationData = new byte[100];
 			authenticationData[0] = (byte)(callbackStream ? 1 : 0);
+			authenticationData[5] = (byte)(clientUsesInterfaceProxiesOnly ? 1 : 0);
 
 			int instanceHash = _instanceManager.ProcessIdentifier.GetHashCode(StringComparison.Ordinal);
 			Array.Copy(BitConverter.GetBytes(instanceHash), 0, authenticationData, 1, 4);
 			destination.Write(authenticationData, 0, 100);
+
+			authenticationData[6] = 2;
 
 			var instanceIdentifier = MessageHandler.DefaultStringEncoding.GetBytes(_instanceManager.ProcessIdentifier);
 			var lenBytes = BitConverter.GetBytes(instanceIdentifier.Length);
@@ -484,7 +492,7 @@ namespace NewRemoting
 						_writer.Write(args.Length); // but we need to provide the number of arguments that follow
 						foreach (var a in args)
 						{
-							_messageHandler.WriteArgumentToStream(_writer, a, _interceptor.OtherSideProcessId);
+							_messageHandler.WriteArgumentToStream(_writer, a, _interceptor.OtherSideProcessId, Settings);
 						}
 					}
 				}
@@ -558,7 +566,7 @@ namespace NewRemoting
 		{
 			lock (_accessLock)
 			{
-				_messageHandler.PrintStats(Logger); // Dispose is too late, log earlier
+				_messageHandler.PrintStats(); // Dispose is too late, log earlier
 				_instanceManager.PerformGc(_writer, true);
 				int sequence = _interceptor.NextSequenceNumber();
 				RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.ClientDisconnecting, sequence);

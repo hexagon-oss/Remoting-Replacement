@@ -21,13 +21,6 @@ namespace NewRemoting
 		{
 		}
 
-		protected RemotingException(
-			SerializationInfo info,
-			StreamingContext context)
-			: base(info, context)
-		{
-		}
-
 		public RemotingExceptionAdditionalInfo? AdditionalInfo
 		{
 			get => _additionalInfo;

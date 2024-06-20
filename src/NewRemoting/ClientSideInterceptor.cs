@@ -25,6 +25,7 @@ namespace NewRemoting
 	{
 		private const int NumberOfCallsForGc = 100;
 		private static readonly TimeSpan GcLoopTime = new TimeSpan(0, 0, 0, 20);
+		private readonly ConnectionSettings _settings;
 		private readonly Stream _serverLink;
 		private readonly MessageHandler _messageHandler;
 		private readonly ILogger _logger;
@@ -43,7 +44,8 @@ namespace NewRemoting
 		/// </summary>
 		private BinaryReader _reader;
 
-		public ClientSideInterceptor(string otherSideProcessId, string thisSideProcessId, bool clientSide, Stream serverLink, MessageHandler messageHandler, ILogger logger)
+		public ClientSideInterceptor(string otherSideProcessId, string thisSideProcessId, bool clientSide, ConnectionSettings settings,
+			Stream serverLink, MessageHandler messageHandler, ILogger logger)
 		{
 			_receiving = true;
 			_numberOfCallsInspected = 0;
@@ -51,6 +53,7 @@ namespace NewRemoting
 			ThisSideProcessId = thisSideProcessId;
 			DebuggerToStringBehavior = DebuggerToStringBehavior.ReturnProxyName;
 			_sequence = clientSide ? 1 : 10000;
+			_settings = settings;
 			_serverLink = serverLink;
 			_messageHandler = messageHandler ?? throw new ArgumentNullException(nameof(messageHandler));
 			_logger = logger;
@@ -77,6 +80,22 @@ namespace NewRemoting
 		}
 
 		public string ThisSideProcessId { get; }
+
+		/// <summary>
+		/// The method is not implemented on the mono runtime (which is used e.g. for Android), therefore use this wrapper
+		/// </summary>
+		private static long GetGcMemoryInfoIndex()
+		{
+			if (OperatingSystem.IsAndroid() || OperatingSystem.IsIOS())
+			{
+				return 0;
+			}
+			else
+			{
+				var lastGc = GC.GetGCMemoryInfo(GCKind.Any);
+				return lastGc.Index;
+			}
+		}
 
 		internal int NextSequenceNumber()
 		{
@@ -273,7 +292,7 @@ namespace NewRemoting
 				}
 				else
 				{
-					_messageHandler.WriteArgumentToStream(writer, argument, OtherSideProcessId);
+					_messageHandler.WriteArgumentToStream(writer, argument, OtherSideProcessId, _settings);
 				}
 			}
 
@@ -309,7 +328,8 @@ namespace NewRemoting
 		/// </summary>
 		private void MemoryCollectingThread()
 		{
-			GCMemoryInfo lastGc = GC.GetGCMemoryInfo(GCKind.Any);
+			long lastGc = GetGcMemoryInfoIndex();
+
 			WaitHandle[] handles = new WaitHandle[] { _gcEvent, _terminator.Token.WaitHandle };
 			while (_receiving)
 			{
@@ -321,6 +341,7 @@ namespace NewRemoting
 					_messageHandler.InstanceManager.PerformGc(writer, false);
 					SafeSendToServer(rawDataMessage);
 					Interlocked.Exchange(ref _numberOfCallsInspected, 0);
+					lastGc = GetGcMemoryInfoIndex();
 				}
 
 				int waitEventNo = WaitHandle.WaitAny(handles, GcLoopTime);
@@ -340,8 +361,8 @@ namespace NewRemoting
 				// If we loose an assignment in the worst case here, nothing ugly is going to happen
 				Interlocked.Exchange(ref _numberOfCallsInspected, newValue);
 
-				GCMemoryInfo info = GC.GetGCMemoryInfo(GCKind.Any);
-				if (info.Index > lastGc.Index)
+				long newIndex = GetGcMemoryInfoIndex();
+				if (newIndex > lastGc)
 				{
 					// A GC has happened
 					Interlocked.Exchange(ref _numberOfCallsInspected, NumberOfCallsForGc + 10);
@@ -420,14 +441,14 @@ namespace NewRemoting
 						if (hdReturnValue.Function == RemotingFunctionType.ExceptionReturn)
 						{
 							_logger.Log(LogLevel.Debug, $"{ThisSideProcessId}: Receiving exception in reply to {ctx.Invocation.Method}");
-							var exception = _messageHandler.DecodeException(_reader, OtherSideProcessId);
+							var exception = MessageHandler.DecodeException(_reader, OtherSideProcessId);
 							ctx.Exception = exception;
 							ctx.Set();
 						}
 						else
 						{
 							_logger.Log(LogLevel.Debug, $"{ThisSideProcessId}: Receiving reply for {ctx.Invocation.Method}");
-							_messageHandler.ProcessCallResponse(ctx.Invocation, _reader, ThisSideProcessId);
+							_messageHandler.ProcessCallResponse(ctx.Invocation, _reader, ThisSideProcessId, _settings);
 							ctx.Set();
 						}
 					}

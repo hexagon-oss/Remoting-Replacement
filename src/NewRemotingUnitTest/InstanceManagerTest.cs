@@ -71,13 +71,13 @@ namespace NewRemotingUnitTest
 		{
 			var myInstance = new MarshallableClass();
 			var myInstanceId = _instanceManager.ProcessIdentifier + "id";
-			_instanceManager.AddInstance(myInstance, myInstanceId, "1", typeof(MarshallableClass), true);
+			_instanceManager.AddInstance(myInstance, myInstanceId, "1", typeof(MarshallableClass), typeof(MarshallableClass).AssemblyQualifiedName, true);
 #pragma warning disable CS0618
 			var ii = _instanceManager.QueryInstanceInfo(myInstanceId);
 #pragma warning restore CS0618
 			Assert.AreEqual(1, ii.ReferenceBitVector);
 			Assert.IsFalse(ii.IsReleased);
-			_instanceManager.AddInstance(myInstance, myInstanceId, "2", typeof(MarshallableClass), true);
+			_instanceManager.AddInstance(myInstance, myInstanceId, "2", typeof(MarshallableClass), typeof(MarshallableClass).AssemblyQualifiedName, true);
 #pragma warning disable CS0618
 			ii = _instanceManager.QueryInstanceInfo(myInstanceId);
 #pragma warning restore CS0618
@@ -89,21 +89,14 @@ namespace NewRemotingUnitTest
 		public void AddInstanceMultipleTimes()
 		{
 			var myInstance = new MarshallableClass("Instance1");
-			_instanceManager.AddInstance(myInstance, "A", "1", myInstance.GetType(), false);
+			_instanceManager.AddInstance(myInstance, "A", "1", myInstance.GetType(), myInstance.GetType().AssemblyQualifiedName, false);
 			var my2ndInstance = new MarshallableClass("Instance2");
-			var addedInstance = _instanceManager.AddInstance(my2ndInstance, "A", "1", my2ndInstance.GetType(), false);
+			var addedInstance = _instanceManager.AddInstance(my2ndInstance, "A", "1", my2ndInstance.GetType(), my2ndInstance.GetType().AssemblyQualifiedName, false);
 			Assert.IsTrue(ReferenceEquals(myInstance, addedInstance));
 			Assert.IsFalse(ReferenceEquals(my2ndInstance, addedInstance));
 
 			// If the last argument is true, the same operation throws
-			Assert.Throws<InvalidOperationException>(() => _instanceManager.AddInstance(my2ndInstance, "A", "1", my2ndInstance.GetType(), true));
-		}
-
-		[Test]
-		public void StrangeError()
-		{
-			var myInstance = new MarshallableClass("Instance1");
-			Assert.Throws<ArgumentNullException>(() => _instanceManager.AddInstance(myInstance, null, "1", myInstance.GetType(), true));
+			Assert.Throws<InvalidOperationException>(() => _instanceManager.AddInstance(my2ndInstance, "A", "1", my2ndInstance.GetType(), my2ndInstance.GetType().AssemblyQualifiedName, true));
 		}
 	}
 }

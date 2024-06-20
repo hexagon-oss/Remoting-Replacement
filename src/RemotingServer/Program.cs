@@ -36,18 +36,18 @@ namespace RemotingServer
 					}
 
 					if (!string.IsNullOrWhiteSpace(options.LogFile))
-				{
-					try
 					{
-						var info = new FileInfo(options.LogFile);
-						info.Directory?.Create();
-						logger = new SimpleLogFileWriter(options.LogFile, "ServerLog", options.Verbose ? LogLevel.Trace : LogLevel.Information);
+						try
+						{
+							var info = new FileInfo(options.LogFile);
+							info.Directory?.Create();
+							logger = new SimpleLogFileWriter(options.LogFile, "ServerLog", options.Verbose ? LogLevel.Trace : LogLevel.Information);
+						}
+						catch (IOException)
+						{
+							logger = new SimpleLogFileWriter(Path.Combine(Path.GetTempPath(), options.LogFile), "ServerLog", options.Verbose ? LogLevel.Trace : LogLevel.Information);
+						}
 					}
-					catch (IOException)
-					{
-						logger = new SimpleLogFileWriter(Path.Combine(Path.GetTempPath(), options.LogFile), "ServerLog", options.Verbose ? LogLevel.Trace : LogLevel.Information);
-					}
-				}
 					else if (options.Verbose)
 					{
 						logger = new ConsoleAndDebugLogger("RemotingServer");
@@ -93,7 +93,7 @@ namespace RemotingServer
 						}
 					}
 
-					var server = new Server(port, new AuthenticationInformation(certificate, certPwd), logger);
+					var server = new Server(port, new AuthenticationInformation(certificate, certPwd), null, logger);
 					if (options.KillSelf)
 					{
 						server.KillProcessWhenChannelDisconnected = true;

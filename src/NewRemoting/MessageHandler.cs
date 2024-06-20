@@ -13,10 +13,12 @@ using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Castle.Core.Logging;
 using Castle.DynamicProxy;
 using Microsoft.Extensions.Logging;
+using NewRemoting.Toolkit;
 using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace NewRemoting
@@ -32,10 +34,11 @@ namespace NewRemoting
 		private readonly FormatterFactory _formatterFactory;
 		private readonly Dictionary<string, ClientSideInterceptor> _interceptors;
 		private readonly Encoding _stringEncoding;
+		private readonly ILogger _logger;
 		private bool _initialized;
 		private ConcurrentDictionary<RemotingReferenceType, uint> _stats;
 
-		public MessageHandler(InstanceManager instanceManager, FormatterFactory formatterFactory)
+		public MessageHandler(InstanceManager instanceManager, FormatterFactory formatterFactory, ILogger logger)
 		{
 			_stringEncoding = Encoding.Unicode;
 			_instanceManager = instanceManager;
@@ -47,14 +50,16 @@ namespace NewRemoting
 			{
 				_stats[refType] = 0;
 			}
+
+			_logger = logger;
 		}
 
-		public void PrintStats(ILogger logger)
+		public void PrintStats()
 		{
-			logger.LogInformation("Remoting Messagehandler usage stats:");
+			_logger.LogInformation("Remoting Messagehandler usage stats:");
 			foreach (var stat in _stats)
 			{
-				logger.LogInformation(FormattableString.Invariant($"{stat.Key}: {stat.Value}"));
+				_logger.LogInformation(FormattableString.Invariant($"{stat.Key}: {stat.Value}"));
 			}
 		}
 
@@ -71,6 +76,18 @@ namespace NewRemoting
 		private void LogMsg(RemotingReferenceType msgType)
 		{
 			_stats[msgType]++;
+		}
+
+		/// <summary>
+		/// List of objects that should use marshalbyref semantics.
+		/// The later requires serialization instead of by-reference semantics (note that in the future we might need a
+		/// list of objects that _should be_ MarshalByRefObject but are technically not, since new BCL objects don't get that dependency)
+		/// </summary>
+		/// <param name="t">A type</param>
+		/// <returns>True or false</returns>
+		public static bool IsMarshalByRefType(Type t)
+		{
+			return t.IsAssignableTo(typeof(MarshalByRefObject)) && t != typeof(PooledMemoryStream);
 		}
 
 		/// <summary>
@@ -221,7 +238,7 @@ namespace NewRemoting
 				if (del.Target != null)
 				{
 					string instanceId = _instanceManager.GetDelegateTargetIdentifier(del, remoteInstanceId);
-					_instanceManager.AddInstance(del, instanceId, otherSideProcessId, del.GetType(), true);
+					_instanceManager.AddInstance(del, instanceId, otherSideProcessId, del.GetType(), del.GetType().AssemblyQualifiedName, true);
 					w.Write(instanceId);
 				}
 				else
@@ -258,7 +275,8 @@ namespace NewRemoting
 		/// <param name="w">The data sink</param>
 		/// <param name="data">The object to write</param>
 		/// <param name="referencesWillBeSentTo">Destination identifier (used to keep track of references that are eventually encoded in the stream)</param>
-		public void WriteArgumentToStream(BinaryWriter w, object data, string referencesWillBeSentTo)
+		/// <param name="settings">Client settings</param>
+		public void WriteArgumentToStream(BinaryWriter w, object data, string referencesWillBeSentTo, ConnectionSettings settings)
 		{
 			if (!_initialized)
 			{
@@ -276,6 +294,7 @@ namespace NewRemoting
 			{
 				// System.Type (and arrays of that, see below) need special handling, because it is not serializable nor Marshal-By-Ref, but still
 				// has an exact match on the remote side.
+				// TODO: For interfaceOnlyClient, this works on interfaces only
 				w.Write((int)RemotingReferenceType.InstanceOfSystemType);
 				w.Write(type.AssemblyQualifiedName);
 				LogMsg(RemotingReferenceType.InstanceOfSystemType);
@@ -290,6 +309,7 @@ namespace NewRemoting
 			}
 			else if (data is Type[] typeArray)
 			{
+				// TODO: For interfaceOnlyClient, this works on interfaces only
 				w.Write((int)RemotingReferenceType.ArrayOfSystemType);
 				w.Write(typeArray.Length);
 				LogMsg(RemotingReferenceType.ArrayOfSystemType);
@@ -316,7 +336,7 @@ namespace NewRemoting
 				{
 					// Recursively write the arguments
 					w.Write(true);
-					WriteArgumentToStream(w, obj, referencesWillBeSentTo);
+					WriteArgumentToStream(w, obj, referencesWillBeSentTo, settings);
 				}
 
 				w.Write(false); // Terminate the array
@@ -329,7 +349,7 @@ namespace NewRemoting
 			else if (Client.IsRemoteProxy(data))
 			{
 				// Proxies are never serializable
-				if (!_instanceManager.TryGetObjectId(data, out string objectId, out Type originalType))
+				if (!_instanceManager.TryGetObjectId(data, out string objectId, out string originalTypeName))
 				{
 					throw new RemotingException("A proxy has no existing reference");
 				}
@@ -337,19 +357,23 @@ namespace NewRemoting
 				LogMsg(RemotingReferenceType.RemoteReference);
 				w.Write((int)RemotingReferenceType.RemoteReference);
 				w.Write(objectId);
-				// string originalTypeName = Client.GetUnproxiedType(data).AssemblyQualifiedName ?? String.Empty;
-				string originalTypeName = originalType.AssemblyQualifiedName ?? string.Empty;
 				w.Write(originalTypeName);
-			}
-			else if (t.IsSerializable)
-			{
-				if (!TryUseFastSerialization(w, t, data))
+				if (settings.InterfaceOnlyClient)
 				{
-					LogMsg(RemotingReferenceType.Auto);
-					SendAutoSerializedObject(w, data, referencesWillBeSentTo);
+					// We mustn't use IProxyTargetAccessor in CreateInterfaceProxy, so don't even attempt to include it in the transmission
+					var interfaces = data.GetType().GetInterfaces().Where(x => settings.ClientTypeFilter(x) && x != typeof(IProxyTargetAccessor)).ToList();
+					w.Write(interfaces.Count);
+					foreach (var ip in interfaces)
+					{
+						w.Write(ip.AssemblyQualifiedName ?? string.Empty);
+					}
+				}
+				else
+				{
+					w.Write(0);
 				}
 			}
-			else if (t.IsAssignableTo(typeof(MarshalByRefObject)))
+			else if (IsMarshalByRefType(t))
 			{
 				string objectId = _instanceManager.RegisterRealObjectAndGetId(data, referencesWillBeSentTo);
 				w.Write((int)RemotingReferenceType.RemoteReference);
@@ -357,13 +381,65 @@ namespace NewRemoting
 				w.Write(objectId);
 
 				// If this is not a proxy, this should always work correctly
-				var assemblyQualitfiedTypeName = Client.GetUnproxiedType(data).AssemblyQualifiedName ?? String.Empty;
+				Type typeToSend = Client.GetUnproxiedType(data);
+				var assemblyQualitfiedTypeName = typeToSend.AssemblyQualifiedName ?? String.Empty;
 				w.Write(assemblyQualitfiedTypeName);
+				if (settings.InterfaceOnlyClient)
+				{
+					var interfaces = typeToSend.GetInterfaces().Where(settings.ClientTypeFilter).ToList();
+					w.Write(interfaces.Count);
+					foreach (var ip in interfaces)
+					{
+						w.Write(ip.AssemblyQualifiedName ?? string.Empty);
+					}
+				}
+				else
+				{
+					w.Write(0);
+				}
 			}
 			else
 			{
-				throw new SerializationException($"Object {data} is neither serializable nor MarshalByRefObject");
+				if (!TryUseFastSerialization(w, t, data))
+				{
+					UseSlowJsonSerialization(w, data, referencesWillBeSentTo);
+				}
 			}
+		}
+
+		private void UseSlowJsonSerialization(BinaryWriter w, object data, string referencesWillBeSentTo)
+		{
+			Type t = data.GetType();
+
+			LogMsg(RemotingReferenceType.Auto);
+			w.Write((Int32)RemotingReferenceType.SerializedItem);
+			if (t.AssemblyQualifiedName == null)
+			{
+				throw new RemotingException($"Type {t} has no valid AssemblyQualifiedName. Dynamic types can't be serialized");
+			}
+
+			w.Write(t.AssemblyQualifiedName);
+
+			// I currently see no other way than doing this copy, because we need to write the length first, so we can extract the json correctly later
+			// We could look for the '\r' termination character in the json, but that requires peeking on the reader's end, which is also not
+			// possible on a network stream.
+			MemoryStream ms = new MemoryStream();
+			BinaryWriter w2 = new BinaryWriter(ms);
+			try
+			{
+				var options = _formatterFactory.CreateOrGetFormatter(referencesWillBeSentTo);
+				JsonSerializer.Serialize(w2.BaseStream, data, options);
+				w.Write((int)ms.Length);
+				ms.Position = 0;
+				ms.CopyTo(w.BaseStream, 64 * 1024);
+				_formatterFactory.FinalizeSerialization(w, options);
+			}
+			catch (Exception ex) when (ex is NotSupportedException || ex is JsonException)
+			{
+				throw new SerializationException($"Automatic serialization of type {data.GetType()} failed.", ex);
+			}
+
+			ms.Dispose();
 		}
 
 		internal bool TryUseFastSerialization(BinaryWriter w, Type objectType, object data)
@@ -494,36 +570,26 @@ namespace NewRemoting
 					return true;
 				}
 
-					// This code is suspected of causing "Fatal error. Internal CLR error. (0x80131506)"
-					// No idea why this should be different to using standard serialization. Or simulation, by the way.
-					////case byte[] byteArray:
-					////{
-					////	w.Write((int)RemotingReferenceType.ByteArray);
-					////	LogMsg(RemotingReferenceType.ByteArray);
-					////	if (byteArray.Length == 0)
-					////	{
-					////		// See above
-					////		w.Write(0);
-					////		return true;
-					////	}
+				// This code is suspected of causing "Fatal error. Internal CLR error. (0x80131506)"
+				// No idea why this should be different to using standard serialization. Or simulation, by the way.
+				case byte[] byteArray:
+				{
+					w.Write((int)RemotingReferenceType.ByteArray);
+					LogMsg(RemotingReferenceType.ByteArray);
+					if (byteArray.Length == 0)
+					{
+						// See above
+						w.Write(0);
+						return true;
+					}
 
-					////	w.Write(byteArray.Length);
-					////	w.Write(byteArray, 0, byteArray.Length);
-					////	return true;
-					////}
+					w.Write(byteArray.Length);
+					w.Write(byteArray, 0, byteArray.Length);
+					return true;
+				}
 			}
 
 			return false;
-		}
-
-		private void SendAutoSerializedObject(BinaryWriter w, object data, string otherSideProcessId)
-		{
-#pragma warning disable 618
-			var formatter = _formatterFactory.CreateOrGetFormatter(otherSideProcessId);
-			w.Write((int)RemotingReferenceType.SerializedItem);
-			formatter.Serialize(w.BaseStream, data);
-			_formatterFactory.FinalizeSerialization(w);
-#pragma warning restore 618
 		}
 
 		/// <summary>
@@ -541,11 +607,6 @@ namespace NewRemoting
 					if (type.IsSubclassOf(typeof(MarshalByRefObject)))
 					{
 						return true;
-					}
-
-					if (type.IsSerializable)
-					{
-						return false;
 					}
 
 					// Otherwise, we have to test the contents.
@@ -594,7 +655,7 @@ namespace NewRemoting
 			return false;
 		}
 
-		public void ProcessCallResponse(IInvocation invocation, BinaryReader reader, string otherSideProcessId)
+		public void ProcessCallResponse(IInvocation invocation, BinaryReader reader, string otherSideProcessId, ConnectionSettings settings)
 		{
 			if (!_initialized)
 			{
@@ -608,7 +669,7 @@ namespace NewRemoting
 				methodBase = mi.Constructor;
 
 				object returnValue = ReadArgumentFromStream(reader, methodBase, invocation, true,
-					methodBase.DeclaringType, otherSideProcessId);
+					methodBase.DeclaringType, otherSideProcessId, settings);
 				invocation.ReturnValue = returnValue;
 				// out or ref arguments on ctors are rare, but not generally forbidden, so we continue here
 			}
@@ -616,7 +677,7 @@ namespace NewRemoting
 			{
 				// This happens if we request a remote instance directly (by interface type)
 				object returnValue = ReadArgumentFromStream(reader, mi2.Method, invocation, true, mi2.TargetType,
-					otherSideProcessId);
+					otherSideProcessId, settings);
 				invocation.ReturnValue = returnValue;
 				return;
 			}
@@ -627,7 +688,7 @@ namespace NewRemoting
 				if (me.ReturnType != typeof(void))
 				{
 					object returnValue = ReadArgumentFromStream(reader, methodBase, invocation, true, me.ReturnType,
-						otherSideProcessId);
+						otherSideProcessId, settings);
 					invocation.ReturnValue = returnValue;
 				}
 			}
@@ -640,7 +701,7 @@ namespace NewRemoting
 				{
 					// Copy the contents of the array-to-be-filled
 					object byRefValue = ReadArgumentFromStream(reader, methodBase, invocation, false,
-						byRefArguments.ParameterType, otherSideProcessId);
+						byRefArguments.ParameterType, otherSideProcessId, settings);
 					Array source = (Array)byRefValue; // The data from the remote side
 					Array destination = ((Array)invocation.Arguments[index]); // The argument to be filled
 					if (source.Length != destination.Length)
@@ -653,7 +714,7 @@ namespace NewRemoting
 				else if (byRefArguments.ParameterType.IsByRef)
 				{
 					object byRefValue = ReadArgumentFromStream(reader, methodBase, invocation, false,
-						byRefArguments.ParameterType, otherSideProcessId);
+						byRefArguments.ParameterType, otherSideProcessId, settings);
 					invocation.Arguments[index] = byRefValue;
 				}
 
@@ -661,29 +722,8 @@ namespace NewRemoting
 			}
 		}
 
-		public void SendExceptionReply(Exception exception, BinaryWriter w, int sequence, string otherSideProcessId)
-		{
-			RemotingCallHeader hdReturnValue = new RemotingCallHeader(RemotingFunctionType.ExceptionReturn, sequence);
-			using var lck = hdReturnValue.WriteHeader(w);
-			// We're manually serializing exceptions, because that's apparently how this should be done (since
-			// ExceptionDispatchInfo.SetRemoteStackTrace doesn't work if the stack trace has already been set)
-			w.Write(exception.GetType().AssemblyQualifiedName ?? string.Empty);
-			SerializationInfo info = new SerializationInfo(exception.GetType(), new FormatterConverter());
-			StreamingContext ctx = new StreamingContext();
-			exception.GetObjectData(info, ctx);
-			w.Write(info.MemberCount);
-			foreach (var e in info)
-			{
-				w.Write(e.Name);
-				// This may contain inner exceptions, but since we're not throwing those, this shouldn't cause any issues on the remote side
-				WriteArgumentToStream(w, e.Value, otherSideProcessId);
-			}
-
-			w.Write(exception.StackTrace ?? string.Empty);
-		}
-
 		public object ReadArgumentFromStream(BinaryReader r, MethodBase callingMethod, IInvocation invocation,
-			bool canAttemptToInstantiate, Type typeOfArgument, string otherSideProcessId)
+			bool canAttemptToInstantiate, Type typeOfArgument, string otherSideProcessId, ConnectionSettings settings)
 		{
 			if (!_initialized)
 			{
@@ -697,12 +737,13 @@ namespace NewRemoting
 					return null;
 				case RemotingReferenceType.SerializedItem:
 				{
-#pragma warning disable 618
 					var formatter = _formatterFactory.CreateOrGetFormatter(otherSideProcessId);
-					object decodedArg = formatter.Deserialize(r.BaseStream);
-#pragma warning restore 618
+					string typeName = r.ReadString();
+					int dataLength = r.ReadInt32();
+					Type t = Server.GetTypeFromAnyAssembly(typeName);
+					object decodedArg = JsonSerializer.Deserialize(new JsonSplitStream(r.BaseStream, dataLength), t, formatter);
 
-					_formatterFactory.FinalizeDeserialization(r);
+					_formatterFactory.FinalizeDeserialization(r, formatter);
 
 					return decodedArg;
 				}
@@ -712,9 +753,21 @@ namespace NewRemoting
 					// The server sends a reference to an object that he owns
 					string objectId = r.ReadString();
 					string typeName = r.ReadString();
+					int providedInterfaces = r.ReadInt32();
+					List<string> knownInterfaces = null;
+					for (int i = 0; i < providedInterfaces; i++)
+					{
+						if (knownInterfaces == null)
+						{
+							knownInterfaces = new List<string>();
+						}
+
+						knownInterfaces.Add(r.ReadString());
+					}
+
 					object instance = null;
 					instance = InstanceManager.CreateOrGetProxyForObjectId(invocation, canAttemptToInstantiate,
-						typeOfArgument, typeName, objectId);
+						typeOfArgument, typeName, objectId, knownInterfaces);
 					return instance;
 				}
 
@@ -756,7 +809,7 @@ namespace NewRemoting
 					while (cont)
 					{
 						var nextElem = ReadArgumentFromStream(r, callingMethod, invocation, canAttemptToInstantiate,
-							contentType, otherSideProcessId);
+							contentType, otherSideProcessId, settings);
 						list.Add(nextElem);
 						cont = r.ReadBoolean();
 					}
@@ -992,7 +1045,7 @@ namespace NewRemoting
 							var interceptor = InstanceManager.GetInterceptor(_interceptors, instanceId);
 							internalSink = new DelegateInternalSink(interceptor, instanceId, methodInfoOfTarget);
 							var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideProcessId,
-								internalSink.GetType(), false);
+								internalSink.GetType(), internalSink.GetType().AssemblyQualifiedName, false);
 
 							internalSink = (DelegateInternalSink)usedInstance;
 						}
@@ -1029,7 +1082,7 @@ namespace NewRemoting
 						// create the local server side delegate
 						Delegate newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
 						string delegateId = _instanceManager.GetDelegateTargetIdentifier(newDelegate, otherSideProcessId);
-						var actualInstance = _instanceManager.AddInstance(newDelegate, delegateId, otherSideProcessId, newDelegate.GetType(), false);
+						var actualInstance = _instanceManager.AddInstance(newDelegate, delegateId, otherSideProcessId, newDelegate.GetType(), newDelegate.GetType().AssemblyQualifiedName, false);
 						var actualDelegate = (Delegate)actualInstance;
 						if (ReferenceEquals(actualDelegate, newDelegate))
 						{
@@ -1110,7 +1163,7 @@ namespace NewRemoting
 					{
 						internalSink = new DelegateInternalSink(interceptor, instanceId, methodInfoOfTarget);
 						var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideProcessId,
-							internalSink.GetType(), false);
+							internalSink.GetType(), internalSink.GetType().AssemblyQualifiedName, false);
 						internalSink = (DelegateInternalSink)usedInstance;
 					}
 
@@ -1147,68 +1200,120 @@ namespace NewRemoting
 			}
 		}
 
-		public Exception DecodeException(BinaryReader reader, string otherSideProcessId)
+		public void SendExceptionReply(Exception exception, BinaryWriter w, int sequence, string otherSideProcessId)
 		{
-			string exceptionTypeName = reader.ReadString();
-			Dictionary<string, object> stringValuePairs = new Dictionary<string, object>();
-			int numValues = reader.ReadInt32();
-			for (int i = 0; i < numValues; i++)
-			{
-				string name = reader.ReadString();
-				// The values found here should all be serializable again
-				object data = ReadArgumentFromStream(reader, null, null, false, typeof(object),
-					otherSideProcessId);
-				stringValuePairs.Add(name, data);
-			}
+			RemotingCallHeader hdReturnValue = new RemotingCallHeader(RemotingFunctionType.ExceptionReturn, sequence);
+			using var lck = hdReturnValue.WriteHeader(w);
+			// We're manually serializing exceptions, because that's apparently how this should be done (since
+			// ExceptionDispatchInfo.SetRemoteStackTrace doesn't work if the stack trace has already been set)
+			EncodeException(exception, w);
+		}
 
-			string remoteStack = reader.ReadString();
-			Type exceptionType = Server.GetTypeFromAnyAssembly(exceptionTypeName);
-			SerializationInfo info = new SerializationInfo(exceptionType, new FormatterConverter());
-
-			foreach (var e in stringValuePairs)
+		internal static void EncodeException(Exception exception, BinaryWriter w)
+		{
+			w.Write(exception.GetType().AssemblyQualifiedName ?? string.Empty);
+			w.Write(exception.Message);
+			w.Write(exception.HResult);
+			w.Write(exception.StackTrace ?? string.Empty);
+			if (exception is AggregateException aggregate)
 			{
-				switch (e.Key)
+				w.Write(aggregate.InnerExceptions.Count);
+				foreach (var inner in aggregate.InnerExceptions)
 				{
-					case "StackTraceString":
-						// We don't want to set this one, so we are able to use SetRemoteStackTrace
-						info.AddValue(e.Key, null);
-						break;
-					case "RemoteStackTraceString":
-						// If this is already provided, the exception has probably been thrown on yet another instance
-						info.AddValue(e.Key, null);
-						remoteStack += " previously thrown at " + e.Value;
-						break;
-					default:
-						info.AddValue(e.Key, e.Value);
-						break;
+					EncodeException(inner, w);
+				}
+			}
+			else
+			{
+				// The InnerException property of an AggregateException returns the first exception in the list, so skip this here.
+				while (exception.InnerException != null)
+				{
+					// True: Another one follows
+					w.Write(true);
+					exception = exception.InnerException;
+					EncodeException(exception, w);
 				}
 			}
 
-			StreamingContext ctx = new StreamingContext();
-			var ctors = exceptionType.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+			w.Write(false);
+		}
 
-			// Default ctor as fallback
-			ConstructorInfo ctorToUse = null;
+		public static Exception DecodeException(BinaryReader reader, string otherSideProcessId)
+		{
+			FieldInfo[] fields = typeof(Exception).GetFields(BindingFlags.NonPublic | BindingFlags.Instance);
+			var field = fields.FirstOrDefault(x => x.Name == "_innerException");
+			Exception root = DecodeExceptionInternal(reader, otherSideProcessId);
+			Exception current = root;
+			while (true)
+			{
+				bool more = reader.ReadBoolean();
+				if (more == false)
+				{
+					break;
+				}
+
+				Exception sub = DecodeException(reader, otherSideProcessId);
+
+				// This field is normally read-only
+				if (field != null)
+				{
+					field.SetValue(current, sub);
+				}
+
+				current = sub; // Even if the above fails, we need to make sure we read all elements.
+			}
+
+			return root;
+		}
+
+		private static Exception DecodeExceptionInternal(BinaryReader reader, string otherSideProcessId)
+		{
+			string exceptionTypeName = reader.ReadString();
+			string remoteMessage = reader.ReadString();
+			int hresult = reader.ReadInt32();
+			string remoteStack = reader.ReadString();
+			Type exceptionType = Server.GetTypeFromAnyAssembly(exceptionTypeName);
+
+			var ctors = exceptionType.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+			// Prefer ctors with many arguments
+			ctors = ctors.OrderByDescending(x => x.GetParameters().Length).ToArray();
 
 			// Manually search the deserialization constructor. Activator.CreateInstance is not helpful when something is wrong
 			Exception decodedException = null;
-			foreach (var ctor in ctors)
+			if (exceptionType == typeof(AggregateException))
 			{
-				var parameters = ctor.GetParameters();
-				if (parameters.Length == 2 && parameters[0].ParameterType == typeof(SerializationInfo) && parameters[1].ParameterType == typeof(StreamingContext))
+				var cnt = reader.ReadInt32();
+				var list = new List<Exception>();
+				for (int i = 0; i < cnt; i++)
 				{
-					ctorToUse = ctor;
-					decodedException = (Exception)ctorToUse.Invoke(new object[] { info, ctx });
-					break;
+					list.Add(DecodeException(reader, otherSideProcessId));
 				}
-			}
 
-			if (decodedException == null)
+				decodedException = new AggregateException(list);
+			}
+			else
 			{
-				ctorToUse = ctors.FirstOrDefault(x => x.GetParameters().Length == 0);
-				if (ctorToUse != null)
+				foreach (var ctor in ctors)
 				{
-					decodedException = (Exception)ctorToUse.Invoke(Array.Empty<object>());
+					var parameters = ctor.GetParameters();
+					if (parameters.Length == 2 && parameters[0].ParameterType == typeof(string) &&
+						parameters[1].ParameterType == typeof(Exception))
+					{
+						decodedException = (Exception)ctor.Invoke(new object[] { remoteMessage, null });
+						break;
+					}
+
+					if (parameters.Length == 1 && parameters[0].ParameterType == typeof(string))
+					{
+						decodedException = (Exception)ctor.Invoke(new object[] { remoteMessage });
+						break;
+					}
+
+					if (parameters.Length == 0)
+					{
+						decodedException = (Exception)ctor.Invoke(Array.Empty<Object>());
+						break;
+					}
 				}
 			}
 
@@ -1218,6 +1323,7 @@ namespace NewRemoting
 				decodedException = new RemotingException($"Unable to deserialize exception of type {exceptionTypeName}. Please fix it's deserialization constructor");
 			}
 
+			decodedException.HResult = hresult;
 			try
 			{
 				ExceptionDispatchInfo.SetRemoteStackTrace(decodedException!, remoteStack);
