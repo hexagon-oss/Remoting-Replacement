@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Nuke.Common;
@@ -80,7 +80,7 @@ class Build : NukeBuild
 			    .SetProjectFile(Solution)
 			    .EnableNoBuild()
 			    .EnableNoRestore()
-			    .SetVerbosity(DotNetVerbosity.Normal)
+			    .SetVerbosity(DotNetVerbosity.normal)
 			    .SetSettingsFile("src/NewRemotingUnitTest/test.runsettings");
 		    DotNetTest(settings);
 
