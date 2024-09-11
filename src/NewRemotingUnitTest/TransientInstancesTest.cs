@@ -46,6 +46,7 @@ namespace NewRemotingUnitTest
 			{
 				Assert.That(_serverProcess.WaitForExit(2000));
 				_serverProcess.Kill();
+				_serverProcess.Dispose();
 				_serverProcess = null;
 			}
 		}
@@ -73,9 +74,9 @@ namespace NewRemotingUnitTest
 			var firstServer = GetTransientServer();
 			var firstImpl = _client.CreateRemoteInstance<MarshallableClass>();
 			var secondImpl = firstServer.CreateTransientClass<MarshallableClass>();
-			Assert.AreNotEqual(Environment.ProcessId, firstImpl.GetCurrentProcessId());
-			Assert.AreNotEqual(Environment.ProcessId, secondImpl.GetCurrentProcessId());
-			Assert.AreNotEqual(firstImpl.GetCurrentProcessId(), secondImpl.GetCurrentProcessId());
+			Assert.That(firstImpl.GetCurrentProcessId(), Is.Not.EqualTo(Environment.ProcessId));
+			Assert.That(secondImpl.GetCurrentProcessId(), Is.Not.EqualTo(Environment.ProcessId));
+			Assert.That(secondImpl.GetCurrentProcessId(), Is.Not.EqualTo(firstImpl.GetCurrentProcessId()));
 		}
 
 		[Test]
@@ -83,7 +84,7 @@ namespace NewRemotingUnitTest
 		{
 			var firstServer = GetTransientServer();
 			var secondImpl = firstServer.CreateTransientClass<MarshallableClass>();
-			Assert.AreEqual(30, secondImpl.AddValues(10, 20));
+			Assert.That(secondImpl.AddValues(10, 20), Is.EqualTo(30));
 
 			MemoryStream ms = new MemoryStream();
 			byte[] data = new byte[10 * 1024 * 1024];

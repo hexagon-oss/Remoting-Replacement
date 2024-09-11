@@ -53,6 +53,7 @@ namespace NewRemotingUnitTest
 			{
 				Assert.That(_serverProcess.WaitForExit(2000));
 				_serverProcess.Kill();
+				_serverProcess.Dispose();
 				_serverProcess = null;
 			}
 		}
@@ -64,7 +65,7 @@ namespace NewRemotingUnitTest
 			{
 				Assert.IsFalse(cts.IsCancellationRequested);
 				var localToken = cts.Token.GetLocalCancellationToken();
-				Assert.AreNotEqual(CancellationToken.None, localToken);
+				Assert.That(localToken, Is.Not.EqualTo(CancellationToken.None));
 				Assert.IsFalse(localToken.IsCancellationRequested);
 				cts.Cancel();
 				Assert.IsTrue(localToken.IsCancellationRequested);

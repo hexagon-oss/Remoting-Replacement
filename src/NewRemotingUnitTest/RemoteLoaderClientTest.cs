@@ -261,11 +261,11 @@ namespace NewRemotingUnitTest
 						var testObjectRemote1 = remoteLoaderClient1.CreateObject<TestObject>();
 						var id = Guid.NewGuid().ToString();
 						ServiceContainer.AddService(new TestObject());
-						Assert.AreEqual(Process.GetCurrentProcess().Id, ServiceContainer.GetService<TestObject>().ProcessId);
+						Assert.That(ServiceContainer.GetService<TestObject>().ProcessId, Is.EqualTo(Process.GetCurrentProcess().Id));
 
-						Assert.AreNotEqual(Process.GetCurrentProcess().Id, testObjectRemote1.ProcessId);
-						Assert.AreNotEqual(Process.GetCurrentProcess().Id, testObjectRemote2.ProcessId);
-						Assert.AreNotEqual(testObjectRemote1.ProcessId, testObjectRemote2.ProcessId);
+						Assert.That(testObjectRemote1.ProcessId, Is.Not.EqualTo(Process.GetCurrentProcess().Id));
+						Assert.That(testObjectRemote2.ProcessId, Is.Not.EqualTo(Process.GetCurrentProcess().Id));
+						Assert.That(testObjectRemote2.ProcessId, Is.Not.EqualTo(testObjectRemote1.ProcessId));
 					}
 				}
 			}

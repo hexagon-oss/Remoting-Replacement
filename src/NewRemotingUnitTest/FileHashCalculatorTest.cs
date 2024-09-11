@@ -23,8 +23,8 @@ namespace NewRemotingUnitTest
 			foreach (var file in di.GetFiles("*.*", SearchOption.AllDirectories))
 			{
 				byte[] hash = streamHashCalculator.CalculateFastHashFromFile(file.FullName);
-				Assert.AreEqual(16, hash.Length);
-				Assert.AreNotEqual(0, hash.GetHashCode());
+				Assert.That(hash.Length, Is.EqualTo(16));
+				Assert.That(hash.GetHashCode(), Is.Not.EqualTo(0));
 				hashCodes.Add(file, hash);
 			}
 
@@ -44,7 +44,7 @@ namespace NewRemotingUnitTest
 
 			byte[] firstHash = hashCalculator.CalculateFastHashFromFile(firstFile);
 			byte[] secondHash = hashCalculator.CalculateFastHashFromFile(secondFile);
-			CollectionAssert.AreEqual(firstHash, secondHash);
+			Assert.That(firstHash, Is.EqualTo(secondHash));
 		}
 
 		[Test]
@@ -58,7 +58,7 @@ namespace NewRemotingUnitTest
 
 			byte[] firstHash = hashCalculator.CalculateFastHashFromFile(firstFile);
 			byte[] secondHash = hashCalculator.CalculateFastHashFromFile(secondFile);
-			CollectionAssert.AreNotEqual(firstHash, secondHash);
+			Assert.That(firstHash, Is.EqualTo(secondHash));
 		}
 	}
 }

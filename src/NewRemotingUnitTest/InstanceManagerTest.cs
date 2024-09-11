@@ -45,7 +45,7 @@ namespace NewRemotingUnitTest
 			var myInstance = new MarshallableClass();
 			string name1 = _instanceManager.RegisterRealObjectAndGetId(myInstance, "1");
 			string name2 = _instanceManager.RegisterRealObjectAndGetId(myInstance, "1");
-			Assert.AreEqual(name1, name2);
+			Assert.That(name2, Is.EqualTo(name1));
 
 			var myInstance2 = _instanceManager.GetObjectFromId(name1, "type1", "method1", out bool wasDelegateTarget);
 			Assert.True(ReferenceEquals(myInstance, myInstance2));
@@ -58,7 +58,7 @@ namespace NewRemotingUnitTest
 			var myInstance = new MarshallableClass();
 			string name1 = _instanceManager.RegisterRealObjectAndGetId(myInstance, "1");
 			string name2 = _instanceManager.RegisterRealObjectAndGetId(myInstance, "2");
-			Assert.AreEqual(name1, name2);
+			Assert.That(name2, Is.EqualTo(name1));
 
 			_instanceManager.Remove(name1, "1", false);
 			var myInstance2 = _instanceManager.GetObjectFromId(name2, "type1", "method1", out bool wasDelegateTarget);
@@ -75,13 +75,13 @@ namespace NewRemotingUnitTest
 #pragma warning disable CS0618
 			var ii = _instanceManager.QueryInstanceInfo(myInstanceId);
 #pragma warning restore CS0618
-			Assert.AreEqual(1, ii.ReferenceBitVector);
+			Assert.That(ii.ReferenceBitVector, Is.EqualTo(1));
 			Assert.IsFalse(ii.IsReleased);
 			_instanceManager.AddInstance(myInstance, myInstanceId, "2", typeof(MarshallableClass), typeof(MarshallableClass).AssemblyQualifiedName, true);
 #pragma warning disable CS0618
 			ii = _instanceManager.QueryInstanceInfo(myInstanceId);
 #pragma warning restore CS0618
-			Assert.AreEqual(3, ii.ReferenceBitVector);
+			Assert.That(ii.ReferenceBitVector, Is.EqualTo(3));
 			Assert.IsFalse(ii.IsReleased);
 		}
 
