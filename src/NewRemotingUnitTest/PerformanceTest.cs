@@ -59,7 +59,7 @@ namespace NewRemotingUnitTest
 			ms.Position = 0;
 			BinaryReader r = new BinaryReader(ms, encoding, true);
 			var read = r.ReadString();
-			Assert.AreEqual(_data, read);
+			Assert.That(read, Is.EqualTo(_data));
 		}
 
 		private sealed class DirectBinaryEncoding : Encoding

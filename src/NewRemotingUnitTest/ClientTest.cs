@@ -53,7 +53,7 @@ namespace NewRemotingUnitTest
 			Assert.That(proxy.GetType().Name.Contains("Proxy"));
 
 			var notAproxy = Client.GetUnproxiedType(proxy);
-			Assert.AreEqual(typeof(IMarshallInterface), notAproxy);
+			Assert.That(notAproxy, Is.EqualTo(typeof(IMarshallInterface)));
 		}
 
 		[Test]
@@ -63,7 +63,7 @@ namespace NewRemotingUnitTest
 			Assert.That(proxy.GetType().Name.Contains("Proxy"));
 
 			var notAproxy = Client.GetUnproxiedType(proxy);
-			Assert.AreEqual(typeof(List<int>), notAproxy);
+			Assert.That(notAproxy, Is.EqualTo(typeof(List<int>)));
 		}
 
 		[Test]
@@ -73,7 +73,7 @@ namespace NewRemotingUnitTest
 			Assert.That(proxy.GetType().Name.Contains("Proxy"));
 
 			var notAproxy = Client.ManualGetUnproxiedType(proxy.GetType());
-			Assert.AreEqual(typeof(IMarshallInterface), notAproxy);
+			Assert.That(notAproxy, Is.EqualTo(typeof(IMarshallInterface)));
 		}
 
 		[Test]
@@ -83,7 +83,7 @@ namespace NewRemotingUnitTest
 			Assert.That(proxy.GetType().Name.Contains("Proxy"));
 
 			var notAproxy = Client.ManualGetUnproxiedType(proxy.GetType());
-			Assert.AreEqual(typeof(WithManyInterfaces), notAproxy);
+			Assert.That(notAproxy, Is.EqualTo(typeof(WithManyInterfaces)));
 		}
 
 		[Test]
@@ -93,7 +93,7 @@ namespace NewRemotingUnitTest
 			Assert.That(proxy.GetType().Name.Contains("Proxy"));
 
 			var notAproxy = Client.ManualGetUnproxiedType(proxy.GetType());
-			Assert.AreEqual(typeof(List<int>), notAproxy);
+			Assert.That(notAproxy, Is.EqualTo(typeof(List<int>)));
 		}
 	}
 }

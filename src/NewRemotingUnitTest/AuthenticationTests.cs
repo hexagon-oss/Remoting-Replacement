@@ -63,7 +63,7 @@ namespace NewRemotingUnitTest
 			using (var serverProcess = Process.Start(psi))
 			{
 				Assert.IsNotNull(serverProcess);
-				Assert.AreEqual(false, string.IsNullOrEmpty(_helper.CertificateFileName));
+				Assert.False(string.IsNullOrEmpty(_helper.CertificateFileName));
 				var badPassword = new AuthenticationInformation(_helper.CertificateFileName, "wrongpassword");
 
 				Assert.Catch<CryptographicException>(() => new Client("localhost", Client.DefaultNetworkPort, badPassword, new ConnectionSettings()), "The specified network password is not correct");
@@ -103,7 +103,7 @@ namespace NewRemotingUnitTest
 			{
 				Assert.IsNotNull(serverProcess);
 				Assert.IsNotNull(configAndAuthenticationClient.Item2);
-				Assert.AreEqual(false, string.IsNullOrEmpty(configAndAuthenticationClient.Item2.CertificateFileName));
+				Assert.That(string.IsNullOrEmpty(configAndAuthenticationClient.Item2.CertificateFileName), Is.EqualTo(false));
 				string msg = "Unable to write data to the transport connection: An established connection was aborted by the software in your host machine..";
 				Assert.Catch<IOException>(() => new Client("localhost", Client.DefaultNetworkPort, configAndAuthenticationClient.Item2, new ConnectionSettings()), msg);
 

@@ -19,9 +19,9 @@ namespace NewRemotingUnitTest
 			buf[1] = 11;
 			var p = new PooledMemoryStream(100);
 			p.Write(buf, 0, 10);
-			Assert.AreEqual(10, p.Length);
+			Assert.That(p.Length, Is.EqualTo(10));
 			p.Write(buf, 0, 10);
-			Assert.AreEqual(20, p.Length);
+			Assert.That(p.Length, Is.EqualTo(20));
 		}
 
 		[Test]
@@ -32,14 +32,14 @@ namespace NewRemotingUnitTest
 			buf[1] = 11;
 			var p = new PooledMemoryStream(100);
 			p.Write(buf, 0, 10);
-			Assert.AreEqual(10, p.Length);
+			Assert.That(p.Length, Is.EqualTo(10));
 			p.Position = 0;
 			p.Write(buf, 0, 10);
-			Assert.AreEqual(10, p.Length);
+			Assert.That(p.Length, Is.EqualTo(10));
 
 			p.Position = 5;
 			p.Write(buf, 0, 10);
-			Assert.AreEqual(15, p.Length);
+			Assert.That(p.Length, Is.EqualTo(15));
 		}
 
 		[Test]
@@ -50,7 +50,7 @@ namespace NewRemotingUnitTest
 			buf[1] = 11;
 			var p = new PooledMemoryStream(100);
 			p.Write(buf, 0, 50);
-			Assert.AreEqual(50, p.Length);
+			Assert.That(p.Length, Is.EqualTo(50));
 			Assert.Throws<NotSupportedException>(() => p.Write(buf, 0, 100));
 		}
 
@@ -62,9 +62,9 @@ namespace NewRemotingUnitTest
 			buf[1] = 11;
 			var p = new PooledMemoryStream(100);
 			p.Write(buf, 0, 50);
-			Assert.AreEqual(50, p.Length);
+			Assert.That(p.Length, Is.EqualTo(50));
 			p.SetLength(10);
-			Assert.AreEqual(10, p.Length);
+			Assert.That(p.Length, Is.EqualTo(10));
 			Assert.Throws<NotSupportedException>(() => p.SetLength(200));
 		}
 	}

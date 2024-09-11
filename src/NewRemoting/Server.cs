@@ -47,7 +47,7 @@ namespace NewRemoting
 		private const string RuntimeVersionRegex = "(\\d+\\.\\d)";
 		internal const int AuthenticationSucceededToken = 567223;
 
-		private readonly List<ThreadData> _threads;
+		private readonly ConcurrentBag<ThreadData> _threads;
 		private readonly ProxyGenerator _proxyGenerator;
 		private readonly CancellationTokenSource _terminatingSource = new CancellationTokenSource();
 		private readonly object _channelWriterLock = new object();

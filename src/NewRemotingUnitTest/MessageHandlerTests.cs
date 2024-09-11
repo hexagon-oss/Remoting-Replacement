@@ -32,7 +32,7 @@ namespace NewRemotingUnitTest
 			Assert.IsNotNull(decoded);
 			Assert.True(decoded is RemotingException);
 			Assert.NotNull(decoded.InnerException);
-			Assert.AreEqual(encodingLength, decodingLength);
+			Assert.That(decodingLength, Is.EqualTo(encodingLength));
 		}
 
 		[Test]
@@ -50,7 +50,7 @@ namespace NewRemotingUnitTest
 			Assert.IsNotNull(decoded);
 			Assert.True(decoded is RemotingException);
 			Assert.NotNull(decoded.InnerException);
-			Assert.AreEqual(encodingLength, decodingLength);
+			Assert.That(decodingLength, Is.EqualTo(encodingLength));
 		}
 
 		[Test]
@@ -68,7 +68,7 @@ namespace NewRemotingUnitTest
 			Assert.IsNotNull(decoded);
 			Assert.True(decoded is RemotingException);
 			Assert.Null(decoded.InnerException);
-			Assert.AreEqual(encodingLength, decodingLength);
+			Assert.That(decodingLength, Is.EqualTo(encodingLength));
 		}
 	}
 }
