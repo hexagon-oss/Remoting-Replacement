@@ -57,7 +57,7 @@ namespace NewRemotingUnitTest
 			{
 				var existingProcess = PaExecClient.CreateProcessLocal(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, RemoteLoaderWindowsClient.REMOTELOADER_EXECUTABLE), string.Empty);
 				existingProcess.Start();
-				Assert.IsNotNull(existingProcess);
+				Assert.That(existingProcess, Is.Not.Null);
 				Thread.Sleep(2000);
 				Assert.That(existingProcess.HasExited == false);
 
@@ -79,7 +79,7 @@ namespace NewRemotingUnitTest
 				}
 
 				// Should not be cancelled yet.
-				Assert.False(errorTokenSource.IsCancellationRequested);
+				Assert.That(errorTokenSource.IsCancellationRequested, Is.False);
 				existingProcess.Kill();
 			}
 
@@ -99,7 +99,7 @@ namespace NewRemotingUnitTest
 					CancellationTokenSource errorTokenSource = new CancellationTokenSource();
 					errorTokenSource.CancelAfter(TimeSpan.FromSeconds(20));
 					client.Connect(errorTokenSource.Token, null);
-					Assert.False(errorTokenSource.IsCancellationRequested);
+					Assert.That(errorTokenSource.IsCancellationRequested, Is.False);
 					RemoteObjectWithSlowMethods remObject = client.CreateObject<RemoteObjectWithSlowMethods>();
 					remObject.Sleep(TimeSpan.FromSeconds(1));
 					// Also ensure we're not accidentally running the client in our own process.
@@ -123,7 +123,7 @@ namespace NewRemotingUnitTest
 					CancellationTokenSource errorTokenSource = new CancellationTokenSource();
 					errorTokenSource.CancelAfter(TimeSpan.FromSeconds(20));
 					client.Connect(errorTokenSource.Token, null);
-					Assert.False(errorTokenSource.IsCancellationRequested);
+					Assert.That(errorTokenSource.IsCancellationRequested, Is.False);
 					client.RemoteClient.Dispose(); // This should not normally be done, but we want RemoteLoaderWindowsClient to keep the valid reference here
 					Assert.Throws<RemotingException>(() => client.CreateObject<RemoteObjectWithSlowMethods>());
 				}
@@ -139,7 +139,7 @@ namespace NewRemotingUnitTest
 				using (IRemoteLoaderClient client = new RemoteLoaderWindowsClient(_remoteCredentials, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(2), string.Empty))
 				{
 					CancellationTokenSource errorTokenSource = new CancellationTokenSource();
-					Assert.IsTrue(client.Connect(true, errorTokenSource.Token, null));
+					Assert.That(client.Connect(true, errorTokenSource.Token, null));
 				}
 			}
 
@@ -149,8 +149,8 @@ namespace NewRemotingUnitTest
 				using (IRemoteLoaderClient client = new RemoteLoaderWindowsClient(_remoteCredentials, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(2), string.Empty))
 				{
 					CancellationTokenSource errorTokenSource = new CancellationTokenSource();
-					Assert.IsTrue(client.Connect(true, errorTokenSource.Token, null));
-					Assert.IsFalse(client.Connect(true, errorTokenSource.Token, null));
+					Assert.That(client.Connect(true, errorTokenSource.Token, null));
+					Assert.That(!client.Connect(true, errorTokenSource.Token, null));
 				}
 			}
 
@@ -261,11 +261,11 @@ namespace NewRemotingUnitTest
 						var testObjectRemote1 = remoteLoaderClient1.CreateObject<TestObject>();
 						var id = Guid.NewGuid().ToString();
 						ServiceContainer.AddService(new TestObject());
-						Assert.AreEqual(Process.GetCurrentProcess().Id, ServiceContainer.GetService<TestObject>().ProcessId);
+						Assert.That(ServiceContainer.GetService<TestObject>().ProcessId, Is.EqualTo(Process.GetCurrentProcess().Id));
 
-						Assert.AreNotEqual(Process.GetCurrentProcess().Id, testObjectRemote1.ProcessId);
-						Assert.AreNotEqual(Process.GetCurrentProcess().Id, testObjectRemote2.ProcessId);
-						Assert.AreNotEqual(testObjectRemote1.ProcessId, testObjectRemote2.ProcessId);
+						Assert.That(testObjectRemote1.ProcessId, Is.Not.EqualTo(Process.GetCurrentProcess().Id));
+						Assert.That(testObjectRemote2.ProcessId, Is.Not.EqualTo(Process.GetCurrentProcess().Id));
+						Assert.That(testObjectRemote2.ProcessId, Is.Not.EqualTo(testObjectRemote1.ProcessId));
 					}
 				}
 			}
@@ -297,7 +297,7 @@ namespace NewRemotingUnitTest
 				using (IRemoteLoaderClient client = new RemoteLoaderFactory().Create(RemoteCredentials, RemoteHost))
 				{
 					CancellationTokenSource errorTokenSource = new CancellationTokenSource();
-					Assert.IsTrue(client.Connect(true, errorTokenSource.Token, null));
+					Assert.That(client.Connect(true, errorTokenSource.Token, null));
 				}
 			}
 
@@ -307,8 +307,8 @@ namespace NewRemotingUnitTest
 				using (IRemoteLoaderClient client = new RemoteLoaderFactory().Create(RemoteCredentials, RemoteHost))
 				{
 					CancellationTokenSource errorTokenSource = new CancellationTokenSource();
-					Assert.IsTrue(client.Connect(true, errorTokenSource.Token, null));
-					Assert.IsFalse(client.Connect(true, errorTokenSource.Token, null));
+					Assert.That(client.Connect(true, errorTokenSource.Token, null));
+					Assert.That(!client.Connect(true, errorTokenSource.Token, null));
 				}
 			}
 

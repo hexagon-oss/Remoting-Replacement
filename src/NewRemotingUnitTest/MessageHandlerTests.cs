@@ -29,10 +29,10 @@ namespace NewRemotingUnitTest
 			ms.Position = 0;
 			var decoded = MessageHandler.DecodeException(br, "Dummy");
 			long decodingLength = ms.Position;
-			Assert.IsNotNull(decoded);
-			Assert.True(decoded is RemotingException);
-			Assert.NotNull(decoded.InnerException);
-			Assert.AreEqual(encodingLength, decodingLength);
+			Assert.That(decoded, Is.Not.Null);
+			Assert.That(decoded is RemotingException);
+			Assert.That(decoded.InnerException, Is.Not.Null);
+			Assert.That(decodingLength, Is.EqualTo(encodingLength));
 		}
 
 		[Test]
@@ -47,10 +47,10 @@ namespace NewRemotingUnitTest
 			ms.Position = 0;
 			var decoded = MessageHandler.DecodeException(br, "Dummy");
 			long decodingLength = ms.Position;
-			Assert.IsNotNull(decoded);
-			Assert.True(decoded is RemotingException);
-			Assert.NotNull(decoded.InnerException);
-			Assert.AreEqual(encodingLength, decodingLength);
+			Assert.That(decoded, Is.Not.Null);
+			Assert.That(decoded is RemotingException);
+			Assert.That(decoded.InnerException, Is.Not.Null);
+			Assert.That(decodingLength, Is.EqualTo(encodingLength));
 		}
 
 		[Test]
@@ -65,10 +65,10 @@ namespace NewRemotingUnitTest
 			ms.Position = 0;
 			var decoded = MessageHandler.DecodeException(br, "Dummy");
 			long decodingLength = ms.Position;
-			Assert.IsNotNull(decoded);
-			Assert.True(decoded is RemotingException);
-			Assert.Null(decoded.InnerException);
-			Assert.AreEqual(encodingLength, decodingLength);
+			Assert.That(decoded, Is.Not.Null);
+			Assert.That(decoded is RemotingException);
+			Assert.That(decoded.InnerException, Is.Null);
+			Assert.That(decodingLength, Is.EqualTo(encodingLength));
 		}
 	}
 }

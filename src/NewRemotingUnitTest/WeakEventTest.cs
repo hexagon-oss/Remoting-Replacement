@@ -73,7 +73,7 @@ namespace NewRemotingUnitTest
 				ex = indOutOfRange;
 			}
 
-			Assert.NotNull(ex);
+			Assert.That(ex, Is.Not.Null);
 		}
 
 		[Test]
@@ -92,7 +92,7 @@ namespace NewRemotingUnitTest
 				ex = ce;
 			}
 
-			Assert.NotNull(ex);
+			Assert.That(ex, Is.Not.Null);
 		}
 
 		[Test]
@@ -113,7 +113,7 @@ namespace NewRemotingUnitTest
 			GC.WaitForPendingFinalizers();
 
 			eventSource.FireStringEvent("fired");
-			Assert.AreEqual("Local_fired0fired1fired2fired3fired4", localValue);
+			Assert.That(localValue, Is.EqualTo("Local_fired0fired1fired2fired3fired4"));
 		}
 
 		[Test]
@@ -127,10 +127,10 @@ namespace NewRemotingUnitTest
 			eventSource.FireStringEvent("Trigger Event test");
 
 			eventSource.FireTwoIntegerEvent(10, 5);
-			Assert.AreEqual(15, eventSink._lastResult);
+			Assert.That(eventSink._lastResult, Is.EqualTo(15));
 
 			eventSource.FireTwoIntegerEvent(15, 11);
-			Assert.AreEqual(26, eventSink._lastResult);
+			Assert.That(eventSink._lastResult, Is.EqualTo(26));
 		}
 
 		[Test]
@@ -138,13 +138,13 @@ namespace NewRemotingUnitTest
 		{
 			IWeakEvent<Action<int, int, int>> weakEvent = WeakEventBase.Create<Action<int, int, int>>();
 			weakEvent.Add(AddIntegers);
-			Assert.AreEqual(1, weakEvent.ClientCount);
+			Assert.That(weakEvent.ClientCount, Is.EqualTo(1));
 			weakEvent.Add(AddIntegers);
-			Assert.AreEqual(2, weakEvent.ClientCount);
+			Assert.That(weakEvent.ClientCount, Is.EqualTo(2));
 			weakEvent.Remove(AddIntegers);
-			Assert.AreEqual(1, weakEvent.ClientCount);
+			Assert.That(weakEvent.ClientCount, Is.EqualTo(1));
 			weakEvent.Remove(AddIntegers);
-			Assert.AreEqual(0, weakEvent.ClientCount);
+			Assert.That(weakEvent.ClientCount, Is.EqualTo(0));
 		}
 
 		[Test]
@@ -156,11 +156,11 @@ namespace NewRemotingUnitTest
 
 			eventSink._lastArguments.Clear();
 			eventSource.FireMultiArgumentEvent(null, null, null, 0.0);
-			CollectionAssert.AreEquivalent(new object[] { null, null, null, 0.0 }, eventSink._lastArguments);
+			Assert.That(eventSink._lastArguments, Is.EquivalentTo(new object[] { null, null, null, 0.0 }));
 
 			eventSink._lastArguments.Clear();
 			eventSource.FireMultiArgumentEvent(5, "foo", "boo", 50.0);
-			CollectionAssert.AreEquivalent(new object[] { 5, "foo", "boo", 50.0 }, eventSink._lastArguments);
+			Assert.That(eventSink._lastArguments, Is.EquivalentTo(new object[] { 5, "foo", "boo", 50.0 }));
 		}
 
 		[Test]
@@ -176,10 +176,10 @@ namespace NewRemotingUnitTest
 		{
 			IWeakEvent<Action<string>> weakEvent = WeakEventBase.Create<Action<string>>();
 			weakEvent.Add(StaticPrint);
-			Assert.AreEqual(1, weakEvent.ClientCount);
+			Assert.That(weakEvent.ClientCount, Is.EqualTo(1));
 			weakEvent.Raise("foo");
 			weakEvent.Remove(StaticPrint);
-			Assert.AreEqual(0, weakEvent.ClientCount);
+			Assert.That(weakEvent.ClientCount, Is.EqualTo(0));
 		}
 
 		[Test]
@@ -191,15 +191,15 @@ namespace NewRemotingUnitTest
 			eventSource.TwoIntegerEvent += eventSink.TwoIntegerSink;
 
 			eventSource.FireTwoIntegerEvent(10, 5);
-			Assert.AreEqual(15, eventSink._lastResult);
-			Assert.AreEqual(1, eventSource.TwoIntEventClientCount);
+			Assert.That(eventSink._lastResult, Is.EqualTo(15));
+			Assert.That(eventSource.TwoIntEventClientCount, Is.EqualTo(1));
 
 			eventSink = null;
 			GC.Collect();
 			GC.WaitForPendingFinalizers();
 
 			eventSource.FireTwoIntegerEvent(15, 11);
-			Assert.AreEqual(0, eventSource.TwoIntEventClientCount);
+			Assert.That(eventSource.TwoIntEventClientCount, Is.EqualTo(0));
 		}
 
 		[Test]
@@ -226,8 +226,8 @@ namespace NewRemotingUnitTest
 				aggregateException = ae;
 			}
 
-			CollectionAssert.AreEquivalent(new object[] { "foo", "foo", "foo" }, eventSink._lastArguments);
-			Assert.AreEqual(4, aggregateException.InnerExceptions.Count);
+			Assert.That(eventSink._lastArguments, Is.EquivalentTo(new object[] { "foo", "foo", "foo" }));
+			Assert.That(aggregateException.InnerExceptions.Count, Is.EqualTo(4));
 		}
 
 		[Test]
@@ -285,7 +285,7 @@ namespace NewRemotingUnitTest
 
 			for (int i = 0; i < THREADCOUNT; i++)
 			{
-				Assert.AreEqual(REPEATCOUNT, threadIds[i]);
+				Assert.That(threadIds[i], Is.EqualTo(REPEATCOUNT));
 			}
 		}
 
@@ -297,17 +297,17 @@ namespace NewRemotingUnitTest
 			eventSource.StringEventRemoteAware += eventSink.StringSink;
 
 			eventSource.FireStringEventRemoteAware("foo");
-			Assert.AreEqual("foo", eventSink._lastArguments[0]);
-			Assert.AreEqual(1, eventSource.RemoteAwareClientCount);
+			Assert.That(eventSink._lastArguments[0], Is.EqualTo("foo"));
+			Assert.That(eventSource.RemoteAwareClientCount, Is.EqualTo(1));
 
 			eventSource.StringEventRemoteAware += eventSink.ThrowsRemotingException;
-			Assert.AreEqual(2, eventSource.RemoteAwareClientCount);
+			Assert.That(eventSource.RemoteAwareClientCount, Is.EqualTo(2));
 
 			eventSource.FireStringEventRemoteAware("foo");
-			Assert.AreEqual(1, eventSource.RemoteAwareClientCount);
+			Assert.That(eventSource.RemoteAwareClientCount, Is.EqualTo(1));
 
 			eventSource.StringEventRemoteAware -= eventSink.StringSink;
-			Assert.AreEqual(0, eventSource.RemoteAwareClientCount);
+			Assert.That(eventSource.RemoteAwareClientCount, Is.EqualTo(0));
 		}
 
 		[Test]
@@ -360,11 +360,11 @@ namespace NewRemotingUnitTest
 			eventSink._barrier = new Barrier(2);
 			eventSource.OneIntEventAsync += eventSink.BlocksUntilSignal;
 			eventSource.FireOneIntEventAsync(0);
-			Assert.AreEqual(0, eventSink._lastArguments.Count);
+			Assert.That(eventSink._lastArguments.Count, Is.EqualTo(0));
 			eventSink._barrier.SignalAndWait(); // continue BlocksUntilSignal
 
 			eventSink._barrier.SignalAndWait(); // wait until all tasks completed
-			Assert.AreEqual(1, eventSink._lastArguments.Count);
+			Assert.That(eventSink._lastArguments.Count, Is.EqualTo(1));
 		}
 
 		[Test]
@@ -374,15 +374,15 @@ namespace NewRemotingUnitTest
 			Barrier nonBlockingHandlerExecuted = new Barrier(6);
 			IWeakEvent<Action> weakEvent = WeakEventBase.Create<Action>(ex => caughtException = ex, true);
 
-			weakEvent.Add(() => Assert.True(nonBlockingHandlerExecuted.SignalAndWait(20000)));
-			weakEvent.Add(() => Assert.True(nonBlockingHandlerExecuted.SignalAndWait(20000)));
-			weakEvent.Add(() => Assert.True(nonBlockingHandlerExecuted.SignalAndWait(20000)));
-			weakEvent.Add(() => Assert.True(nonBlockingHandlerExecuted.SignalAndWait(20000)));
-			weakEvent.Add(() => Assert.True(nonBlockingHandlerExecuted.SignalAndWait(20000)));
+			weakEvent.Add(() => Assert.That(nonBlockingHandlerExecuted.SignalAndWait(20000)));
+			weakEvent.Add(() => Assert.That(nonBlockingHandlerExecuted.SignalAndWait(20000)));
+			weakEvent.Add(() => Assert.That(nonBlockingHandlerExecuted.SignalAndWait(20000)));
+			weakEvent.Add(() => Assert.That(nonBlockingHandlerExecuted.SignalAndWait(20000)));
+			weakEvent.Add(() => Assert.That(nonBlockingHandlerExecuted.SignalAndWait(20000)));
 
 			weakEvent.Raise();
 
-			Assert.True(nonBlockingHandlerExecuted.SignalAndWait(20000));
+			Assert.That(nonBlockingHandlerExecuted.SignalAndWait(20000));
 			if (caughtException != null)
 			{
 				throw caughtException;
@@ -395,9 +395,9 @@ namespace NewRemotingUnitTest
 			string localString = null;
 			IWeakEvent<CustomDelegateType> weakEventWithCustomDelegateType = WeakEventBase.Create<CustomDelegateType>();
 			weakEventWithCustomDelegateType.Add(str => localString = str);
-			Assert.Null(localString);
+			Assert.That(localString, Is.Null);
 			weakEventWithCustomDelegateType.Raise("foo");
-			Assert.AreEqual("foo", localString);
+			Assert.That(localString, Is.EqualTo("foo"));
 		}
 
 		private sealed class EventSink
