@@ -30,7 +30,7 @@ namespace NewRemotingUnitTest
 		{
 			_helper?.SetUp();
 			_serverProcess = Process.Start("RemotingServer.exe");
-			Assert.IsNotNull(_serverProcess);
+			Assert.That(_serverProcess, Is.Not.Null);
 
 			// Port is currently hardcoded
 			_client = new Client("localhost", Client.DefaultNetworkPort, _helper == null ? null : new AuthenticationInformation(_helper.CertificateFileName, _helper.CertificatePassword), new ConnectionSettings());
@@ -53,6 +53,7 @@ namespace NewRemotingUnitTest
 			{
 				Assert.That(_serverProcess.WaitForExit(2000));
 				_serverProcess.Kill();
+				_serverProcess.Dispose();
 				_serverProcess = null;
 			}
 		}
@@ -62,13 +63,13 @@ namespace NewRemotingUnitTest
 		{
 			using (var cts = new CrossAppDomainCancellationTokenSource())
 			{
-				Assert.IsFalse(cts.IsCancellationRequested);
+				Assert.That(!cts.IsCancellationRequested);
 				var localToken = cts.Token.GetLocalCancellationToken();
-				Assert.AreNotEqual(CancellationToken.None, localToken);
-				Assert.IsFalse(localToken.IsCancellationRequested);
+				Assert.That(localToken, Is.Not.EqualTo(CancellationToken.None));
+				Assert.That(!localToken.IsCancellationRequested);
 				cts.Cancel();
-				Assert.IsTrue(localToken.IsCancellationRequested);
-				Assert.IsTrue(cts.IsCancellationRequested);
+				Assert.That(localToken.IsCancellationRequested);
+				Assert.That(cts.IsCancellationRequested);
 			}
 		}
 
@@ -78,10 +79,10 @@ namespace NewRemotingUnitTest
 			var dummy = _client.CreateRemoteInstance<DummyCancellableType>();
 			using (var cts = new CrossAppDomainCancellationTokenSource())
 			{
-				Assert.IsFalse(cts.IsCancellationRequested);
+				Assert.That(!cts.IsCancellationRequested);
 				cts.Cancel();
 				Assert.Throws<OperationCanceledException>(() => dummy.DoSomething(cts.Token));
-				Assert.IsTrue(cts.IsCancellationRequested);
+				Assert.That(cts.IsCancellationRequested);
 			}
 		}
 
@@ -91,10 +92,10 @@ namespace NewRemotingUnitTest
 			var dummy = _client.CreateRemoteInstance<DummyCancellableType>();
 			using (var cts = new CrossAppDomainCancellationTokenSource())
 			{
-				Assert.IsFalse(cts.IsCancellationRequested);
+				Assert.That(!cts.IsCancellationRequested);
 				cts.CancelAfter(TimeSpan.FromSeconds(0.2));
 				Assert.Throws<OperationCanceledException>(() => dummy.DoSomethingWithNormalToken(cts.Token));
-				Assert.IsTrue(cts.IsCancellationRequested);
+				Assert.That(cts.IsCancellationRequested);
 			}
 		}
 
@@ -104,9 +105,9 @@ namespace NewRemotingUnitTest
 			var dummy = _client.CreateRemoteInstance<DummyCancellableType>();
 			using (var cts = new CrossAppDomainCancellationTokenSource())
 			{
-				Assert.IsFalse(cts.IsCancellationRequested);
+				Assert.That(!cts.IsCancellationRequested);
 				dummy.DoSomething(cts.Token);
-				Assert.False(cts.IsCancellationRequested);
+				Assert.That(cts.IsCancellationRequested, Is.False);
 			}
 		}
 	}

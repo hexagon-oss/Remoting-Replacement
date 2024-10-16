@@ -29,7 +29,7 @@ namespace NewRemotingUnitTest
 		{
 			// To simplify the remote infrastructure at this point, it must be possible to create a proxy of this class
 			var t = typeof(RemoteServerService);
-			Assert.False(t.IsSealed);
+			Assert.That(!t.IsSealed);
 		}
 
 		[Test]

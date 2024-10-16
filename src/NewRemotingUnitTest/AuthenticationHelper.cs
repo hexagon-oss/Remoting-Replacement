@@ -135,7 +135,7 @@ namespace NewRemotingUnitTest
 			CreateCertificate(_mCertificateFileName, CertificatePassword, DateTimeOffset.UtcNow);
 
 			var configFile = Directory.EnumerateFiles(AppDomain.CurrentDomain.BaseDirectory, "RemotingServer.dll.config").ToList();
-			Assert.IsTrue(configFile.Any(), "Remotingserver.dll.config missing");
+			Assert.That(configFile.Any(), "Remotingserver.dll.config missing");
 
 			_mConfigFile = configFile.First();
 			UpdateConfigurationFile(_mConfigFile, _mCertificateFileName, CertificatePassword);

@@ -23,7 +23,7 @@ namespace NewRemotingUnitTest
 		public void OneTimeSetUp()
 		{
 			_serverProcess = Process.Start("RemotingServer.exe");
-			Assert.IsNotNull(_serverProcess);
+			Assert.That(_serverProcess, Is.Not.Null);
 
 			// Port is currently hardcoded
 			_client = new Client("localhost", Client.DefaultNetworkPort, null, new ConnectionSettings());
@@ -46,6 +46,7 @@ namespace NewRemotingUnitTest
 			{
 				Assert.That(_serverProcess.WaitForExit(2000));
 				_serverProcess.Kill();
+				_serverProcess.Dispose();
 				_serverProcess = null;
 			}
 		}
@@ -73,9 +74,9 @@ namespace NewRemotingUnitTest
 			var firstServer = GetTransientServer();
 			var firstImpl = _client.CreateRemoteInstance<MarshallableClass>();
 			var secondImpl = firstServer.CreateTransientClass<MarshallableClass>();
-			Assert.AreNotEqual(Environment.ProcessId, firstImpl.GetCurrentProcessId());
-			Assert.AreNotEqual(Environment.ProcessId, secondImpl.GetCurrentProcessId());
-			Assert.AreNotEqual(firstImpl.GetCurrentProcessId(), secondImpl.GetCurrentProcessId());
+			Assert.That(firstImpl.GetCurrentProcessId(), Is.Not.EqualTo(Environment.ProcessId));
+			Assert.That(secondImpl.GetCurrentProcessId(), Is.Not.EqualTo(Environment.ProcessId));
+			Assert.That(secondImpl.GetCurrentProcessId(), Is.Not.EqualTo(firstImpl.GetCurrentProcessId()));
 		}
 
 		[Test]
@@ -83,14 +84,14 @@ namespace NewRemotingUnitTest
 		{
 			var firstServer = GetTransientServer();
 			var secondImpl = firstServer.CreateTransientClass<MarshallableClass>();
-			Assert.AreEqual(30, secondImpl.AddValues(10, 20));
+			Assert.That(secondImpl.AddValues(10, 20), Is.EqualTo(30));
 
 			MemoryStream ms = new MemoryStream();
 			byte[] data = new byte[10 * 1024 * 1024];
 			data[1] = 2;
 			ms.Write(data);
 			Stopwatch sw = Stopwatch.StartNew();
-			Assert.True(secondImpl.StreamDataContains(ms, 2));
+			Assert.That(secondImpl.StreamDataContains(ms, 2), Is.True);
 		}
 
 		[Test]
@@ -101,7 +102,7 @@ namespace NewRemotingUnitTest
 			var cb = new TransientCallbackImpl();
 			secondImpl.RegisterCallback(cb);
 			secondImpl.DoCallback();
-			Assert.True(cb.HasCallbackOccurred);
+			Assert.That(cb.HasCallbackOccurred, Is.True);
 			secondImpl.RegisterCallback(null);
 		}
 
@@ -119,17 +120,17 @@ namespace NewRemotingUnitTest
 			_dataReceived = null;
 			instance.DoCallbackOnEvent("Test string");
 
-			Assert.IsNull(_dataReceived);
+			Assert.That(_dataReceived, Is.Null);
 			instance.AnEvent2 += CallbackMethod;
 			instance.DoCallbackOnEvent("Another test string");
-			Assert.False(string.IsNullOrWhiteSpace(_dataReceived));
+			Assert.That(string.IsNullOrWhiteSpace(_dataReceived), Is.False);
 			_dataReceived = null;
 			instance.AnEvent2 -= CallbackMethod;
 			instance.DoCallbackOnEvent("A third test string");
-			Assert.IsNull(_dataReceived);
+			Assert.That(_dataReceived, Is.Null);
 			instance.AnEvent2 -= CallbackMethod;
 			instance.DoCallbackOnEvent("Test string 4");
-			Assert.IsNull(_dataReceived);
+			Assert.That(_dataReceived, Is.Null);
 		}
 
 		[Test]
@@ -138,13 +139,13 @@ namespace NewRemotingUnitTest
 			_transientServer = _client.CreateRemoteInstance<TransientServer>();
 			_transientServer.Init(Client.DefaultNetworkPort + 2);
 			IDisposable ds = _transientServer.CreateTransientClass<WithManyInterfaces>();
-			Assert.IsNotNull(ds);
+			Assert.That(ds, Is.Not.Null);
 			Assert.That(ds is IMarshallInterface);
 			ds.Dispose();
 
 			IMarshallInterface im = _transientServer.CreateTransientClass<WithManyInterfaces>();
-			Assert.IsNotNull(im);
-			Assert.IsNotNull(im.StringProcessId());
+			Assert.That(im, Is.Not.Null);
+			Assert.That(im.StringProcessId(), Is.Not.Null);
 			ds = (IDisposable)im;
 			ds.Dispose();
 		}

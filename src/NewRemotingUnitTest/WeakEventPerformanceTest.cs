@@ -31,7 +31,7 @@ namespace NewRemotingUnitTest
 			}
 
 			Console.WriteLine("WeakEvent: {0:#,0} invocations took {1} ms", INVOCATIONCOUNT, sw.ElapsedMilliseconds);
-			Assert.AreEqual(INVOCATIONCOUNT, _counter);
+			Assert.That(_counter, Is.EqualTo(INVOCATIONCOUNT));
 
 			_counter = 0;
 			eventSource = new EventSource();
@@ -43,7 +43,7 @@ namespace NewRemotingUnitTest
 			}
 
 			Console.WriteLine("Normal event: {0:#,0} invocations took {1} ms", INVOCATIONCOUNT, sw.ElapsedMilliseconds);
-			Assert.AreEqual(INVOCATIONCOUNT, _counter);
+			Assert.That(_counter, Is.EqualTo(INVOCATIONCOUNT));
 
 			_counter = 0;
 			eventSource = new EventSource();
@@ -55,7 +55,7 @@ namespace NewRemotingUnitTest
 			}
 
 			Console.WriteLine("SafeActionInvoker: {0:#,0} invocations took {1} ms", INVOCATIONCOUNT, sw.ElapsedMilliseconds);
-			Assert.AreEqual(INVOCATIONCOUNT, _counter);
+			Assert.That(_counter, Is.EqualTo(INVOCATIONCOUNT));
 
 		}
 
@@ -78,7 +78,7 @@ namespace NewRemotingUnitTest
 				sw = Stopwatch.StartNew();
 				eventSource.FireWeakNoArgEvent();
 				Console.WriteLine("WeakEvent: 1 invocation with {0:#,0} subscribers took {1} ms", SUBSCRIBERCOUNT, sw.ElapsedMilliseconds);
-				Assert.AreEqual(SUBSCRIBERCOUNT, _counter);
+				Assert.That(_counter, Is.EqualTo(SUBSCRIBERCOUNT));
 			}
 
 			Console.WriteLine("---------------");
@@ -97,7 +97,7 @@ namespace NewRemotingUnitTest
 				sw = Stopwatch.StartNew();
 				eventSource.FireNormalNoArgEvent();
 				Console.WriteLine("Normal event: 1 invocation with {0:#,0} subscribers took {1} ms", SUBSCRIBERCOUNT, sw.ElapsedMilliseconds);
-				Assert.AreEqual(SUBSCRIBERCOUNT, _counter);
+				Assert.That(_counter, Is.EqualTo(SUBSCRIBERCOUNT));
 			}
 
 			Console.WriteLine("---------------");
@@ -116,7 +116,7 @@ namespace NewRemotingUnitTest
 				sw = Stopwatch.StartNew();
 				eventSource.FireNormalEventWithActionInvoker();
 				Console.WriteLine("SafeActionInvoker: 1 invocation with {0:#,0} subscribers took {1} ms", SUBSCRIBERCOUNT, sw.ElapsedMilliseconds);
-				Assert.AreEqual(SUBSCRIBERCOUNT, _counter);
+				Assert.That(_counter, Is.EqualTo(SUBSCRIBERCOUNT));
 			}
 
 			Console.WriteLine("---------------");

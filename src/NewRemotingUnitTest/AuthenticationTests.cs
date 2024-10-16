@@ -39,8 +39,8 @@ namespace NewRemotingUnitTest
 
 			using (var serverProcess = Process.Start(psi))
 			{
-				Assert.IsNotNull(serverProcess);
-				Assert.False(string.IsNullOrEmpty(_helper.CertificateFileName));
+				Assert.That(serverProcess, Is.Not.Null);
+				Assert.That(string.IsNullOrEmpty(_helper.CertificateFileName), Is.False);
 				using (var client = new Client("localhost", Client.DefaultNetworkPort, new AuthenticationInformation(_helper.CertificateFileName, _helper.CertificatePassword), new ConnectionSettings()))
 				{
 					Assert.DoesNotThrow(() => client.Start());
@@ -62,8 +62,8 @@ namespace NewRemotingUnitTest
 
 			using (var serverProcess = Process.Start(psi))
 			{
-				Assert.IsNotNull(serverProcess);
-				Assert.AreEqual(false, string.IsNullOrEmpty(_helper.CertificateFileName));
+				Assert.That(serverProcess, Is.Not.Null);
+				Assert.That(string.IsNullOrEmpty(_helper.CertificateFileName), Is.False);
 				var badPassword = new AuthenticationInformation(_helper.CertificateFileName, "wrongpassword");
 
 				Assert.Catch<CryptographicException>(() => new Client("localhost", Client.DefaultNetworkPort, badPassword, new ConnectionSettings()), "The specified network password is not correct");
@@ -81,8 +81,8 @@ namespace NewRemotingUnitTest
 
 			using (var serverProcess = Process.Start(psi))
 			{
-				Assert.IsNotNull(serverProcess);
-				Assert.False(string.IsNullOrEmpty(_helper.CertificateFileName));
+				Assert.That(serverProcess, Is.Not.Null);
+				Assert.That(string.IsNullOrEmpty(_helper.CertificateFileName), Is.False);
 				Client client = new Client("localhost", Client.DefaultNetworkPort, new AuthenticationInformation(_helper.CertificateFileName, _helper.CertificatePassword), new ConnectionSettings());
 				client.Dispose();
 
@@ -101,9 +101,9 @@ namespace NewRemotingUnitTest
 
 			using (var serverProcess = Process.Start(psi))
 			{
-				Assert.IsNotNull(serverProcess);
-				Assert.IsNotNull(configAndAuthenticationClient.Item2);
-				Assert.AreEqual(false, string.IsNullOrEmpty(configAndAuthenticationClient.Item2.CertificateFileName));
+				Assert.That(serverProcess, Is.Not.Null);
+				Assert.That(configAndAuthenticationClient.Item2, Is.Not.Null);
+				Assert.That(string.IsNullOrEmpty(configAndAuthenticationClient.Item2.CertificateFileName), Is.EqualTo(false));
 				string msg = "Unable to write data to the transport connection: An established connection was aborted by the software in your host machine..";
 				Assert.Catch<IOException>(() => new Client("localhost", Client.DefaultNetworkPort, configAndAuthenticationClient.Item2, new ConnectionSettings()), msg);
 

@@ -42,9 +42,9 @@ namespace NewRemotingUnitTest
 			object result =
 				_messageHandler.ReadArgumentFromStream(r, MethodBase.GetCurrentMethod(), null, true, null, "Blah", new ConnectionSettings());
 
-			Assert.IsNotNull(result);
+			Assert.That(result, Is.Not.Null);
 			Int32 casted = (Int32)result;
-			Assert.AreEqual(10, casted);
+			Assert.That(casted, Is.EqualTo(10));
 		}
 
 		[Test]
@@ -59,8 +59,8 @@ namespace NewRemotingUnitTest
 			object result =
 				_messageHandler.ReadArgumentFromStream(r, MethodBase.GetCurrentMethod(), null, true, null, "Blah", new ConnectionSettings());
 
-			Assert.IsNotNull(result);
-			Assert.AreEqual(test, result);
+			Assert.That(result, Is.Not.Null);
+			Assert.That(result, Is.EqualTo(test));
 		}
 
 		[Test]
@@ -77,9 +77,9 @@ namespace NewRemotingUnitTest
 			var r = new BinaryReader(ms, MessageHandler.DefaultStringEncoding);
 			SerializableClassWithMarshallableMembers result = (SerializableClassWithMarshallableMembers)_messageHandler.ReadArgumentFromStream(r, MethodBase.GetCurrentMethod(), null, true, null, "Blah", new ConnectionSettings());
 			int x = (int)_messageHandler.ReadArgumentFromStream(r, MethodBase.GetCurrentMethod(), null, true, null, "Blah", new ConnectionSettings());
-			Assert.IsNotNull(result);
-			Assert.AreEqual(test.Idx, result.Idx);
-			Assert.AreEqual(99, x); // to verify the stream is still in sync
+			Assert.That(result, Is.Not.Null);
+			Assert.That(result.Idx, Is.EqualTo(test.Idx));
+			Assert.That(x, Is.EqualTo(99)); // to verify the stream is still in sync
 		}
 	}
 }

@@ -51,7 +51,7 @@ namespace NewRemotingUnitTest
 			AuthenticationInformation authenticationInfo = _helper == null ? null : new AuthenticationInformation(_helper.CertificateFileName, _helper.CertificatePassword);
 
 			_serverProcess = Process.Start(psi);
-			Assert.IsNotNull(_serverProcess);
+			Assert.That(_serverProcess, Is.Not.Null);
 
 			// Port is currently hardcoded
 			_client = new Client("localhost", Client.DefaultNetworkPort, authenticationInfo, new ConnectionSettings()
@@ -87,6 +87,7 @@ namespace NewRemotingUnitTest
 			{
 				Assert.That(_serverProcess.WaitForExit(5000));
 				_serverProcess.Kill();
+				_serverProcess.Dispose();
 				_serverProcess = null;
 			}
 		}
@@ -96,7 +97,7 @@ namespace NewRemotingUnitTest
 		{
 			var instance = new MarshallableClass();
 			// There have been reports that this returns false positives
-			Assert.False(Client.IsRemoteProxy(instance));
+			Assert.That(!Client.IsRemoteProxy(instance));
 		}
 
 		[Test]
@@ -104,7 +105,7 @@ namespace NewRemotingUnitTest
 		{
 			CreateClientServer();
 			var instance = CreateRemoteInstance();
-			Assert.IsNotNull(instance);
+			Assert.That(instance, Is.Not.Null);
 			Assert.That(Client.IsRemoteProxy(instance));
 		}
 
@@ -114,7 +115,7 @@ namespace NewRemotingUnitTest
 			CreateClientServer();
 			var instance = CreateRemoteInstance();
 			int remotePid = instance.GetCurrentProcessId();
-			Assert.AreNotEqual(remotePid, Environment.ProcessId);
+			Assert.That(Environment.ProcessId, Is.Not.EqualTo(remotePid));
 		}
 
 		[Test]
@@ -123,7 +124,7 @@ namespace NewRemotingUnitTest
 			CreateClientServer();
 			var instance1 = CreateRemoteInstance();
 			var instance2 = CreateRemoteInstance();
-			Assert.AreNotEqual(instance1.Name, instance2.Name);
+			Assert.That(instance2.Name, Is.Not.EqualTo(instance1.Name));
 		}
 
 		[Test]
@@ -133,7 +134,7 @@ namespace NewRemotingUnitTest
 			var instance1 = CreateRemoteInstance();
 			string a = instance1.Name;
 			string b = instance1.Name;
-			Assert.AreEqual(a, b);
+			Assert.That(b, Is.EqualTo(a));
 		}
 
 		[Test]
@@ -141,7 +142,7 @@ namespace NewRemotingUnitTest
 		{
 			CreateClientServer();
 			var instance = _client.CreateRemoteInstance<MarshallableClass>("MyInstance");
-			Assert.AreEqual("MyInstance", instance.Name);
+			Assert.That(instance.Name, Is.EqualTo("MyInstance"));
 		}
 
 		[Test]
@@ -149,7 +150,7 @@ namespace NewRemotingUnitTest
 		{
 			CreateClientServer();
 			var instance = CreateRemoteInstance();
-			Assert.AreEqual("System.String", instance.GetTypeName(typeof(System.String)));
+			Assert.That(instance.GetTypeName(typeof(System.String)), Is.EqualTo("System.String"));
 		}
 
 		[Test]
@@ -166,7 +167,7 @@ namespace NewRemotingUnitTest
 			CreateClientServer();
 			var server = CreateRemoteInstance();
 			var client = new MarshallableClass();
-			Assert.AreNotEqual(server.GetCurrentProcessId(), client.GetCurrentProcessId());
+			Assert.That(client.GetCurrentProcessId(), Is.Not.EqualTo(server.GetCurrentProcessId()));
 		}
 
 		[Test]
@@ -176,7 +177,7 @@ namespace NewRemotingUnitTest
 			var server = CreateRemoteInstance();
 			int aValue = 4;
 			server.UpdateArgument(ref aValue);
-			Assert.AreEqual(6, aValue);
+			Assert.That(aValue, Is.EqualTo(6));
 		}
 
 		[Test]
@@ -187,11 +188,11 @@ namespace NewRemotingUnitTest
 			// Tests whether the return channel works, by providing an instance of a class to the server where
 			// the actual object lives on the client.
 			var cbi = new CallbackImpl();
-			Assert.False(cbi.HasBeenCalled);
+			Assert.That(!cbi.HasBeenCalled);
 			server.RegisterCallback(cbi);
 			server.DoCallback();
 			server.RegisterCallback(null);
-			Assert.True(cbi.HasBeenCalled);
+			Assert.That(cbi.HasBeenCalled);
 		}
 
 		[Test]
@@ -220,7 +221,7 @@ namespace NewRemotingUnitTest
 			}
 
 			Assert.That(ticks > 0);
-			Assert.False(string.IsNullOrWhiteSpace(_dataReceived));
+			Assert.That(!string.IsNullOrWhiteSpace(_dataReceived));
 			objectWithEvent.StopTiming();
 			objectWithEvent.TimeChanged -= ObjectWithEventOnTimeChanged;
 		}
@@ -244,7 +245,7 @@ namespace NewRemotingUnitTest
 			}
 
 			Thread.Sleep(100);
-			Assert.False(string.IsNullOrWhiteSpace(_dataReceived));
+			Assert.That(!string.IsNullOrWhiteSpace(_dataReceived));
 			objectWithEvent.StopTiming();
 			objectWithEvent.TimeChanged -= ObjectWithEventOnTimeChanged;
 		}
@@ -288,11 +289,11 @@ namespace NewRemotingUnitTest
 			server.RegisterEventOnCallback(cb);
 			cb.InvokeCallback("Test String");
 
-			Assert.AreEqual("Test String", server.DeregisterEvent());
+			Assert.That(server.DeregisterEvent(), Is.EqualTo("Test String"));
 			cb.InvokeCallback("Nothing happens now");
-			Assert.AreEqual("Test String", server.DeregisterEvent());
+			Assert.That(server.DeregisterEvent(), Is.EqualTo("Test String"));
 			server.RegisterEventOnCallback(null);
-			Assert.AreEqual("Test String", server.DeregisterEvent());
+			Assert.That(server.DeregisterEvent(), Is.EqualTo("Test String"));
 
 			GC.Collect();
 			GC.WaitForPendingFinalizers();
@@ -325,7 +326,7 @@ namespace NewRemotingUnitTest
 			// This calls the server, who calls back into the client. So we get something that the client generated
 			string roundTrippedAnswer = service.DoSomething();
 
-			Assert.AreEqual("Wrapped by Server: ClientUnderTest", roundTrippedAnswer);
+			Assert.That(roundTrippedAnswer, Is.EqualTo("Wrapped by Server: ClientUnderTest"));
 		}
 
 		[Test]
@@ -339,19 +340,19 @@ namespace NewRemotingUnitTest
 
 			int reply = server.UseMixedArgument(sc);
 
-			Assert.AreEqual(10, reply);
+			Assert.That(reply, Is.EqualTo(10));
 
 			reply = sc.CallbackViaComponent();
 
-			Assert.AreEqual(10, reply);
+			Assert.That(reply, Is.EqualTo(10));
 
 			reference.Data = 20;
 			reply = sc.CallbackViaComponent();
-			Assert.AreEqual(20, reply);
+			Assert.That(reply, Is.EqualTo(20));
 
 			var sc2 = sc.ReturnSelfToCaller();
 
-			Assert.True(ReferenceEquals(sc, sc2));
+			Assert.That(ReferenceEquals(sc, sc2));
 		}
 
 		/// <summary>
@@ -376,7 +377,7 @@ namespace NewRemotingUnitTest
 			Type t = assembly.GetType("System.Management.ManagementObjectSearcher", true);
 			var instance = Activator.CreateInstance(t, "SELECT * FROM Win32_BIOS");
 
-			Assert.IsNotNull(instance);
+			Assert.That(instance, Is.Not.Null);
 			((IDisposable)instance).Dispose();
 		}
 
@@ -397,7 +398,7 @@ namespace NewRemotingUnitTest
 			var c = CreateRemoteInstance();
 			var list = c.GetSomeComponents();
 			Assert.That(list is List<ReferencedComponent>);
-			Assert.AreEqual(2, list.Count);
+			Assert.That(list.Count, Is.EqualTo(2));
 			Assert.That(list[0].ComponentName == list[1].ComponentName);
 		}
 
@@ -414,7 +415,7 @@ namespace NewRemotingUnitTest
 			}
 			catch (DivideByZeroException x)
 			{
-				Assert.IsNotNull(x);
+				Assert.That(x, Is.Not.Null);
 				Assert.That(x.StackTrace.Contains("DoIntegerDivide")); // The private method on the remote side that actually throws
 				Console.WriteLine(x);
 			}
@@ -435,8 +436,8 @@ namespace NewRemotingUnitTest
 			}
 			catch (ArgumentOutOfRangeException x)
 			{
-				Assert.IsNotNull(x);
-				Assert.IsNotNull(x.InnerException);
+				Assert.That(x, Is.Not.Null);
+				Assert.That(x.InnerException, Is.Not.Null);
 			}
 
 			Assert.That(didThrow);
@@ -454,12 +455,12 @@ namespace NewRemotingUnitTest
 			}
 			catch (AggregateException x)
 			{
-				Assert.IsNotNull(x);
-				Assert.IsNotNull(x.InnerException);
-				Assert.AreEqual(1, x.InnerExceptions.Count);
+				Assert.That(x, Is.Not.Null);
+				Assert.That(x.InnerException, Is.Not.Null);
+				Assert.That(x.InnerExceptions.Count, Is.EqualTo(1));
 				Assert.That(x.InnerExceptions[0] is AggregateException);
 				var aggregates = x.InnerExceptions[0] as AggregateException;
-				Assert.AreEqual(2, aggregates.InnerExceptions.Count);
+				Assert.That(aggregates.InnerExceptions.Count, Is.EqualTo(2));
 			}
 		}
 
@@ -485,10 +486,10 @@ namespace NewRemotingUnitTest
 			CreateClientServer();
 			var cls = CreateRemoteInstance();
 			IMyDto returned = cls.GetDto("Test");
-			Assert.NotNull(returned);
-			Assert.IsInstanceOf<SerializableType>(returned);
-			Assert.AreEqual("Test", returned.Name);
-			Assert.AreEqual(4, returned.Id);
+			Assert.That(returned, Is.Not.Null);
+			Assert.That(returned, Is.InstanceOf<SerializableType>());
+			Assert.That(returned.Name, Is.EqualTo("Test"));
+			Assert.That(returned.Id, Is.EqualTo(4));
 		}
 
 		[Test]
@@ -508,7 +509,7 @@ namespace NewRemotingUnitTest
 
 			var firstInstance = _client.CreateRemoteInstance<MarshallableClass>();
 			var secondInstance = client2.CreateRemoteInstance<MarshallableClass>();
-			Assert.AreNotEqual(firstInstance, secondInstance);
+			Assert.That(secondInstance, Is.Not.EqualTo(firstInstance));
 
 			// Test that the callback ends on the correct client.
 			var cb1 = new CallbackImpl();
@@ -517,7 +518,7 @@ namespace NewRemotingUnitTest
 			secondInstance.RegisterCallback(cb2);
 			firstInstance.DoCallback();
 			Assert.That(cb1.HasBeenCalled);
-			Assert.False(cb2.HasBeenCalled);
+			Assert.That(!cb2.HasBeenCalled);
 
 			client2.Disconnect();
 			client2.Dispose();
@@ -535,23 +536,23 @@ namespace NewRemotingUnitTest
 			_dataReceived = null;
 			instance.DoCallbackOnEvent("Test string");
 
-			Assert.IsNull(_dataReceived);
+			Assert.That(_dataReceived, Is.Null);
 			instance.AnEvent2 += CallbackMethod;
 			instance.DoCallbackOnEvent("Another test string");
-			Assert.AreEqual("Another test string", _dataReceived);
+			Assert.That(_dataReceived, Is.EqualTo("Another test string"));
 			_dataReceived = null;
 			instance.AnEvent2 -= CallbackMethod;
 			instance.DoCallbackOnEvent("A final test string");
-			Assert.IsNull(_dataReceived);
+			Assert.That(_dataReceived, Is.Null);
 
 			_callback0Triggered = false;
 			instance.AnEvent0 += CallbackMethod0;
 			instance.DoCallbackOnEvent(string.Empty);
-			Assert.IsTrue(_callback0Triggered);
+			Assert.That(_callback0Triggered);
 			_callback0Triggered = false;
 			instance.AnEvent0 -= CallbackMethod0;
 			instance.DoCallbackOnEvent(string.Empty);
-			Assert.IsFalse(_callback0Triggered);
+			Assert.That(_callback0Triggered, Is.False);
 
 			Assert.Throws<InvalidRemotingOperationException>(() => instance.AnEvent5 += CallbackMethod5);
 		}
@@ -575,13 +576,13 @@ namespace NewRemotingUnitTest
 			_currentProgress2 = 0;
 			instance.RegisterEvent(ProgressFeedback);
 			instance.SetProgress(5);
-			Assert.AreEqual(5, _currentProgress);
+			Assert.That(_currentProgress, Is.EqualTo(5));
 
 			// Test that replacing the progress feedback works
 			instance.RegisterEvent(ProgressFeedback2);
 			instance.SetProgress(50);
-			Assert.AreEqual(5, _currentProgress);
-			Assert.AreEqual(50, _currentProgress2);
+			Assert.That(_currentProgress, Is.EqualTo(5));
+			Assert.That(_currentProgress2, Is.EqualTo(50));
 		}
 
 		[Test]
@@ -611,15 +612,15 @@ namespace NewRemotingUnitTest
 			_dataReceived = null;
 			instance.DoCallbackOnEvent("Initial test string");
 
-			Assert.IsNull(_dataReceived);
+			Assert.That(_dataReceived, Is.Null);
 			instance.AnEvent2 += CallbackMethod4;
 			instance2.AnEvent2 += CallbackMethod4;
 			_dataReceived = null;
 			instance.AnEvent2 -= CallbackMethod4;
 			instance.DoCallbackOnEvent("More testing");
-			Assert.IsNull(_dataReceived);
+			Assert.That(_dataReceived, Is.Null);
 			instance2.DoCallbackOnEvent("And yet another test");
-			Assert.IsNotNull(_dataReceived);
+			Assert.That(_dataReceived, Is.Not.Null);
 		}
 
 		[Test]
@@ -630,20 +631,20 @@ namespace NewRemotingUnitTest
 			_dataReceived = null;
 			instance.DoCallbackOnEvent("Initial test string");
 
-			Assert.IsNull(_dataReceived);
+			Assert.That(_dataReceived, Is.Null);
 			instance.AnEvent2 += CallbackMethod4;
 			instance.AnEvent2 += CallbackMethod2a;
 			_dataReceived = null;
 			_dataReceived2 = null;
 			instance.DoCallbackOnEvent("Some test string");
-			Assert.IsNotNull(_dataReceived);
-			Assert.IsNotNull(_dataReceived2);
+			Assert.That(_dataReceived, Is.Not.Null);
+			Assert.That(_dataReceived2, Is.Not.Null);
 			_dataReceived = null;
 			_dataReceived2 = null;
 			instance.AnEvent2 -= CallbackMethod4;
 			instance.DoCallbackOnEvent("Simple test string");
-			Assert.IsNull(_dataReceived);
-			Assert.IsNotNull(_dataReceived2);
+			Assert.That(_dataReceived, Is.Null);
+			Assert.That(_dataReceived2, Is.Not.Null);
 			instance.AnEvent2 -= CallbackMethod2a;
 		}
 
@@ -672,12 +673,12 @@ namespace NewRemotingUnitTest
 			instance.AnEvent2 += sink.RegisterThis;
 
 			instance.DoCallbackOnEvent("Test");
-			Assert.AreEqual("Test from instance0", sink.Data);
+			Assert.That(sink.Data, Is.EqualTo("Test from instance0"));
 
 			sink.Data = null;
 			instance.AnEvent2 -= sink.RegisterThis;
 			instance.DoCallbackOnEvent("No test");
-			Assert.IsNull(sink.Data);
+			Assert.That(sink.Data, Is.Null);
 		}
 
 		[Test]
@@ -694,14 +695,14 @@ namespace NewRemotingUnitTest
 			instance.AnEvent2 += anotherSink.RegisterThis;
 
 			instance.DoCallbackOnEvent("Test");
-			Assert.AreEqual("Test from instance0", sink.Data);
-			Assert.AreEqual("Test from instance0", anotherSink.Data);
+			Assert.That(sink.Data, Is.EqualTo("Test from instance0"));
+			Assert.That(anotherSink.Data, Is.EqualTo("Test from instance0"));
 
 			sink.Data = null;
 			instance.AnEvent2 -= sink.RegisterThis;
 			instance.DoCallbackOnEvent("Test2");
-			Assert.IsNull(sink.Data);
-			Assert.AreEqual("Test2 from instance0", anotherSink.Data);
+			Assert.That(sink.Data, Is.Null);
+			Assert.That(anotherSink.Data, Is.EqualTo("Test2 from instance0"));
 		}
 
 		[Test]
@@ -714,17 +715,17 @@ namespace NewRemotingUnitTest
 			_dataReceived = null;
 			instance.DoCallbackOnEvent("Test string");
 
-			Assert.IsNull(_dataReceived);
+			Assert.That(_dataReceived, Is.Null);
 			instance.AnEvent2 += CallbackMethod;
 			instance.DoCallbackOnEvent("Another test string");
-			Assert.AreEqual("Another test string", _dataReceived);
+			Assert.That(_dataReceived, Is.EqualTo("Another test string"));
 			_dataReceived = null;
 			instance.AnEvent2 -= CallbackMethod;
 			instance.DoCallbackOnEvent("A third test string");
-			Assert.IsNull(_dataReceived);
+			Assert.That(_dataReceived, Is.Null);
 			instance.AnEvent2 -= CallbackMethod;
 			instance.DoCallbackOnEvent("Test string 4");
-			Assert.IsNull(_dataReceived);
+			Assert.That(_dataReceived, Is.Null);
 		}
 
 		/// <summary>
@@ -737,17 +738,17 @@ namespace NewRemotingUnitTest
 
 			_dataReceived = null;
 			instance.DoCallbackOnEvent("Test string");
-			Assert.IsNull(_dataReceived);
+			Assert.That(_dataReceived, Is.Null);
 			instance.AnEvent2 += CallbackMethod;
 			instance.DoCallbackOnEvent("Another test string");
-			Assert.AreEqual("Another test string", _dataReceived);
+			Assert.That(_dataReceived, Is.EqualTo("Another test string"));
 			_dataReceived = null;
 			instance.AnEvent2 -= CallbackMethod;
 			instance.DoCallbackOnEvent("A third test string");
-			Assert.IsNull(_dataReceived);
+			Assert.That(_dataReceived, Is.Null);
 			instance.AnEvent2 -= CallbackMethod;
 			instance.DoCallbackOnEvent("Test string 4");
-			Assert.IsNull(_dataReceived);
+			Assert.That(_dataReceived, Is.Null);
 		}
 
 		[Test]
@@ -760,7 +761,7 @@ namespace NewRemotingUnitTest
 			ms.Write(data);
 			var server = CreateRemoteInstance();
 			Stopwatch sw = Stopwatch.StartNew();
-			Assert.True(server.StreamDataContains(ms, 2));
+			Assert.That(server.StreamDataContains(ms, 2));
 			Debug.WriteLine($"Stream of size {ms.Length} took {sw.Elapsed} to send");
 		}
 
@@ -772,7 +773,7 @@ namespace NewRemotingUnitTest
 			Stream s = server.GetPooledStream();
 			Assert.That(s.Length == 202);
 			byte b = (byte)s.ReadByte();
-			Assert.AreEqual(0xfe, b);
+			Assert.That(b, Is.EqualTo(0xfe));
 			Assert.DoesNotThrow(() => server.CreateCalc()); // Just to make sure the stream is still in sync
 		}
 
@@ -783,7 +784,7 @@ namespace NewRemotingUnitTest
 			var server = CreateRemoteInstance();
 			string fileToOpen = Assembly.GetExecutingAssembly().Location;
 			using FileStream fs = new FileStream(fileToOpen, FileMode.Open, FileAccess.Read);
-			Assert.True(server.CheckStreamEqualToFile(fileToOpen, fs.Length, fs));
+			Assert.That(server.CheckStreamEqualToFile(fileToOpen, fs.Length, fs));
 		}
 
 		[Test]
@@ -793,12 +794,12 @@ namespace NewRemotingUnitTest
 			var server = CreateRemoteInstance();
 			string fileToOpen = Assembly.GetExecutingAssembly().Location;
 			using var stream = server.GetFileStream(fileToOpen);
-			Assert.NotNull(stream);
-			Assert.True(stream is FileStream);
+			Assert.That(stream, Is.Not.Null);
+			Assert.That(stream is FileStream);
 			FileStream fs = (FileStream)stream;
-			Assert.True(fs.Length > 0);
-			Assert.IsNotNull(fs.Name);
-			Assert.AreEqual('M', fs.ReadByte()); // This is a dll file. It starts with the letters "MZ".
+			Assert.That(fs.Length > 0);
+			Assert.That(fs.Name, Is.Not.Null);
+			Assert.That(fs.ReadByte(), Is.EqualTo('M')); // This is a dll file. It starts with the letters "MZ".
 			server.CloseStream(stream);
 			fs.Dispose();
 		}
@@ -811,7 +812,7 @@ namespace NewRemotingUnitTest
 			var list = new List<int>();
 			list.Add(1);
 			list.Add(2);
-			Assert.AreEqual(2, server.ListCount(list));
+			Assert.That(server.ListCount(list), Is.EqualTo(2));
 		}
 
 		[Test]
@@ -820,21 +821,21 @@ namespace NewRemotingUnitTest
 			CreateClientServer();
 			var server = CreateRemoteInstance();
 			var component = server.GetComponent();
-			Assert.NotNull(component);
+			Assert.That(component, Is.Not.Null);
 			component = null;
 			GC.Collect();
 			GC.WaitForPendingFinalizers();
 			_client.ForceGc();
 			// This may just recreate a new remote reference, so this test is not very expressive.
 			// But we can't keep a reference to the object to check whether it is properly GC'd.
-			Assert.NotNull(server.GetComponent());
+			Assert.That(server.GetComponent(), Is.Not.Null);
 		}
 
 		[Test]
 		public void VerifyMatchingServer()
 		{
 			CreateClientServer();
-			Assert.IsNull(_client.VerifyMatchingServer());
+			Assert.That(_client.VerifyMatchingServer(), Is.Null);
 		}
 
 		public void EventHandling()
@@ -866,9 +867,9 @@ namespace NewRemotingUnitTest
 				if (x != 0) // Not on the primary thread
 				{
 					var calc = server.DetermineCalc();
-					Assert.NotNull(calc);
+					Assert.That(calc, Is.Not.Null);
 					double result = calc.Add(x, x);
-					Assert.AreEqual(2 * x, result, 1E-10);
+					Assert.That(result, Is.EqualTo(2 * x).Within(1E-10));
 
 					_client.ForceGc();
 					calc.DooFoo(localCalc);
@@ -888,7 +889,7 @@ namespace NewRemotingUnitTest
 			IDisposable disp = (IDisposable)interf;
 			disp.Dispose();
 
-			Assert.False(string.IsNullOrWhiteSpace(data));
+			Assert.That(string.IsNullOrWhiteSpace(data), Is.False);
 		}
 
 		[Test]
@@ -896,8 +897,8 @@ namespace NewRemotingUnitTest
 		{
 			CreateClientServer();
 			var server = _client.CreateRemoteInstance<MarshallableClass>();
-			Assert.True(server.TakeSomeArguments(10, 2000, 2000, 10.0));
-			Assert.True(server.TakeSomeMoreArguments(10, 2000, 2000, 10.0f));
+			Assert.That(server.TakeSomeArguments(10, 2000, 2000, 10.0), Is.True);
+			Assert.That(server.TakeSomeMoreArguments(10, 2000, 2000, 10.0f), Is.True);
 		}
 
 		[Test]
@@ -906,9 +907,9 @@ namespace NewRemotingUnitTest
 			CreateClientServer();
 			var server = _client.CreateRemoteInstance<MarshallableClass>();
 			var result = server.ProcessListOfTypes();
-			Assert.IsEmpty(result);
+			Assert.That(result, Is.Empty);
 			result = server.ProcessListOfTypes(typeof(string), typeof(Int32), typeof(bool), null);
-			Assert.False(string.IsNullOrWhiteSpace(result));
+			Assert.That(string.IsNullOrWhiteSpace(result), Is.False);
 		}
 
 		[Test]
@@ -920,7 +921,7 @@ namespace NewRemotingUnitTest
 			sent.Time = DateTime.Now;
 			sent.Value = 100;
 			var result = server.SomeStructOperation(sent);
-			Assert.AreEqual(10, result.Value);
+			Assert.That(result.Value, Is.EqualTo(10));
 
 			result = server.SomeStructOperation(new CustomSerializableObject()); // Repeat
 		}
@@ -931,8 +932,8 @@ namespace NewRemotingUnitTest
 			CreateClientServer();
 			var server = _client.CreateRemoteInstance<MarshallableClass>();
 			var result = server.GetStruct();
-			Assert.AreEqual(10, result.Data1);
-			Assert.AreEqual(24.22, result.Data2, 1E-10);
+			Assert.That(result.Data1, Is.EqualTo(10));
+			Assert.That(result.Data2, Is.EqualTo(24.22).Within(1E-10));
 		}
 
 		[Test]
@@ -962,8 +963,8 @@ namespace NewRemotingUnitTest
 			for (int k = 0; k < blocks; k++)
 			{
 				int dataRead = stream.Read(buffer2, 0, buffer.Length);
-				Assert.AreEqual(buffer.Length, dataRead);
-				Assert.AreEqual(buffer[k], buffer2[k]);
+				Assert.That(dataRead, Is.EqualTo(buffer.Length));
+				Assert.That(buffer2[k], Is.EqualTo(buffer[k]));
 			}
 
 			stream.Close();
@@ -976,9 +977,9 @@ namespace NewRemotingUnitTest
 			CreateClientServer();
 			var server = CreateRemoteInstance();
 			var obj = server.GetSerializedObject();
-			Assert.IsNotNull(obj);
-			Assert.AreEqual(10, obj.Length);
-			Assert.AreEqual(5, obj[1]);
+			Assert.That(obj, Is.Not.Null);
+			Assert.That(obj.Length, Is.EqualTo(10));
+			Assert.That(obj[1], Is.EqualTo(5));
 		}
 
 		[Test]
@@ -987,11 +988,10 @@ namespace NewRemotingUnitTest
 			CreateClientServer();
 			var server = CreateRemoteInstance();
 			var obj = server.GetSerializedObjects();
-			Assert.IsNotNull(obj);
-			Assert.IsNotNull(obj.A);
-			Assert.AreEqual(5, obj.A.Length);
-			Assert.AreEqual(6, obj.A[0]);
-			Assert.AreNotEqual(6, obj.B[0]);
+			Assert.That(obj.A, Is.Not.Null);
+			Assert.That(obj.A.Length, Is.EqualTo(5));
+			Assert.That(obj.A[0], Is.EqualTo(6));
+			Assert.That(obj.B[0], Is.Not.EqualTo(6));
 		}
 
 		[Test]
@@ -1000,10 +1000,10 @@ namespace NewRemotingUnitTest
 			CreateClientServer();
 			var server = CreateRemoteInstance();
 			Assert.That(server.GetMyImportantList(out var data));
-			CollectionAssert.IsNotEmpty(data);
-			Assert.AreEqual(1, data[0].Value);
-			Assert.AreEqual(2, data[1].Value);
-			Assert.AreNotEqual(0, data[1].AnotherValue);
+			Assert.That(data, Is.Not.Empty);
+			Assert.That(data[0].Value, Is.EqualTo(1));
+			Assert.That(data[1].Value, Is.EqualTo(2));
+			Assert.That(data[1].AnotherValue, Is.Not.EqualTo(0));
 		}
 
 		[Test]
@@ -1012,7 +1012,7 @@ namespace NewRemotingUnitTest
 			CreateClientServer(true);
 			var server = CreateRemoteInstance();
 			var interf = server.GetInterface<IDisposable>();
-			Assert.IsNotNull(interf);
+			Assert.That(interf, Is.Not.Null);
 		}
 
 		private void ExecuteCallbacks(IMarshallInterface instance, int overallIterations, int iterations,
@@ -1026,7 +1026,7 @@ namespace NewRemotingUnitTest
 				{
 					int cnt = ++expectedCounter;
 					instance.DoCallbackOnEvent("Utest" + cnt);
-					Assert.AreEqual("Utest" + cnt, _dataReceived);
+					Assert.That(_dataReceived, Is.EqualTo("Utest" + cnt));
 				}
 
 				if (j % 2 == 0)

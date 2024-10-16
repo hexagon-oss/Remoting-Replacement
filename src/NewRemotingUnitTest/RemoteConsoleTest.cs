@@ -52,8 +52,8 @@ namespace NewRemotingUnitTest
 				x.RedirectStandardInput == false));
 			_processMock.Setup(a => a.Start()).Returns(false);
 
-			Assert.AreEqual(_processMock.Object,
-				_remoteConsole.LaunchProcess(cmdLine, interactive));
+			Assert.That(_remoteConsole.LaunchProcess(cmdLine, interactive),
+				Is.EqualTo(_processMock.Object));
 		}
 
 		[Test]
@@ -78,9 +78,9 @@ namespace NewRemotingUnitTest
 				x.Arguments.Equals(expectedArguments) && x.FileName.Equals(RemoteConsole.PAEXEC_EXECUTABLE) &&
 				x.WindowStyle == ProcessWindowStyle.Hidden &&
 				x.UseShellExecute == false));
-			Assert.AreEqual(_processMock.Object,
-				_remoteConsole.CreateProcess(cmdLine, interactive, filesListPath, workingDirectory,
-					redirectStandardOutput, redirectStandardError, redirectStandardInput));
+			Assert.That(_remoteConsole.CreateProcess(cmdLine, interactive, filesListPath, workingDirectory,
+					redirectStandardOutput, redirectStandardError, redirectStandardInput),
+				Is.EqualTo(_processMock.Object));
 		}
 
 		[Test]
@@ -97,9 +97,9 @@ namespace NewRemotingUnitTest
 				x.Arguments.Equals(expectedArguments) && x.FileName.Equals(RemoteConsole.PAEXEC_EXECUTABLE) &&
 				x.WindowStyle == ProcessWindowStyle.Hidden &&
 				x.UseShellExecute == false));
-			Assert.AreEqual(_processMock.Object,
-				_remoteConsole.CreateProcess(cmdLine, false, filesListPath, workingDirectory, false, false, false, true,
-					extraPath));
+			Assert.That(_remoteConsole.CreateProcess(cmdLine, false, filesListPath, workingDirectory, false, false, false, true,
+					extraPath),
+				Is.EqualTo(_processMock.Object));
 		}
 	}
 }

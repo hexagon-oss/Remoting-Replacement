@@ -25,7 +25,7 @@ namespace NewRemotingUnitTest
 		public void OneTimeSetUp()
 		{
 			_serverProcess = Process.Start("RemotingServer.exe");
-			Assert.IsNotNull(_serverProcess);
+			Assert.That(_serverProcess, Is.Not.Null);
 
 			// Port is currently hardcoded
 			_client = new Client("localhost", Client.DefaultNetworkPort, null, new ConnectionSettings());
@@ -47,6 +47,7 @@ namespace NewRemotingUnitTest
 				_serverProcess.WaitForExit(2000);
 				_serverProcess.Kill(); // May be necessary here
 				_serverProcess.WaitForExit();
+				_serverProcess.Dispose();
 				_serverProcess = null;
 			}
 		}
@@ -55,8 +56,7 @@ namespace NewRemotingUnitTest
 		public void TestShuttingDownServer()
 		{
 			var server = _client.RequestRemoteInstance<IRemoteServerService>();
-			Assert.NotNull(server);
-			Assert.True(server.Ping());
+			Assert.That(server.Ping());
 			server.TerminateRemoteServerService();
 			bool didThrow = false;
 			try
@@ -68,7 +68,7 @@ namespace NewRemotingUnitTest
 				didThrow = true;
 			}
 
-			Assert.True(didThrow);
+			Assert.That(didThrow);
 			didThrow = false;
 
 			try
@@ -80,7 +80,7 @@ namespace NewRemotingUnitTest
 				didThrow = true;
 			}
 
-			Assert.True(didThrow);
+			Assert.That(didThrow);
 			didThrow = false;
 			try
 			{
@@ -91,7 +91,7 @@ namespace NewRemotingUnitTest
 				didThrow = true;
 			}
 
-			Assert.True(didThrow);
+			Assert.That(didThrow);
 		}
 
 		public class TestDummy : MarshalByRefObject
