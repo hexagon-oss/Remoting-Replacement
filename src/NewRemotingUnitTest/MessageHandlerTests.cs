@@ -98,8 +98,8 @@ namespace NewRemotingUnitTest
 			OperationCanceledException c = new OperationCanceledException();
 			c.Source = "some source";
 
-			var ldue = new LidarUnitException("Exception during sky lidar unit sensor communication",
-				LidarUnitExceptionReason.SensorCommunicationException, c);
+			var ldue = new ExceptionWithCustomerProperty("Exception message",
+				SomeExceptionReason.SensorCommunicationException, c);
 
 			MemoryStream ms = new MemoryStream();
 			BinaryWriter bw = new BinaryWriter(ms);
@@ -108,14 +108,14 @@ namespace NewRemotingUnitTest
 			Handler.EncodeException(ldue, bw);
 			long encodingLength = ms.Position;
 			ms.Position = 0;
-			var decoded = MessageHandler.DecodeException(br, "Dummy", Handler) as LidarUnitException;
+			var decoded = MessageHandler.DecodeException(br, "Dummy", Handler) as ExceptionWithCustomerProperty;
 			long decodingLength = ms.Position;
 			Assert.That(decoded, Is.True);
-			Assert.That(decoded is LidarUnitException, Is.True);
+			Assert.That(decoded is ExceptionWithCustomerProperty, Is.True);
 			Assert.That(decoded.InnerException, Is.Not.Null);
 			Assert.That(encodingLength, Is.EqualTo(decodingLength));
 
-			Assert.That(decoded.Reason, Is.EqualTo(LidarUnitExceptionReason.SensorCommunicationException));
+			Assert.That(decoded.Reason, Is.EqualTo(SomeExceptionReason.SensorCommunicationException));
 			Assert.That(ldue.Message, Is.EqualTo(decoded.Message));
 			Assert.That(ldue.HResult, Is.EqualTo(decoded.HResult));
 			Assert.That(ldue.InnerException is OperationCanceledException, Is.True);
