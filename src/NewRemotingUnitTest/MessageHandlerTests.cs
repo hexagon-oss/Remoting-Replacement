@@ -1,12 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using Castle.DynamicProxy;
-using Microsoft.VisualStudio.TestPlatform.CommunicationUtilities.Interfaces;
 using NewRemoting;
 using NUnit.Framework;
 
@@ -15,29 +9,33 @@ namespace NewRemotingUnitTest
 	[TestFixture]
 	internal class MessageHandlerTests
 	{
-		public MessageHandler Handler { get; }
+		private MessageHandler Handler => _handler;
 		private DefaultProxyBuilder _builder;
 		private ProxyGenerator _proxy;
 		private InstanceManager _instanceManager;
 		private FormatterFactory _formatterFactory;
 		private ClientSideInterceptor _sideInterceptor;
+		private MessageHandler _handler;
 
-		public MessageHandlerTests()
+		[SetUp]
+		public void SetUp()
 		{
 			_builder = new DefaultProxyBuilder();
 			_proxy = new ProxyGenerator(_builder);
 			_instanceManager = new InstanceManager(_proxy, null);
 			_formatterFactory = new FormatterFactory(_instanceManager);
 
-			Handler = new MessageHandler(_instanceManager, _formatterFactory, null);
+			_handler = new MessageHandler(_instanceManager, _formatterFactory, null);
 			// A client side has only one server, so there's also only one interceptor and only one server side
 			_sideInterceptor = new ClientSideInterceptor(string.Empty, string.Empty, true, null, new MemoryStream(), Handler, null);
 			Handler.AddInterceptor(_sideInterceptor);
 		}
 
-		[SetUp]
-		public void SetUp()
+		[TearDown]
+		public void TearDown()
 		{
+			_sideInterceptor.Dispose();
+			_sideInterceptor = null;
 		}
 
 		[Test]
@@ -112,15 +110,16 @@ namespace NewRemotingUnitTest
 			ms.Position = 0;
 			var decoded = MessageHandler.DecodeException(br, "Dummy", Handler) as LidarUnitException;
 			long decodingLength = ms.Position;
-			Assert.IsNotNull(decoded);
-			Assert.True(decoded is LidarUnitException);
-			Assert.NotNull(decoded.InnerException);
-			Assert.AreEqual(encodingLength, decodingLength);
-			Assert.AreEqual(LidarUnitExceptionReason.SensorCommunicationException, decoded.Reason);
-			Assert.AreEqual(ldue.Message, decoded.Message);
-			Assert.AreEqual(ldue.HResult, decoded.HResult);
-			Assert.True(ldue.InnerException is OperationCanceledException);
-			Assert.AreEqual(((ldue.InnerException as OperationCanceledException)!).Source, c.Source);
+			Assert.That(decoded, Is.True);
+			Assert.That(decoded is LidarUnitException, Is.True);
+			Assert.That(decoded.InnerException, Is.Not.Null);
+			Assert.That(encodingLength, Is.EqualTo(decodingLength));
+
+			Assert.That(decoded.Reason, Is.EqualTo(LidarUnitExceptionReason.SensorCommunicationException));
+			Assert.That(ldue.Message, Is.EqualTo(decoded.Message));
+			Assert.That(ldue.HResult, Is.EqualTo(decoded.HResult));
+			Assert.That(ldue.InnerException is OperationCanceledException, Is.True);
+			Assert.That(((ldue.InnerException as OperationCanceledException)!).Source, Is.EqualTo(c.Source));
 		}
 	}
 }
