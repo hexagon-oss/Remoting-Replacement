@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Reflection;
+using System.Reflection.PortableExecutable;
 using System.Runtime.ExceptionServices;
 using System.Runtime.Serialization;
 using System.Text;
@@ -1206,24 +1207,24 @@ namespace NewRemoting
 
 		internal void EncodeProperties(BinaryWriter w, Type t, Exception exception)
 		{
-			var properties = t.GetProperties();
+			var properties = t.GetProperties().Where(x => x.CanWrite).ToList();
+			var count = properties.Count;
+			w.Write(count);
+
 			foreach (var property in properties)
 			{
-				if (property.CanWrite)
-				{
-					w.Write(property.Name);
-					var value = property.GetValue(exception);
+				w.Write(property.Name);
+				var value = property.GetValue(exception);
 
-					// the read counter part of WriteArgumentToStream does not handle strings
-					if (property.PropertyType == typeof(string))
-					{
-						string valueText = value as string;
-						w.Write(valueText ?? string.Empty);
-					}
-					else
-					{
-						WriteArgumentToStream(w, value, string.Empty, new ConnectionSettings());
-					}
+				// the read counter part of WriteArgumentToStream does not handle strings
+				if (property.PropertyType == typeof(string))
+				{
+					string valueText = value as string;
+					w.Write(valueText ?? string.Empty);
+				}
+				else
+				{
+					WriteArgumentToStream(w, value, string.Empty, new ConnectionSettings());
 				}
 			}
 		}
@@ -1317,17 +1318,11 @@ namespace NewRemoting
 			return (string.Empty, null);
 		}
 
-		private static Exception DecodeExceptionInternal(BinaryReader reader, string otherSideProcessId, MessageHandler handler)
+		private static List<(string Name, object Value)> DecodeProperties(int propertyCount, BinaryReader reader, string otherSideProcessId, Type exceptionType, MessageHandler handler)
 		{
-			string exceptionTypeName = reader.ReadString();
-			string remoteMessage = reader.ReadString();
-			int hresult = reader.ReadInt32();
-			string remoteStack = reader.ReadString();
-			Type exceptionType = Server.GetTypeFromAnyAssembly(exceptionTypeName);
-
-			var properties = exceptionType.GetProperties();
-			var propertyCount = properties.Count(x => x.CanWrite);
 			var props = new List<(string Name, object Value)>();
+			var properties = exceptionType.GetProperties();
+			var countFromReflection = properties.Count(x => x.CanWrite);
 
 			for (var i = 0; i < propertyCount; i++)
 			{
@@ -1341,6 +1336,24 @@ namespace NewRemoting
 						props.Add((nameValue));
 					}
 				}
+			}
+
+			return props;
+		}
+
+		private static Exception DecodeExceptionInternal(BinaryReader reader, string otherSideProcessId, MessageHandler handler)
+		{
+			string exceptionTypeName = reader.ReadString();
+			string remoteMessage = reader.ReadString();
+			int hresult = reader.ReadInt32();
+			string remoteStack = reader.ReadString();
+			Type exceptionType = Server.GetTypeFromAnyAssembly(exceptionTypeName);
+			var countProperties = reader.ReadInt32();
+			var propertiesNameValues = new List<(string Name, object Value)>();
+
+			if (countProperties != 0)
+			{
+				propertiesNameValues = DecodeProperties(countProperties, reader, otherSideProcessId, exceptionType, handler);
 			}
 
 			var ctors = exceptionType.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
@@ -1404,7 +1417,7 @@ namespace NewRemoting
 					decodedException);
 			}
 
-			foreach (var prop in props)
+			foreach (var prop in propertiesNameValues)
 			{
 				var p = decodedException.GetType().GetProperty(prop.Name);
 				if (p != null)
