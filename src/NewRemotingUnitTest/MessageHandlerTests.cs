@@ -1,6 +1,9 @@
 ﻿using System;
 using System.IO;
 using Castle.DynamicProxy;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using NewRemoting;
 using NUnit.Framework;
 
@@ -27,8 +30,9 @@ namespace NewRemotingUnitTest
 
 			_handler = new MessageHandler(_instanceManager, _formatterFactory, null);
 			// A client side has only one server, so there's also only one interceptor and only one server side
-			_sideInterceptor = new ClientSideInterceptor(string.Empty, string.Empty, true, null, new MemoryStream(), Handler, null);
+			_sideInterceptor = new ClientSideInterceptor(string.Empty, string.Empty, true, null, new MemoryStream(), Handler, Mock.Of<ILogger>());
 			Handler.AddInterceptor(_sideInterceptor);
+			_sideInterceptor.Start();
 		}
 
 		[TearDown]
@@ -108,10 +112,9 @@ namespace NewRemotingUnitTest
 			Handler.EncodeException(ldue, bw);
 			long encodingLength = ms.Position;
 			ms.Position = 0;
-			var decoded = MessageHandler.DecodeException(br, "Dummy", Handler) as ExceptionWithCustomerProperty;
+			ExceptionWithCustomerProperty decoded = MessageHandler.DecodeException(br, "Dummy", Handler) as ExceptionWithCustomerProperty;
 			long decodingLength = ms.Position;
-			Assert.That(decoded, Is.True);
-			Assert.That(decoded is ExceptionWithCustomerProperty, Is.True);
+			Assert.That(decoded, Is.Not.Null);
 			Assert.That(decoded.InnerException, Is.Not.Null);
 			Assert.That(encodingLength, Is.EqualTo(decodingLength));
 
