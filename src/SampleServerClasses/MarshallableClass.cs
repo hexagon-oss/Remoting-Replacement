@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using NewRemoting.Toolkit;
 
 namespace SampleServerClasses
@@ -396,6 +397,18 @@ namespace SampleServerClasses
 			ms.WriteByte(0xfb);
 			ms.Write(new byte[200]);
 			return ms;
+		}
+
+		public virtual List<WaitHandle> QuerySomeHandles()
+		{
+			List<WaitHandle> handles = new List<WaitHandle>();
+			for (int i = 1; i < 10; i++)
+			{
+				var c = new CancellationTokenSource(i * 100);
+				handles.Add(c.Token.WaitHandle);
+			}
+
+			return handles;
 		}
 	}
 }
