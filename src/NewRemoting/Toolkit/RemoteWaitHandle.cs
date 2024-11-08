@@ -13,12 +13,29 @@ namespace NewRemoting.Toolkit
 	/// </summary>
 	public static class RemoteWaitHandle
 	{
-		public static int WaitAny(WaitHandle[] handles, TimeSpan timeout)
+		/// <summary>
+		/// Waits until any of the WaitHandles becomes available
+		/// </summary>
+		/// <param name="handles">List of handles</param>
+		/// <param name="timeoutMs">Timeout in milliseconds</param>
+		/// <returns>The index of the handle that triggered, or <see cref="WaitHandle.WaitTimeout"/>.</returns>
+		public static int WaitAny(this IList<WaitHandle> handles, int timeoutMs)
+		{
+			return WaitAny(handles, TimeSpan.FromMilliseconds(timeoutMs));
+		}
+
+		/// <summary>
+		/// Waits until any of the WaitHandles becomes available
+		/// </summary>
+		/// <param name="handles">List of handles</param>
+		/// <param name="timeout">Timeout</param>
+		/// <returns>The index of the handle that triggered, or <see cref="WaitHandle.WaitTimeout"/>.</returns>
+		public static int WaitAny(this IList<WaitHandle> handles, TimeSpan timeout)
 		{
 			Stopwatch sw = Stopwatch.StartNew();
 			do
 			{
-				for (var index = 0; index < handles.Length; index++)
+				for (var index = 0; index < handles.Count; index++)
 				{
 					var h = handles[index];
 					if (h.WaitOne(0))
@@ -34,13 +51,30 @@ namespace NewRemoting.Toolkit
 			return WaitHandle.WaitTimeout;
 		}
 
-		public static bool WaitAll(WaitHandle[] handles, TimeSpan timeout)
+		/// <summary>
+		/// Waits until all handles are signaled
+		/// </summary>
+		/// <param name="handles">List of handles</param>
+		/// <param name="timeoutMs">Timeout in milliseconds</param>
+		/// <returns>True if all handles where signaled, false if the timeout has elapsed</returns>
+		public static bool WaitAll(this IList<WaitHandle> handles, int timeoutMs)
+		{
+			return WaitAll(handles, TimeSpan.FromMilliseconds(timeoutMs));
+		}
+
+		/// <summary>
+		/// Waits until all handles are signaled
+		/// </summary>
+		/// <param name="handles">List of handles</param>
+		/// <param name="timeout">Timeout</param>
+		/// <returns>True if all handles where signaled, false if the timeout has elapsed</returns>
+		public static bool WaitAll(this IList<WaitHandle> handles, TimeSpan timeout)
 		{
 			Stopwatch sw = Stopwatch.StartNew();
 			do
 			{
 				bool allAvailable = true;
-				for (var index = 0; index < handles.Length; index++)
+				for (var index = 0; index < handles.Count; index++)
 				{
 					var h = handles[index];
 					if (!h.WaitOne(0))
