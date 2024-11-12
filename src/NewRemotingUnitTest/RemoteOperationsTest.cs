@@ -1015,6 +1015,17 @@ namespace NewRemotingUnitTest
 			Assert.That(interf, Is.Not.Null);
 		}
 
+		[Test]
+		public void RemoteWaitAnyAndWaitAll()
+		{
+			CreateClientServer(true);
+			var server = CreateRemoteInstance();
+			var handles = server.QuerySomeHandles();
+			Assert.That(RemoteWaitHandle.WaitAll(handles.ToArray(), TimeSpan.Zero) == false);
+			Assert.That(RemoteWaitHandle.WaitAny(handles.ToArray(), TimeSpan.MaxValue) != WaitHandle.WaitTimeout);
+			Assert.That(RemoteWaitHandle.WaitAll(handles.ToArray(), TimeSpan.MaxValue));
+		}
+
 		private void ExecuteCallbacks(IMarshallInterface instance, int overallIterations, int iterations,
 			ref int expectedCounter)
 		{

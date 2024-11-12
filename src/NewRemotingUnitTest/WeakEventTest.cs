@@ -290,7 +290,7 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
-		public void WeakEventRemoteAwareRemovesSubcscribersAfterRemoteExcetpion()
+		public void WeakEventRemoteAwareRemovesSubscribersAfterRemoteException()
 		{
 			var eventSource = new EventSource();
 			var eventSink = new EventSink();
@@ -311,7 +311,7 @@ namespace NewRemotingUnitTest
 		}
 
 		[Test]
-		public void WeakEventRemoteAwareRemovesSubcscribersAfterRemoteExcetpionAsync()
+		public void WeakEventRemoteAwareRemovesSubscribersAfterRemoteExceptionAsync()
 		{
 			int count = 0;
 
