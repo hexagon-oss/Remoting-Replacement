@@ -16,7 +16,7 @@ namespace NewRemoting
 		/// <param name="instance">Returns the object instance (this is normally a real instance and not a proxy, but this is not always true
 		/// when transient servers exist)</param>
 		/// <returns>True when an object with the given id was found, false otherwise</returns>
-		bool TryGetObjectFromId(string id, [NotNullWhen(true)]out object instance);
+		bool TryGetObjectFromId(string id, out object instance);
 
 		object AddInstance(object instance, string objectId, string willBeSentTo, Type originalType, string originalTypeName, bool doThrowOnDuplicate);
 
@@ -45,7 +45,7 @@ namespace NewRemoting
 
 		string RegisterRealObjectAndGetId(object instance, string willBeSentTo);
 
-		public object CreateOrGetProxyForObjectId(bool canAttemptToInstantiate,
+		object CreateOrGetProxyForObjectId(bool canAttemptToInstantiate,
 			Type typeOfArgument, string typeName, string objectId, List<string> knownInterfaceNames);
 	}
 }

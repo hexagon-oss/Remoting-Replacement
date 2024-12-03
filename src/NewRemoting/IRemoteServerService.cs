@@ -59,7 +59,7 @@ namespace NewRemoting
 		/// Typically this is not used directly as the client shuts down first. It may be helpful to shut down
 		/// a complex system of multiple server and client instances.
 		/// </summary>
-		public void TerminateRemoteServerService();
+		void TerminateRemoteServerService();
 
 		/// <summary>
 		/// Registers the given instance as service on the server side

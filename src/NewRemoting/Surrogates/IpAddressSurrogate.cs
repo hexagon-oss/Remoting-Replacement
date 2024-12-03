@@ -26,7 +26,7 @@ namespace NewRemoting.Surrogates
 					break;
 				}
 
-				string propertyName = reader.GetString()!;
+				string propertyName = reader.GetString();
 				reader.Read();
 				if (propertyName.Equals("Address", StringComparison.Ordinal))
 				{

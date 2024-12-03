@@ -18,7 +18,7 @@ namespace NewRemoting.Surrogates
 		public override CultureInfo Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
 		{
 			string value = reader.GetString();
-			return new CultureInfo(value!);
+			return new CultureInfo(value);
 		}
 	}
 }

@@ -1,11 +1,12 @@
 ﻿using System.Diagnostics;
 
-namespace NewRemoting;
-
-internal class ProcessWrapperFactory : IProcessWrapperFactory
+namespace NewRemoting
 {
-	public IProcess CreateProcess()
+	internal class ProcessWrapperFactory : IProcessWrapperFactory
 	{
-		return new ProcessWrapper(new Process());
+		public IProcess CreateProcess()
+		{
+			return new ProcessWrapper(new Process());
+		}
 	}
 }

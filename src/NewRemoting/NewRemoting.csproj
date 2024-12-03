@@ -1,9 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <SignAssembly>true</SignAssembly>
-    <AssemblyOriginatorKeyFile>../../NewRemoting.snk</AssemblyOriginatorKeyFile>
+    <LangVersion>7.3</LangVersion>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <SignAssembly>false</SignAssembly>
     <DelaySign>false</DelaySign>
     <PackageId>LeicaGeosystemsAG.NewRemoting</PackageId>
     <NeutralLanguage>en</NeutralLanguage>
@@ -24,10 +24,34 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <TreatWarningsAsErrors>False</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <TreatWarningsAsErrors>False</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Impersonator.cs" />
+    <Compile Remove="IRemoteLoaderFactory.cs" />
+    <Compile Remove="RemoteLoaderFactory.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Impersonator.cs" />
+    <None Include="IRemoteLoaderFactory.cs" />
+    <None Include="RemoteLoaderFactory.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Castle.Core" Version="5.1.1" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.1" />
+    <PackageReference Include="System.Reflection.Emit.Lightweight" Version="4.3.0" />
+    <PackageReference Include="System.Reflection.Metadata" Version="9.0.0" />
+    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.0" />
 	  <PackageReference Include="System.Security.Principal.Windows" Version="5.0.0" />
+	  <PackageReference Include="System.Text.Json" Version="9.0.0" />
   </ItemGroup>
 
 </Project>

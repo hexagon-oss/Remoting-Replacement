@@ -41,7 +41,7 @@ namespace NewRemoting
 				throw new InvalidOperationException($"Service {instance.GetType()} must derive from MarshalByRefObject");
 			}
 
-			if (!instance.GetType().IsAssignableTo(typeOfService))
+			if (!typeOfService.IsAssignableFrom(instance.GetType()))
 			{
 				throw new InvalidOperationException($"The service of type {instance.GetType()} does not implement {typeOfService}");
 			}

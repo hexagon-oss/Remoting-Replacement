@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
-	  <SignAssembly>true</SignAssembly>
+	  <SignAssembly>False</SignAssembly>
 
 	  <AssemblyOriginatorKeyFile>../../NewRemoting.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>

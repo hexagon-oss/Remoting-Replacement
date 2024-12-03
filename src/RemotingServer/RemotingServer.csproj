@@ -3,7 +3,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
-    <SignAssembly>true</SignAssembly>
+    <SignAssembly>False</SignAssembly>
     <AssemblyOriginatorKeyFile>../../NewRemoting.snk</AssemblyOriginatorKeyFile>
     <Authors>Leica Geosystems AG</Authors>
     <Product>NewRemoting</Product>
@@ -31,6 +31,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\NewRemoting\NewRemoting.csproj" />
+    <ProjectReference Include="..\SampleServerClasses\SampleServerClasses.csproj" />
   </ItemGroup>
 
   <ItemGroup>

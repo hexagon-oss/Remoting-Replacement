@@ -17,13 +17,13 @@ namespace NewRemoting.Toolkit
 		/// Serialize to the given target.
 		/// </summary>
 		/// <param name="serializerTarget">Target object</param>
-		public void Serialize(BinaryWriter serializerTarget);
+		void Serialize(BinaryWriter serializerTarget);
 
 		/// <summary>
 		/// Deserializing operation. The constructor has probably not been called prior to this (and all fields are still in the default state)
 		/// </summary>
 		/// <param name="serializerSource">The serialization source. The object must make sure it reads exactly as many bytes as had been
 		/// written during serialization.</param>
-		public void Deserialize(BinaryReader serializerSource);
+		void Deserialize(BinaryReader serializerSource);
 	}
 }

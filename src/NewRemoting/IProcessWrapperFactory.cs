@@ -1,6 +1,7 @@
-﻿namespace NewRemoting;
-
-internal interface IProcessWrapperFactory
+﻿namespace NewRemoting
 {
-	IProcess CreateProcess();
+	internal interface IProcessWrapperFactory
+	{
+		IProcess CreateProcess();
+	}
 }

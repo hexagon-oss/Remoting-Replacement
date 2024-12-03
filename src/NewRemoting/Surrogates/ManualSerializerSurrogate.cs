@@ -22,7 +22,7 @@ namespace NewRemoting.Surrogates
 
 		public override bool CanConvert(Type typeToConvert)
 		{
-			return typeToConvert.IsAssignableTo(typeof(IManualSerialization));
+			return typeof(IManualSerialization).IsAssignableFrom(typeToConvert);
 		}
 
 		public override void Write(Utf8JsonWriter writer, object value, JsonSerializerOptions options)
@@ -45,7 +45,7 @@ namespace NewRemoting.Surrogates
 		{
 			string objectType = reader.GetString();
 			Type t = Server.GetTypeFromAnyAssembly(objectType);
-			var defaultCtor = t.GetConstructor(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, Array.Empty<Type>());
+			var defaultCtor = t.GetConstructor(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, Type.DefaultBinder, Array.Empty<Type>(), Array.Empty<ParameterModifier>());
 			if (defaultCtor == null)
 			{
 				throw new RemotingException($"No default constructor on type {typeToConvert} found");

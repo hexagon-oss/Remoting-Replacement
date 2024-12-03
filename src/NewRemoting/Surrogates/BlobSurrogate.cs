@@ -14,7 +14,7 @@ namespace NewRemoting.Surrogates
 {
 	internal abstract class BlobSurrogate<TType, TContainer> : JsonConverter<TType>, IInternalManualSerializerSurrogate
 	{
-		private readonly ConcurrentDictionary<int, List<TContainer>> _list = new();
+		private readonly ConcurrentDictionary<int, List<TContainer>> _list = new ConcurrentDictionary<int, List<TContainer>>();
 
 		public BlobSurrogate()
 		{

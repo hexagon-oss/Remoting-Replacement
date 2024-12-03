@@ -281,7 +281,7 @@ namespace NewRemoting.Toolkit
 
 			il.Emit(OpCodes.Ldloc_0); // load array on the stack
 
-			il.EmitCall(OpCodes.Call, GetType().GetMethod(nameof(RaiseInternal), BindingFlags.NonPublic | BindingFlags.Instance)!, null);
+			il.EmitCall(OpCodes.Call, GetType().GetMethod(nameof(RaiseInternal), BindingFlags.NonPublic | BindingFlags.Instance), null);
 
 			il.Emit(OpCodes.Ret);
 			return dm.CreateDelegate(delgateType, this) as T;

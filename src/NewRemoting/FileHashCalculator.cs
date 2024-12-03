@@ -22,34 +22,35 @@ namespace NewRemoting
 		/// <returns>A byte[] with the hashcode</returns>
 		public virtual byte[] CalculateFastHashFromFile(string fileName)
 		{
-			using var stream = new FileStream(fileName, FileMode.Open, FileAccess.Read);
-
-			if (stream.Length < 64 * 1024)
+			using (var stream = new FileStream(fileName, FileMode.Open, FileAccess.Read))
 			{
+				if (stream.Length < 64 * 1024)
+				{
+					return _md5.ComputeHash(stream);
+				}
+
+				FileVersionInfo info = FileVersionInfo.GetVersionInfo(fileName);
+				bool isExecutable = FileIsExecutable(stream);
+				stream.Position = 0;
+				// if the file is executable or has a version attached, we use that for comparison.
+				if (isExecutable || !string.IsNullOrWhiteSpace(info.FileVersion))
+				{
+					// Create a combined stream of the file version and the file header
+					MemoryStream dataToAnalyze = new MemoryStream();
+					string versionText = FileVersionToString(info);
+					byte[] infoBytes = Encoding.Unicode.GetBytes(versionText);
+					dataToAnalyze.Write(infoBytes, 0, infoBytes.Length);
+					byte[] firstBlock = new byte[1024];
+					stream.Read(firstBlock, 0, firstBlock.Length);
+					dataToAnalyze.Write(firstBlock, 0, firstBlock.Length);
+					dataToAnalyze.Position = 0;
+
+					return _md5.ComputeHash(dataToAnalyze);
+				}
+
+				// It's a large, unknown file type. We have to go the full way
 				return _md5.ComputeHash(stream);
 			}
-
-			FileVersionInfo info = FileVersionInfo.GetVersionInfo(fileName);
-			bool isExecutable = FileIsExecutable(stream);
-			stream.Position = 0;
-			// if the file is executable or has a version attached, we use that for comparison.
-			if (isExecutable || !string.IsNullOrWhiteSpace(info.FileVersion))
-			{
-				// Create a combined stream of the file version and the file header
-				MemoryStream dataToAnalyze = new MemoryStream();
-				string versionText = FileVersionToString(info);
-				byte[] infoBytes = Encoding.Unicode.GetBytes(versionText);
-				dataToAnalyze.Write(infoBytes, 0, infoBytes.Length);
-				byte[] firstBlock = new byte[1024];
-				stream.Read(firstBlock, 0, firstBlock.Length);
-				dataToAnalyze.Write(firstBlock, 0, firstBlock.Length);
-				dataToAnalyze.Position = 0;
-
-				return _md5.ComputeHash(dataToAnalyze);
-			}
-
-			// It's a large, unknown file type. We have to go the full way
-			return _md5.ComputeHash(stream);
 		}
 
 		/// <summary>

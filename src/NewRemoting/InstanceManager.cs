@@ -35,17 +35,19 @@ namespace NewRemoting
 		/// </summary>
 		private static readonly ConcurrentDictionary<string, InstanceInfo> s_objects;
 
-		/// <summary>
-		/// This serves as reverse lookup to the above. To make sure this consists only
-		/// of weak references, we use a ConditionalWeakTable.
-		/// </summary>
-		private static readonly ConditionalWeakTable<object, ReverseInstanceInfo> s_instanceNames;
+		private static readonly object s_instanceNamesLock = new object();
 
 		/// <summary>
 		/// The list of known remote identifiers we have given references to.
 		/// Key: Identifier, Value: Index
 		/// </summary>
 		private static readonly ConcurrentDictionary<string, int> s_knownRemoteInstances;
+
+		/// <summary>
+		/// This serves as reverse lookup to the above. To make sure this consists only
+		/// of weak references, we use a ConditionalWeakTable.
+		/// </summary>
+		private static ConditionalWeakTable<object, ReverseInstanceInfo> s_instanceNames;
 
 		private static int s_nextIndex;
 		private static int s_numberOfInstancesUsed = 1;
@@ -74,8 +76,12 @@ namespace NewRemoting
 		{
 			_logger = logger;
 			ProxyGenerator = proxyGenerator;
-			_interceptors = new();
-			ProcessIdentifier = Environment.MachineName + ":" + Environment.ProcessId.ToString("X", CultureInfo.CurrentCulture) + "." + s_numberOfInstancesUsed++;
+			_interceptors = new Dictionary<string, ClientSideInterceptor>();
+
+			// Get process ID using System.Diagnostics.Process class.
+			int processId = System.Diagnostics.Process.GetCurrentProcess().Id;
+
+			ProcessIdentifier = Environment.MachineName + ":" + processId.ToString("X", CultureInfo.CurrentCulture) + "." + s_numberOfInstancesUsed++;
 			_objectIds = new ConditionalWeakTable<object, InstanceId>();
 		}
 
@@ -134,24 +140,24 @@ namespace NewRemoting
 			if (gen.Length > 0)
 			{
 				id.Append('<');
-				id.AppendJoin(',', gen.Select(x => x.FullName));
+				id.Append(string.Join(",", gen.Select(x => x.FullName)));
 				id.Append('>');
 			}
 
 			var parameters = me.GetParameters();
 			id.Append('(');
-			id.AppendJoin(',', parameters.Select(p =>
+			id.Append(string.Join(",", parameters.Select(p =>
 			{
 				var pt = p.ParameterType;
 				if (pt.GenericTypeArguments.Any())
 				{
 					// If the argument is Action<T,...> or similar, construct manually, otherwise the string gets very long
-					return $"{pt.Name}[{string.Join(',', (System.Collections.Generic.IEnumerable<Type>)pt.GenericTypeArguments)}]";
+					return $"{pt.Name}[{string.Join(",", (System.Collections.Generic.IEnumerable<Type>)pt.GenericTypeArguments)}]";
 				}
 
 				// Normally, the FullName does not include the assembly or the private key, which is good
 				return $"{p.ParameterType.FullName} {p.Name}";
-			}));
+			})));
 			id.Append(')');
 
 			return id.ToString();
@@ -221,7 +227,7 @@ namespace NewRemoting
 		/// <param name="instance">Returns the object instance (this is normally a real instance and not a proxy, but this is not always true
 		/// when transient servers exist)</param>
 		/// <returns>True when an object with the given id was found, false otherwise</returns>
-		public bool TryGetObjectFromId(string id, [NotNullWhen(true)]out object instance)
+		public bool TryGetObjectFromId(string id, out object instance)
 		{
 			if (s_objects.TryGetValue(id, out InstanceInfo value))
 			{
@@ -299,7 +305,10 @@ namespace NewRemoting
 			});
 
 			// usedInstance cannot and must not be null here.
-			s_instanceNames.AddOrUpdate(usedInstance, new ReverseInstanceInfo(objectId, originalTypeName));
+			lock (s_instanceNamesLock)
+			{
+				s_instanceNames.AddOrUpdate(usedInstance, new ReverseInstanceInfo(objectId, originalTypeName));
+			}
 
 			return usedInstance;
 		}
@@ -314,12 +323,15 @@ namespace NewRemoting
 				throw new ArgumentNullException(nameof(instance));
 			}
 
-			ReverseInstanceInfo ri;
-			if (s_instanceNames.TryGetValue(instance, out ri))
+			lock (s_instanceNamesLock)
 			{
-				instanceId = ri.ObjectId;
-				originalTypeName = ri.ObjectType;
-				return true;
+				ReverseInstanceInfo ri;
+				if (s_instanceNames.TryGetValue(instance, out ri))
+				{
+					instanceId = ri.ObjectId;
+					originalTypeName = ri.ObjectType;
+					return true;
+				}
 			}
 
 			// In case the above fails, try the slow method
@@ -353,7 +365,7 @@ namespace NewRemoting
 		{
 			if (!TryGetObjectFromId(id, out object instance))
 			{
-				if (id.Contains($"/{DelegateIdentifier}/", StringComparison.Ordinal))
+				if (id.Contains($"/{DelegateIdentifier}/"))
 				{
 					_logger.LogWarning($"Callback delegate for {id} is gone. Attempting to ignore this, as it likely just deregistered");
 					wasDelegateTarget = true;
@@ -373,7 +385,7 @@ namespace NewRemoting
 			{
 				if (o.Value.Owner == this)
 				{
-					s_objects.TryRemove(o);
+					s_objects.TryRemove(o.Key, out _);
 				}
 			}
 		}
@@ -397,7 +409,11 @@ namespace NewRemoting
 				s_knownRemoteInstances.Clear();
 				s_numberOfInstancesUsed = 1;
 				s_nextIndex = -1;
-				s_instanceNames.Clear();
+
+				lock (s_instanceNamesLock)
+				{
+					s_instanceNames = new ConditionalWeakTable<object, ReverseInstanceInfo>();
+				}
 			}
 		}
 
@@ -421,7 +437,7 @@ namespace NewRemoting
 		{
 			// Would be good if we could synchronize our updates with the GC, but that appears to be a bit fuzzy and fails if the
 			// GC is in concurrent mode.
-			List<InstanceInfo> instancesToClear = new();
+			List<InstanceInfo> instancesToClear = new List<InstanceInfo>();
 			foreach (var e in s_objects)
 			{
 				lock (e.Value)
@@ -589,13 +605,13 @@ namespace NewRemoting
 					instance = ProxyGenerator.CreateClassProxy(typeof(FileStream), interfaces, ProxyGenerationOptions.Default,
 						new object[] { mySelf, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 }, interceptor);
 				}
-				else if (type.IsAssignableTo(typeof(Stream)))
+				else if (typeof(Stream).IsAssignableFrom(type))
 				{
 					// This is a bit of a special case, not sure yet for what other classes we should use this (otherwise, this gets an interface proxy for IDisposable, which is
 					// not castable to Stream, which is most likely required)
 					instance = ProxyGenerator.CreateClassProxy(typeof(Stream), interfaces, ProxyGenerationOptions.Default, interceptor);
 				}
-				else if (type.IsAssignableTo(typeof(WaitHandle)))
+				else if (typeof(WaitHandle).IsAssignableFrom(type))
 				{
 					instance = ProxyGenerator.CreateClassProxy(typeof(WaitHandle), interfaces, ProxyGenerationOptions.Default, interceptor);
 				}

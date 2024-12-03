@@ -101,7 +101,6 @@ namespace RemotingServer
 
 					// Temporary (Need to move the server creation logic to the library)
 					server.KillProcessWhenChannelDisconnected = true;
-
 					server.StartListening();
 					server.WaitForTermination();
 					server.Terminate(false);

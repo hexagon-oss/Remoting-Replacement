@@ -7,6 +7,7 @@ using System.Linq;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
+using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Security.Cryptography;
@@ -57,7 +58,7 @@ namespace NewRemoting
 			_serverLink = serverLink;
 			_messageHandler = messageHandler ?? throw new ArgumentNullException(nameof(messageHandler));
 			_logger = logger;
-			_pendingInvocations = new();
+			_pendingInvocations = new ConcurrentDictionary<int, CallContext>();
 			_terminator = new CancellationTokenSource();
 			_reader = new BinaryReader(_serverLink, MessageHandler.DefaultStringEncoding);
 			_receiverThread = new Thread(ReceiverThread);
@@ -86,15 +87,26 @@ namespace NewRemoting
 		/// </summary>
 		private static long GetGcMemoryInfoIndex()
 		{
-			if (OperatingSystem.IsAndroid() || OperatingSystem.IsIOS())
+			if (IsAndroid() || IsIOS())
 			{
 				return 0;
 			}
 			else
 			{
-				var lastGc = GC.GetGCMemoryInfo(GCKind.Any);
-				return lastGc.Index;
+				// Since GetGCMemoryInfo is not available in .NET Standard 2.1, we use a simpler memory metric.
+				// Returning a placeholder value as Index is not available.
+				return GC.CollectionCount(0); // Get the count of collections for generation 0 as a simple proxy
 			}
+		}
+
+		private static bool IsAndroid()
+		{
+			return RuntimeInformation.IsOSPlatform(OSPlatform.Create("ANDROID"));
+		}
+
+		private static bool IsIOS()
+		{
+			return RuntimeInformation.IsOSPlatform(OSPlatform.Create("IOS"));
 		}
 
 		internal int NextSequenceNumber()
@@ -183,61 +195,63 @@ namespace NewRemoting
 				remoteInstanceId = di.RemoteObjectReference;
 			}
 
-			using CallContext ctx = CreateCallContext(invocation, thisSeq);
-
-			// If we have a delegate as argument, we must use the copy-before-send path
-			bool largeAllocationExpected = !invocation.Arguments.Any(x => x is Delegate);
-
-			if (largeAllocationExpected)
+			using (CallContext ctx = CreateCallContext(invocation, thisSeq))
 			{
-				largeAllocationExpected = invocation.Arguments.Any(x =>
+				// If we have a delegate as argument, we must use the copy-before-send path
+				bool largeAllocationExpected = !invocation.Arguments.Any(x => x is Delegate);
+
+				if (largeAllocationExpected)
 				{
-					if (x is Array array && array.LongLength > 1024) // Expected to stay in the small object heap?
+					largeAllocationExpected = invocation.Arguments.Any(x =>
 					{
-						return true;
-					}
+						if (x is Array array && array.LongLength > 1024) // Expected to stay in the small object heap?
+						{
+							return true;
+						}
 
-					return false;
-				});
-			}
+						return false;
+					});
+				}
 
-			if (largeAllocationExpected)
-			{
-				// Do not use this writer before gaining the lock in the next line!
-				try
+				if (largeAllocationExpected)
 				{
-					using BinaryWriter writer = new BinaryWriter(_serverLink, MessageHandler.DefaultStringEncoding, true);
-					using var lck = hd.WriteHeader(writer);
-
-					if (!PreparePayload(invocation, writer, remoteInstanceId, me))
+					// Do not use this writer before gaining the lock in the next line!
+					try
 					{
-						// We need to ensure we don't end here in this case (we can't abort what we've already written to the stream)
-						throw new InvalidOperationException("Large allocation expected for delegate call - this shouldn't happen");
+						using (BinaryWriter writer = new BinaryWriter(_serverLink, MessageHandler.DefaultStringEncoding, true))
+						using (var lck = hd.WriteHeader(writer))
+						{
+							if (!PreparePayload(invocation, writer, remoteInstanceId, me))
+							{
+								// We need to ensure we don't end here in this case (we can't abort what we've already written to the stream)
+								throw new InvalidOperationException("Large allocation expected for delegate call - this shouldn't happen");
+							}
+						}
+					}
+					catch (IOException x)
+					{
+						throw new RemotingException("Error sending bulk data to server. Link down?", x);
 					}
 				}
-				catch (IOException x)
+				else
 				{
-					throw new RemotingException("Error sending bulk data to server. Link down?", x);
+					using (Stream targetStream = new MemoryStream(1024))
+					using (BinaryWriter writer = new BinaryWriter(targetStream, MessageHandler.DefaultStringEncoding))
+					{
+						hd.WriteHeaderNoLock(writer);
+						if (!PreparePayload(invocation, writer, remoteInstanceId, me))
+						{
+							// We don't need to inform the server (was a pure local delegate operation)
+							return;
+						}
+
+						// now finally write the stream to the network. That way, we don't send incomplete messages if an exception happens encoding a parameter.
+						SafeSendToServer(targetStream);
+					}
 				}
+
+				WaitForReply(invocation, ctx);
 			}
-			else
-			{
-				using Stream targetStream = new MemoryStream(1024);
-
-				using BinaryWriter writer = new BinaryWriter(targetStream, MessageHandler.DefaultStringEncoding);
-
-				hd.WriteHeaderNoLock(writer);
-				if (!PreparePayload(invocation, writer, remoteInstanceId, me))
-				{
-					// We don't need to inform the server (was a pure local delegate operation)
-					return;
-				}
-
-				// now finally write the stream to the network. That way, we don't send incomplete messages if an exception happens encoding a parameter.
-				SafeSendToServer(targetStream);
-			}
-
-			WaitForReply(invocation, ctx);
 		}
 
 		private bool PreparePayload(IInvocation invocation, BinaryWriter writer, string remoteInstanceId, MethodInfo me)
@@ -335,13 +349,15 @@ namespace NewRemoting
 			{
 				if (Interlocked.Increment(ref _numberOfCallsInspected) > NumberOfCallsForGc)
 				{
-					using MemoryStream rawDataMessage = new MemoryStream(1024);
-					using BinaryWriter writer = new BinaryWriter(rawDataMessage, MessageHandler.DefaultStringEncoding);
-					_logger.LogInformation($"Starting GC on {ThisSideProcessId}");
-					_messageHandler.InstanceManager.PerformGc(writer, false);
-					SafeSendToServer(rawDataMessage);
-					Interlocked.Exchange(ref _numberOfCallsInspected, 0);
-					lastGc = GetGcMemoryInfoIndex();
+					using (MemoryStream rawDataMessage = new MemoryStream(1024))
+					using (BinaryWriter writer = new BinaryWriter(rawDataMessage, MessageHandler.DefaultStringEncoding))
+					{
+						_logger.LogInformation($"Starting GC on {ThisSideProcessId}");
+						_messageHandler.InstanceManager.PerformGc(writer, false);
+						SafeSendToServer(rawDataMessage);
+						Interlocked.Exchange(ref _numberOfCallsInspected, 0);
+						lastGc = GetGcMemoryInfoIndex();
+					}
 				}
 
 				int waitEventNo = WaitHandle.WaitAny(handles, GcLoopTime);

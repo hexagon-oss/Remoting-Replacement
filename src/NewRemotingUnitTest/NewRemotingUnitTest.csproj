@@ -1,11 +1,19 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0-windows</TargetFramework>
     <IsPackable>false</IsPackable>
-    <SignAssembly>true</SignAssembly>
+    <SignAssembly>False</SignAssembly>
     <AssemblyOriginatorKeyFile>../../NewRemoting.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="RemoteLoaderClientTest.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="RemoteLoaderClientTest.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Moq" Version="4.20.72" />

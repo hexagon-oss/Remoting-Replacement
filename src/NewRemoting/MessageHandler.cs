@@ -40,7 +40,7 @@ namespace NewRemoting
 			_instanceManager = instanceManager;
 			_formatterFactory = formatterFactory;
 			_initialized = false;
-			_interceptors = new();
+			_interceptors = new Dictionary<string, ClientSideInterceptor>();
 			_stats = new ConcurrentDictionary<RemotingReferenceType, uint>();
 			foreach (RemotingReferenceType refType in Enum.GetValues(typeof(RemotingReferenceType)))
 			{
@@ -83,7 +83,7 @@ namespace NewRemoting
 		/// <returns>True or false</returns>
 		public static bool IsMarshalByRefType(Type t)
 		{
-			return t.IsAssignableTo(typeof(MarshalByRefObject)) && t != typeof(PooledMemoryStream);
+			return typeof(MarshalByRefObject).IsAssignableFrom(t) && t != typeof(PooledMemoryStream);
 		}
 
 		/// <summary>
@@ -443,146 +443,135 @@ namespace NewRemoting
 			switch (data)
 			{
 				case Int32 i32:
-				{
-					w.Write((int)RemotingReferenceType.Int32);
-					LogMsg(RemotingReferenceType.Int32);
-					w.Write(i32);
-					return true;
-				}
-
-				case UInt32 u32:
-				{
-					w.Write((int)RemotingReferenceType.Uint32);
-					LogMsg(RemotingReferenceType.Uint32);
-					w.Write(u32);
-					return true;
-				}
-
-				case bool b:
-				{
-					if (b)
 					{
-						w.Write((int)RemotingReferenceType.BoolTrue);
-						LogMsg(RemotingReferenceType.BoolTrue);
-					}
-					else
-					{
-						w.Write((int)RemotingReferenceType.BoolFalse);
-						LogMsg(RemotingReferenceType.BoolFalse);
-					}
-
-					return true;
-				}
-
-				case Int16 s16:
-				{
-					w.Write((int)RemotingReferenceType.Int16);
-					LogMsg(RemotingReferenceType.Int16);
-					w.Write(s16);
-					return true;
-				}
-
-				case UInt16 u16:
-				{
-					w.Write((int)RemotingReferenceType.Uint16);
-					LogMsg(RemotingReferenceType.Uint16);
-					w.Write(u16);
-					return true;
-				}
-
-				case sbyte i8:
-				{
-					w.Write((int)RemotingReferenceType.Int8);
-					LogMsg(RemotingReferenceType.Int8);
-					w.Write(i8);
-					return true;
-				}
-
-				case byte u8:
-				{
-					w.Write((int)RemotingReferenceType.Uint8);
-					LogMsg(RemotingReferenceType.Uint8);
-					w.Write(u8);
-					return true;
-				}
-
-				case float f32:
-				{
-					w.Write((int)RemotingReferenceType.Float);
-					LogMsg(RemotingReferenceType.Float);
-					w.Write(f32);
-					return true;
-				}
-
-				case Int64 i64:
-				{
-					w.Write((int)RemotingReferenceType.Int64);
-					LogMsg(RemotingReferenceType.Int64);
-					w.Write(i64);
-					return true;
-				}
-
-				case UInt64 u64:
-				{
-					w.Write((int)RemotingReferenceType.Uint64);
-					LogMsg(RemotingReferenceType.Uint64);
-					w.Write(u64);
-					return true;
-				}
-
-				case double f64:
-				{
-					w.Write((int)RemotingReferenceType.Double);
-					LogMsg(RemotingReferenceType.Double);
-					w.Write(f64);
-					return true;
-				}
-
-				case Half f16:
-				{
-					w.Write((int)RemotingReferenceType.Half);
-					LogMsg(RemotingReferenceType.Half);
-					w.Write(f16);
-					return true;
-				}
-
-				case string s:
-				{
-					w.Write((int)RemotingReferenceType.String);
-					LogMsg(RemotingReferenceType.String);
-					if (s.Length == 0)
-					{
-						// Don't write any data for the empty string, because attempting to read 0 bytes blocks.
-						w.Write(0);
+						w.Write((int)RemotingReferenceType.Int32);
+						LogMsg(RemotingReferenceType.Int32);
+						w.Write(i32);
 						return true;
 					}
 
-					var buffer = ArrayPool<byte>.Shared.Rent(_stringEncoding.GetMaxByteCount(s.Length));
-					Span<byte> bufferSpan = buffer.AsSpan();
-					int numBytesUsed = _stringEncoding.GetBytes(s.AsSpan(), bufferSpan);
-					w.Write(numBytesUsed);
-					w.Write(bufferSpan.Slice(0, numBytesUsed));
-					ArrayPool<byte>.Shared.Return(buffer);
-					return true;
-				}
+				case UInt32 u32:
+					{
+						w.Write((int)RemotingReferenceType.Uint32);
+						LogMsg(RemotingReferenceType.Uint32);
+						w.Write(u32);
+						return true;
+					}
+
+				case bool b:
+					{
+						if (b)
+						{
+							w.Write((int)RemotingReferenceType.BoolTrue);
+							LogMsg(RemotingReferenceType.BoolTrue);
+						}
+						else
+						{
+							w.Write((int)RemotingReferenceType.BoolFalse);
+							LogMsg(RemotingReferenceType.BoolFalse);
+						}
+
+						return true;
+					}
+
+				case Int16 s16:
+					{
+						w.Write((int)RemotingReferenceType.Int16);
+						LogMsg(RemotingReferenceType.Int16);
+						w.Write(s16);
+						return true;
+					}
+
+				case UInt16 u16:
+					{
+						w.Write((int)RemotingReferenceType.Uint16);
+						LogMsg(RemotingReferenceType.Uint16);
+						w.Write(u16);
+						return true;
+					}
+
+				case sbyte i8:
+					{
+						w.Write((int)RemotingReferenceType.Int8);
+						LogMsg(RemotingReferenceType.Int8);
+						w.Write(i8);
+						return true;
+					}
+
+				case byte u8:
+					{
+						w.Write((int)RemotingReferenceType.Uint8);
+						LogMsg(RemotingReferenceType.Uint8);
+						w.Write(u8);
+						return true;
+					}
+
+				case float f32:
+					{
+						w.Write((int)RemotingReferenceType.Float);
+						LogMsg(RemotingReferenceType.Float);
+						w.Write(f32);
+						return true;
+					}
+
+				case Int64 i64:
+					{
+						w.Write((int)RemotingReferenceType.Int64);
+						LogMsg(RemotingReferenceType.Int64);
+						w.Write(i64);
+						return true;
+					}
+
+				case UInt64 u64:
+					{
+						w.Write((int)RemotingReferenceType.Uint64);
+						LogMsg(RemotingReferenceType.Uint64);
+						w.Write(u64);
+						return true;
+					}
+
+				case double f64:
+					{
+						w.Write((int)RemotingReferenceType.Double);
+						LogMsg(RemotingReferenceType.Double);
+						w.Write(f64);
+						return true;
+					}
+
+				case string s:
+					{
+						w.Write((int)RemotingReferenceType.String);
+						LogMsg(RemotingReferenceType.String);
+						if (s.Length == 0)
+						{
+							// Don't write any data for the empty string, because attempting to read 0 bytes blocks.
+							w.Write(0);
+							return true;
+						}
+
+						byte[] bytes = _stringEncoding.GetBytes(s);
+						w.Write(bytes.Length);
+						w.Write(bytes, 0, bytes.Length);
+						return true;
+					}
 
 				// This code is suspected of causing "Fatal error. Internal CLR error. (0x80131506)"
 				// No idea why this should be different to using standard serialization. Or simulation, by the way.
 				case byte[] byteArray:
-				{
-					w.Write((int)RemotingReferenceType.ByteArray);
-					LogMsg(RemotingReferenceType.ByteArray);
-					if (byteArray.Length == 0)
 					{
-						// See above
-						w.Write(0);
+						w.Write((int)RemotingReferenceType.ByteArray);
+						LogMsg(RemotingReferenceType.ByteArray);
+						if (byteArray.Length == 0)
+						{
+							// See above
+							w.Write(0);
+							return true;
+						}
+
+						w.Write(byteArray.Length);
+						w.Write(byteArray, 0, byteArray.Length);
 						return true;
 					}
-
-					w.Write(byteArray.Length);
-					w.Write(byteArray, 0, byteArray.Length);
-					return true;
-				}
 			}
 
 			return false;
@@ -732,220 +721,393 @@ namespace NewRemoting
 				case RemotingReferenceType.NullPointer:
 					return null;
 				case RemotingReferenceType.SerializedItem:
-				{
-					var formatter = _formatterFactory.CreateOrGetFormatter(otherSideProcessId);
-					string typeName = r.ReadString();
-					int dataLength = r.ReadInt32();
-					Type t = Server.GetTypeFromAnyAssembly(typeName);
-					object decodedArg = JsonSerializer.Deserialize(new JsonSplitStream(r.BaseStream, dataLength), t, formatter);
+					{
+						var formatter = _formatterFactory.CreateOrGetFormatter(otherSideProcessId);
+						string typeName = r.ReadString();
+						int dataLength = r.ReadInt32();
+						Type t = Server.GetTypeFromAnyAssembly(typeName);
+						object decodedArg = JsonSerializer.Deserialize(new JsonSplitStream(r.BaseStream, dataLength), t, formatter);
 
-					_formatterFactory.FinalizeDeserialization(r, formatter);
+						_formatterFactory.FinalizeDeserialization(r, formatter);
 
-					return decodedArg;
-				}
+						return decodedArg;
+					}
 
 				case RemotingReferenceType.RemoteReference:
-				{
-					// The server sends a reference to an object that he owns
-					string objectId = r.ReadString();
-					string typeName = r.ReadString();
-					int providedInterfaces = r.ReadInt32();
-					List<string> knownInterfaces = null;
-					for (int i = 0; i < providedInterfaces; i++)
 					{
-						if (knownInterfaces == null)
+						// The server sends a reference to an object that he owns
+						string objectId = r.ReadString();
+						string typeName = r.ReadString();
+						int providedInterfaces = r.ReadInt32();
+						List<string> knownInterfaces = null;
+						for (int i = 0; i < providedInterfaces; i++)
 						{
-							knownInterfaces = new List<string>();
+							if (knownInterfaces == null)
+							{
+								knownInterfaces = new List<string>();
+							}
+
+							knownInterfaces.Add(r.ReadString());
 						}
 
-						knownInterfaces.Add(r.ReadString());
+						object instance = null;
+						instance = InstanceManager.CreateOrGetProxyForObjectId(invocation, canAttemptToInstantiate,
+							typeOfArgument, typeName, objectId, knownInterfaces);
+						return instance;
 					}
-
-					object instance = null;
-					instance = InstanceManager.CreateOrGetProxyForObjectId(invocation, canAttemptToInstantiate,
-						typeOfArgument, typeName, objectId, knownInterfaces);
-					return instance;
-				}
 
 				case RemotingReferenceType.InstanceOfSystemType:
-				{
-					string typeName = r.ReadString();
-					Type t = Server.GetTypeFromAnyAssembly(typeName);
-					return t;
-				}
-
-				case RemotingReferenceType.ArrayOfSystemType:
-				{
-					int count = r.ReadInt32();
-					Type[] ts = new Type[count];
-					for (int i = 0; i < count; i++)
 					{
 						string typeName = r.ReadString();
-						if (!string.IsNullOrEmpty(typeName))
-						{
-							Type t = Server.GetTypeFromAnyAssembly(typeName);
-							ts[i] = t;
-						}
-						else
-						{
-							ts[i] = null;
-						}
+						Type t = Server.GetTypeFromAnyAssembly(typeName);
+						return t;
 					}
 
-					return ts;
-				}
+				case RemotingReferenceType.ArrayOfSystemType:
+					{
+						int count = r.ReadInt32();
+						Type[] ts = new Type[count];
+						for (int i = 0; i < count; i++)
+						{
+							string typeName = r.ReadString();
+							if (!string.IsNullOrEmpty(typeName))
+							{
+								Type t = Server.GetTypeFromAnyAssembly(typeName);
+								ts[i] = t;
+							}
+							else
+							{
+								ts[i] = null;
+							}
+						}
+
+						return ts;
+					}
 
 				case RemotingReferenceType.ContainerType:
-				{
-					string typeName = r.ReadString();
-					Type t = Server.GetTypeFromAnyAssembly(typeName);
-					Type contentType = Server.GetTypeFromAnyAssembly(r.ReadString());
-					IList list = (IList)Activator.CreateInstance(t);
-					bool cont = r.ReadBoolean();
-					while (cont)
 					{
-						var nextElem = ReadArgumentFromStream(r, callingMethod, invocation, canAttemptToInstantiate,
-							contentType, otherSideProcessId, settings);
-						list.Add(nextElem);
-						cont = r.ReadBoolean();
-					}
+						string typeName = r.ReadString();
+						Type t = Server.GetTypeFromAnyAssembly(typeName);
+						Type contentType = Server.GetTypeFromAnyAssembly(r.ReadString());
+						IList list = (IList)Activator.CreateInstance(t);
+						bool cont = r.ReadBoolean();
+						while (cont)
+						{
+							var nextElem = ReadArgumentFromStream(r, callingMethod, invocation, canAttemptToInstantiate,
+								contentType, otherSideProcessId, settings);
+							list.Add(nextElem);
+							cont = r.ReadBoolean();
+						}
 
-					return list;
-				}
+						return list;
+					}
 
 				case RemotingReferenceType.IpAddress:
-				{
-					string s = r.ReadString();
-					return IPAddress.Parse(s);
-				}
+					{
+						string s = r.ReadString();
+						return IPAddress.Parse(s);
+					}
 
 				case RemotingReferenceType.BoolTrue:
-				{
-					return true;
-				}
+					{
+						return true;
+					}
 
 				case RemotingReferenceType.BoolFalse:
-				{
-					return false;
-				}
+					{
+						return false;
+					}
 
 				case RemotingReferenceType.Int32:
-				{
-					int i = r.ReadInt32();
-					return i;
-				}
+					{
+						int i = r.ReadInt32();
+						return i;
+					}
 
 				case RemotingReferenceType.Uint32:
-				{
-					var i = r.ReadUInt32();
-					return i;
-				}
+					{
+						var i = r.ReadUInt32();
+						return i;
+					}
 
 				case RemotingReferenceType.Int8:
-				{
-					var i = r.ReadSByte();
-					return i;
-				}
+					{
+						var i = r.ReadSByte();
+						return i;
+					}
 
 				case RemotingReferenceType.Uint8:
-				{
-					var i = r.ReadByte();
-					return i;
-				}
+					{
+						var i = r.ReadByte();
+						return i;
+					}
 
 				case RemotingReferenceType.Int16:
-				{
-					var i = r.ReadInt16();
-					return i;
-				}
+					{
+						var i = r.ReadInt16();
+						return i;
+					}
 
 				case RemotingReferenceType.Uint16:
-				{
-					var i = r.ReadUInt16();
-					return i;
-				}
+					{
+						var i = r.ReadUInt16();
+						return i;
+					}
 
 				case RemotingReferenceType.Int64:
-				{
-					var i = r.ReadInt64();
-					return i;
-				}
+					{
+						var i = r.ReadInt64();
+						return i;
+					}
 
 				case RemotingReferenceType.Uint64:
-				{
-					var i = r.ReadUInt64();
-					return i;
-				}
+					{
+						var i = r.ReadUInt64();
+						return i;
+					}
 
 				case RemotingReferenceType.Float:
-				{
-					var i = r.ReadSingle();
-					return i;
-				}
+					{
+						var i = r.ReadSingle();
+						return i;
+					}
 
 				case RemotingReferenceType.Double:
-				{
-					var i = r.ReadDouble();
-					return i;
-				}
-
-				case RemotingReferenceType.Half:
-				{
-					var i = r.ReadHalf();
-					return i;
-				}
+					{
+						var i = r.ReadDouble();
+						return i;
+					}
 
 				case RemotingReferenceType.String:
-				{
-					int numBytesToRead = r.ReadInt32();
-					if (numBytesToRead == 0)
 					{
-						return string.Empty;
-					}
+						int numBytesToRead = r.ReadInt32();
+						if (numBytesToRead == 0)
+						{
+							return string.Empty;
+						}
 
-					byte[] buffer = ArrayPool<byte>.Shared.Rent(numBytesToRead);
-					int numBytesRead = r.Read(buffer, 0, numBytesToRead);
-					if (numBytesRead != numBytesToRead)
-					{
-						throw new RemotingException("Unexpected end of stream or data corruption encountered");
-					}
+						byte[] buffer = ArrayPool<byte>.Shared.Rent(numBytesToRead);
+						int numBytesRead = r.Read(buffer, 0, numBytesToRead);
+						if (numBytesRead != numBytesToRead)
+						{
+							throw new RemotingException("Unexpected end of stream or data corruption encountered");
+						}
 
-					String ret = _stringEncoding.GetString(buffer, 0, numBytesRead);
-					ArrayPool<byte>.Shared.Return(buffer);
-					return ret;
-				}
+						String ret = _stringEncoding.GetString(buffer, 0, numBytesRead);
+						ArrayPool<byte>.Shared.Return(buffer);
+						return ret;
+					}
 
 				case RemotingReferenceType.ByteArray:
-				{
-					int numElements = r.ReadInt32();
-					if (numElements == 0)
 					{
-						return Array.Empty<byte>();
+						int numElements = r.ReadInt32();
+						if (numElements == 0)
+						{
+							return Array.Empty<byte>();
+						}
+
+						byte[] ret = new byte[numElements];
+						int numElementsRead = 0;
+
+						while (numElementsRead < numElements)
+						{
+							// We eventually need to read really large chunks of data, but Read may return before that if the block is larger than ~1MB.
+							numElementsRead += r.Read(ret, numElementsRead, numElements - numElementsRead);
+						}
+
+						if (numElementsRead != numElements)
+						{
+							throw new RemotingException("Unexpected end of stream - Incomplete binary data transmission");
+						}
+
+						return ret;
 					}
-
-					byte[] ret = new byte[numElements];
-					int numElementsRead = 0;
-
-					while (numElementsRead < numElements)
-					{
-						// We eventually need to read really large chunks of data, but Read may return before that if the block is larger than ~1MB.
-						numElementsRead += r.Read(ret, numElementsRead, numElements - numElementsRead);
-					}
-
-					if (numElementsRead != numElements)
-					{
-						throw new RemotingException("Unexpected end of stream - Incomplete binary data transmission");
-					}
-
-					return ret;
-				}
 
 				case RemotingReferenceType.AddEvent:
-				{
-					lock (ConcurrentOperationsLock)
+					{
+						lock (ConcurrentOperationsLock)
+						{
+							string instanceId = r.ReadString();
+							bool hasReturnValue = r.ReadBoolean();
+							int methodGenericArgs = r.ReadInt32();
+							Type[] typeOfGenericArguments = new Type[methodGenericArgs];
+							for (int i = 0; i < methodGenericArgs; i++)
+							{
+								var typeName = r.ReadString();
+								var t = Server.GetTypeFromAnyAssembly(typeName);
+								typeOfGenericArguments[i] = t;
+							}
+
+							// Determine the method to call on the client side.
+							Type typeOfTarget = null;
+							if (hasReturnValue)
+							{
+								switch (typeOfGenericArguments.Length)
+								{
+									case 1:
+										typeOfTarget =
+											typeof(DelegateFuncProxyOnClient<>).MakeGenericType(typeOfGenericArguments[0]);
+										break;
+									case 2:
+										typeOfTarget =
+											typeof(DelegateFuncProxyOnClient<,>).MakeGenericType(typeOfGenericArguments[0],
+												typeOfGenericArguments[1]);
+										break;
+									case 3:
+										typeOfTarget =
+											typeof(DelegateFuncProxyOnClient<,,>).MakeGenericType(typeOfGenericArguments[0],
+												typeOfGenericArguments[1], typeOfGenericArguments[2]);
+										break;
+									case 4:
+										typeOfTarget =
+											typeof(DelegateFuncProxyOnClient<,,>).MakeGenericType(typeOfGenericArguments[0],
+												typeOfGenericArguments[1], typeOfGenericArguments[2],
+												typeOfGenericArguments[3]);
+										break;
+									case 5:
+										typeOfTarget =
+											typeof(DelegateFuncProxyOnClient<,,>).MakeGenericType(typeOfGenericArguments[0],
+												typeOfGenericArguments[1], typeOfGenericArguments[2], typeOfGenericArguments[3],
+												typeOfGenericArguments[4]);
+										break;
+									default:
+										throw new InvalidRemotingOperationException(
+											$"Unsupported number of arguments for function ({typeOfGenericArguments.Length}");
+								}
+							}
+							else
+							{
+								switch (typeOfGenericArguments.Length)
+								{
+									case 0:
+										typeOfTarget =
+											typeof(DelegateProxyOnClient);
+										break;
+									case 1:
+										typeOfTarget =
+											typeof(DelegateProxyOnClient<>).MakeGenericType(typeOfGenericArguments[0]);
+										break;
+									case 2:
+										typeOfTarget = typeof(DelegateProxyOnClient<,>).MakeGenericType(
+											typeOfGenericArguments[0],
+											typeOfGenericArguments[1]);
+										break;
+									case 3:
+										typeOfTarget = typeof(DelegateProxyOnClient<,>).MakeGenericType(
+											typeOfGenericArguments[0],
+											typeOfGenericArguments[1], typeOfGenericArguments[2]);
+										break;
+									case 4:
+										typeOfTarget = typeof(DelegateProxyOnClient<,>).MakeGenericType(
+											typeOfGenericArguments[0],
+											typeOfGenericArguments[1], typeOfGenericArguments[2], typeOfGenericArguments[3]);
+										break;
+									default:
+										throw new InvalidRemotingOperationException(
+											$"Unsupported number of arguments for action ({typeOfGenericArguments.Length}");
+								}
+							}
+
+							var methodInfoOfTarget = typeOfTarget.GetMethod("FireEvent",
+								BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+							// This creates an instance of the DelegateInternalSink class, which acts as a proxy for delegate callbacks. Instead of the actual delegate
+							// target, we register a method from this class as a delegate target
+							DelegateInternalSink internalSink;
+							if (_instanceManager.TryGetObjectFromId(instanceId, out object sink))
+							{
+								internalSink = (DelegateInternalSink)sink;
+								// throw new InvalidRemotingOperationException($"Instance id {instanceId} already has a DelegateInternalSink");
+							}
+							else
+							{
+								var interceptor = InstanceManager.GetInterceptor(_interceptors, instanceId);
+								internalSink = new DelegateInternalSink(interceptor, instanceId, methodInfoOfTarget);
+								var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideProcessId,
+									internalSink.GetType(), internalSink.GetType().AssemblyQualifiedName, false);
+
+								internalSink = (DelegateInternalSink)usedInstance;
+							}
+
+							internalSink.RegisterInstance(otherSideProcessId);
+
+							// TODO: This copying of arrays here is not really performance-friendly
+							var argumentsOfTarget = methodInfoOfTarget.GetParameters().Select(x => x.ParameterType).ToList();
+
+							IEnumerable<MethodInfo> possibleSinks = null;
+
+							MethodInfo localSinkTarget;
+							if (methodInfoOfTarget.ReturnType == typeof(void))
+							{
+								possibleSinks = internalSink.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public)
+									.Where(x => x.Name == "ActionSink");
+								localSinkTarget =
+									possibleSinks.Single(x => x.GetGenericArguments().Length == argumentsOfTarget.Count);
+							}
+							else
+							{
+								possibleSinks = internalSink.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public)
+									.Where(x => x.Name == "FuncSink");
+								localSinkTarget = possibleSinks.Single(x =>
+									x.GetGenericArguments().Length == argumentsOfTarget.Count + 1);
+								argumentsOfTarget.Add(methodInfoOfTarget.ReturnType);
+							}
+
+							if (argumentsOfTarget.Count > 0)
+							{
+								localSinkTarget = localSinkTarget.MakeGenericMethod(argumentsOfTarget.ToArray());
+							}
+
+							// create the local server side delegate
+							Delegate newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
+							string delegateId = _instanceManager.GetDelegateTargetIdentifier(newDelegate, otherSideProcessId);
+							var actualInstance = _instanceManager.AddInstance(newDelegate, delegateId, otherSideProcessId, newDelegate.GetType(), newDelegate.GetType().AssemblyQualifiedName, false);
+							var actualDelegate = (Delegate)actualInstance;
+							if (ReferenceEquals(actualDelegate, newDelegate))
+							{
+								if (internalSink.TheActualDelegate != null)
+								{
+									throw new InvalidRemotingOperationException("Expecting actual delegate to not exist here");
+								}
+
+								internalSink.TheActualDelegate = newDelegate;
+								return newDelegate;
+							}
+
+							return actualDelegate;
+						}
+					}
+
+				case RemotingReferenceType.RemoveEvent:
 					{
 						string instanceId = r.ReadString();
-						bool hasReturnValue = r.ReadBoolean();
+						lock (ConcurrentOperationsLock)
+						{
+							if (_instanceManager.TryGetObjectFromId(instanceId, out var internalSink))
+							{
+								DelegateInternalSink sink = (DelegateInternalSink)internalSink;
+								if (sink.Unregister(otherSideProcessId))
+								{
+									_instanceManager.Remove(instanceId, otherSideProcessId, true);
+									var del = sink.TheActualDelegate;
+									sink.TheActualDelegate = null; // Is not registered any more
+
+									// argument required to deregister the sink from the target, but nothing happens if it's null, because we use a wrong path later on
+									// This is only null in exceptional cases ("CanFireEventWhileDisconnecting" test)
+									return del;
+								}
+							}
+
+						}
+
+						return null;
+					}
+
+				case RemotingReferenceType.MethodPointer:
+					{
+						string instanceId = r.ReadString();
+						string typeOfTargetName = r.ReadString();
+						int tokenOfTargetMethod = r.ReadInt32();
 						int methodGenericArgs = r.ReadInt32();
 						Type[] typeOfGenericArguments = new Type[methodGenericArgs];
 						for (int i = 0; i < methodGenericArgs; i++)
@@ -955,104 +1117,36 @@ namespace NewRemoting
 							typeOfGenericArguments[i] = t;
 						}
 
-						// Determine the method to call on the client side.
-						Type typeOfTarget = null;
-						if (hasReturnValue)
+						Type typeOfTarget = Server.GetTypeFromAnyAssembly(typeOfTargetName);
+
+						var methods = typeOfTarget.GetMethods(BindingFlags.Instance | BindingFlags.Static |
+															  BindingFlags.Public | BindingFlags.NonPublic);
+						MethodInfo methodInfoOfTarget = methods.First(x => x.MetadataToken == tokenOfTargetMethod);
+						if (methodGenericArgs > 0)
 						{
-							switch (typeOfGenericArguments.Length)
-							{
-								case 1:
-									typeOfTarget =
-										typeof(DelegateFuncProxyOnClient<>).MakeGenericType(typeOfGenericArguments[0]);
-									break;
-								case 2:
-									typeOfTarget =
-										typeof(DelegateFuncProxyOnClient<,>).MakeGenericType(typeOfGenericArguments[0],
-											typeOfGenericArguments[1]);
-									break;
-								case 3:
-									typeOfTarget =
-										typeof(DelegateFuncProxyOnClient<,,>).MakeGenericType(typeOfGenericArguments[0],
-											typeOfGenericArguments[1], typeOfGenericArguments[2]);
-									break;
-								case 4:
-									typeOfTarget =
-										typeof(DelegateFuncProxyOnClient<,,>).MakeGenericType(typeOfGenericArguments[0],
-											typeOfGenericArguments[1], typeOfGenericArguments[2],
-											typeOfGenericArguments[3]);
-									break;
-								case 5:
-									typeOfTarget =
-										typeof(DelegateFuncProxyOnClient<,,>).MakeGenericType(typeOfGenericArguments[0],
-											typeOfGenericArguments[1], typeOfGenericArguments[2], typeOfGenericArguments[3],
-											typeOfGenericArguments[4]);
-									break;
-								default:
-									throw new InvalidRemotingOperationException(
-										$"Unsupported number of arguments for function ({typeOfGenericArguments.Length}");
-							}
-						}
-						else
-						{
-							switch (typeOfGenericArguments.Length)
-							{
-								case 0:
-									typeOfTarget =
-										typeof(DelegateProxyOnClient);
-									break;
-								case 1:
-									typeOfTarget =
-										typeof(DelegateProxyOnClient<>).MakeGenericType(typeOfGenericArguments[0]);
-									break;
-								case 2:
-									typeOfTarget = typeof(DelegateProxyOnClient<,>).MakeGenericType(
-										typeOfGenericArguments[0],
-										typeOfGenericArguments[1]);
-									break;
-								case 3:
-									typeOfTarget = typeof(DelegateProxyOnClient<,>).MakeGenericType(
-										typeOfGenericArguments[0],
-										typeOfGenericArguments[1], typeOfGenericArguments[2]);
-									break;
-								case 4:
-									typeOfTarget = typeof(DelegateProxyOnClient<,>).MakeGenericType(
-										typeOfGenericArguments[0],
-										typeOfGenericArguments[1], typeOfGenericArguments[2], typeOfGenericArguments[3]);
-									break;
-								default:
-									throw new InvalidRemotingOperationException(
-										$"Unsupported number of arguments for action ({typeOfGenericArguments.Length}");
-							}
+							methodInfoOfTarget = methodInfoOfTarget.MakeGenericMethod(typeOfGenericArguments);
 						}
 
-						var methodInfoOfTarget = typeOfTarget.GetMethod("FireEvent",
-							BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+						// TODO: This copying of arrays here is not really performance-friendly
+						var argumentsOfTarget = methodInfoOfTarget.GetParameters().Select(x => x.ParameterType).ToList();
 
+						var interceptor = InstanceManager.GetInterceptor(_interceptors, instanceId);
 						// This creates an instance of the DelegateInternalSink class, which acts as a proxy for delegate callbacks. Instead of the actual delegate
 						// target, we register a method from this class as a delegate target
 						DelegateInternalSink internalSink;
 						if (_instanceManager.TryGetObjectFromId(instanceId, out object sink))
 						{
 							internalSink = (DelegateInternalSink)sink;
-							// throw new InvalidRemotingOperationException($"Instance id {instanceId} already has a DelegateInternalSink");
 						}
 						else
 						{
-							var interceptor = InstanceManager.GetInterceptor(_interceptors, instanceId);
 							internalSink = new DelegateInternalSink(interceptor, instanceId, methodInfoOfTarget);
 							var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideProcessId,
 								internalSink.GetType(), internalSink.GetType().AssemblyQualifiedName, false);
-
 							internalSink = (DelegateInternalSink)usedInstance;
 						}
 
-						internalSink.RegisterInstance(otherSideProcessId);
-
-						// TODO: This copying of arrays here is not really performance-friendly
-						var argumentsOfTarget = methodInfoOfTarget.GetParameters().Select(x => x.ParameterType).ToList();
-
 						IEnumerable<MethodInfo> possibleSinks = null;
-
 						MethodInfo localSinkTarget;
 						if (methodInfoOfTarget.ReturnType == typeof(void))
 						{
@@ -1075,121 +1169,10 @@ namespace NewRemoting
 							localSinkTarget = localSinkTarget.MakeGenericMethod(argumentsOfTarget.ToArray());
 						}
 
-						// create the local server side delegate
-						Delegate newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
-						string delegateId = _instanceManager.GetDelegateTargetIdentifier(newDelegate, otherSideProcessId);
-						var actualInstance = _instanceManager.AddInstance(newDelegate, delegateId, otherSideProcessId, newDelegate.GetType(), newDelegate.GetType().AssemblyQualifiedName, false);
-						var actualDelegate = (Delegate)actualInstance;
-						if (ReferenceEquals(actualDelegate, newDelegate))
-						{
-							if (internalSink.TheActualDelegate != null)
-							{
-								throw new InvalidRemotingOperationException("Expecting actual delegate to not exist here");
-							}
-
-							internalSink.TheActualDelegate = newDelegate;
-							return newDelegate;
-						}
-
-						return actualDelegate;
+						// No need to register - this is a delegate used as method argument in an "ordinary" call
+						var newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
+						return newDelegate;
 					}
-				}
-
-				case RemotingReferenceType.RemoveEvent:
-				{
-					string instanceId = r.ReadString();
-					lock (ConcurrentOperationsLock)
-					{
-						if (_instanceManager.TryGetObjectFromId(instanceId, out var internalSink))
-						{
-							DelegateInternalSink sink = (DelegateInternalSink)internalSink;
-							if (sink.Unregister(otherSideProcessId))
-							{
-								_instanceManager.Remove(instanceId, otherSideProcessId, true);
-								var del = sink.TheActualDelegate;
-								sink.TheActualDelegate = null; // Is not registered any more
-
-								// argument required to deregister the sink from the target, but nothing happens if it's null, because we use a wrong path later on
-								// This is only null in exceptional cases ("CanFireEventWhileDisconnecting" test)
-								return del;
-							}
-						}
-
-					}
-
-					return null;
-				}
-
-				case RemotingReferenceType.MethodPointer:
-				{
-					string instanceId = r.ReadString();
-					string typeOfTargetName = r.ReadString();
-					int tokenOfTargetMethod = r.ReadInt32();
-					int methodGenericArgs = r.ReadInt32();
-					Type[] typeOfGenericArguments = new Type[methodGenericArgs];
-					for (int i = 0; i < methodGenericArgs; i++)
-					{
-						var typeName = r.ReadString();
-						var t = Server.GetTypeFromAnyAssembly(typeName);
-						typeOfGenericArguments[i] = t;
-					}
-
-					Type typeOfTarget = Server.GetTypeFromAnyAssembly(typeOfTargetName);
-
-					var methods = typeOfTarget.GetMethods(BindingFlags.Instance | BindingFlags.Static |
-														  BindingFlags.Public | BindingFlags.NonPublic);
-					MethodInfo methodInfoOfTarget = methods.First(x => x.MetadataToken == tokenOfTargetMethod);
-					if (methodGenericArgs > 0)
-					{
-						methodInfoOfTarget = methodInfoOfTarget.MakeGenericMethod(typeOfGenericArguments);
-					}
-
-					// TODO: This copying of arrays here is not really performance-friendly
-					var argumentsOfTarget = methodInfoOfTarget.GetParameters().Select(x => x.ParameterType).ToList();
-
-					var interceptor = InstanceManager.GetInterceptor(_interceptors, instanceId);
-					// This creates an instance of the DelegateInternalSink class, which acts as a proxy for delegate callbacks. Instead of the actual delegate
-					// target, we register a method from this class as a delegate target
-					DelegateInternalSink internalSink;
-					if (_instanceManager.TryGetObjectFromId(instanceId, out object sink))
-					{
-						internalSink = (DelegateInternalSink)sink;
-					}
-					else
-					{
-						internalSink = new DelegateInternalSink(interceptor, instanceId, methodInfoOfTarget);
-						var usedInstance = _instanceManager.AddInstance(internalSink, instanceId, interceptor.OtherSideProcessId,
-							internalSink.GetType(), internalSink.GetType().AssemblyQualifiedName, false);
-						internalSink = (DelegateInternalSink)usedInstance;
-					}
-
-					IEnumerable<MethodInfo> possibleSinks = null;
-					MethodInfo localSinkTarget;
-					if (methodInfoOfTarget.ReturnType == typeof(void))
-					{
-						possibleSinks = internalSink.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public)
-							.Where(x => x.Name == "ActionSink");
-						localSinkTarget =
-							possibleSinks.Single(x => x.GetGenericArguments().Length == argumentsOfTarget.Count);
-					}
-					else
-					{
-						possibleSinks = internalSink.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public)
-							.Where(x => x.Name == "FuncSink");
-						localSinkTarget = possibleSinks.Single(x =>
-							x.GetGenericArguments().Length == argumentsOfTarget.Count + 1);
-						argumentsOfTarget.Add(methodInfoOfTarget.ReturnType);
-					}
-
-					if (argumentsOfTarget.Count > 0)
-					{
-						localSinkTarget = localSinkTarget.MakeGenericMethod(argumentsOfTarget.ToArray());
-					}
-
-					// No need to register - this is a delegate used as method argument in an "ordinary" call
-					var newDelegate = Delegate.CreateDelegate(typeOfArgument, internalSink, localSinkTarget);
-					return newDelegate;
-				}
 
 				default:
 					throw new InvalidRemotingOperationException("Unknown argument type");
@@ -1199,10 +1182,12 @@ namespace NewRemoting
 		public void SendExceptionReply(Exception exception, BinaryWriter w, int sequence, string otherSideProcessId)
 		{
 			RemotingCallHeader hdReturnValue = new RemotingCallHeader(RemotingFunctionType.ExceptionReturn, sequence);
-			using var lck = hdReturnValue.WriteHeader(w);
-			// We're manually serializing exceptions, because that's apparently how this should be done (since
-			// ExceptionDispatchInfo.SetRemoteStackTrace doesn't work if the stack trace has already been set)
-			EncodeException(exception, w);
+			using (var lck = hdReturnValue.WriteHeader(w))
+			{
+				// We're manually serializing exceptions, because that's apparently how this should be done (since
+				// ExceptionDispatchInfo.SetRemoteStackTrace doesn't work if the stack trace has already been set)
+				EncodeException(exception, w);
+			}
 		}
 
 		internal void EncodeProperties(BinaryWriter w, Type t, Exception exception)
@@ -1405,10 +1390,11 @@ namespace NewRemoting
 				decodedException = new RemotingException($"Unable to deserialize exception of type {exceptionTypeName}. Please fix it's deserialization constructor");
 			}
 
-			decodedException.HResult = hresult;
+			// TODO:  ExceptionDisaptchInfo doesn't allow us to set the remote stack trace. We need to find a way to do this.
+			// decodedException.HResult = hresult;
 			try
 			{
-				ExceptionDispatchInfo.SetRemoteStackTrace(decodedException!, remoteStack);
+				// ExceptionDispatchInfo.Capture(decodedException, remoteStack);
 			}
 			catch (InvalidOperationException)
 			{

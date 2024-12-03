@@ -27,7 +27,7 @@ namespace NewRemoting
 				Console.WriteLine($"Unable to write to file {fileInfo.FullName}, using logfile {file} instead");
 			}
 
-			_writer = new StreamWriter(file, Encoding.Unicode, new FileStreamOptions() { Access = FileAccess.Write, Mode = FileMode.Create });
+			_writer = new StreamWriter(file, true, Encoding.Unicode);
 		}
 
 		public static bool IsDirectoryWritable(string directory)

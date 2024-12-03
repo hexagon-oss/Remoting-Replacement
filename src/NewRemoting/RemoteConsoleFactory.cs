@@ -1,9 +1,10 @@
-﻿namespace NewRemoting;
-
-public sealed class RemoteConsoleFactory : IRemoteConsoleFactory
+﻿namespace NewRemoting
 {
-	IRemoteConsole IRemoteConsoleFactory.Create(string remoteHost, Credentials remoteCredentials)
+	public sealed class RemoteConsoleFactory : IRemoteConsoleFactory
 	{
-		return new RemoteConsole(remoteHost, remoteCredentials);
+		IRemoteConsole IRemoteConsoleFactory.Create(string remoteHost, Credentials remoteCredentials)
+		{
+			return new RemoteConsole(remoteHost, remoteCredentials);
+		}
 	}
 }

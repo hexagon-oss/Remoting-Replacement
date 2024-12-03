@@ -14,7 +14,11 @@ namespace NewRemoting
 		public JsonSplitStream(Stream baseStream, long length)
 		{
 			BaseStream = baseStream ?? throw new ArgumentNullException(nameof(baseStream));
-			ArgumentOutOfRangeException.ThrowIfNegative(length, nameof(length));
+			if (length < 0)
+			{
+				throw new ArgumentOutOfRangeException(nameof(length), "baseStream length is negative");
+			}
+
 			Length = length;
 			_position = 0;
 		}

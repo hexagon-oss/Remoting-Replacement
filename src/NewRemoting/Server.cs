@@ -41,7 +41,7 @@ namespace NewRemoting
 		/// <summary>
 		/// This list contains types we know we won't be able to resolve so we don't want to try again.
 		/// </summary>
-		private static ConcurrentDictionary<string, Type> _knownUnknownTypes = new();
+		private static ConcurrentDictionary<string, Type> _knownUnknownTypes = new ConcurrentDictionary<string, Type>();
 
 		public const string ServerExecutableName = "RemotingServer.exe";
 		private const string RuntimeVersionRegex = "(\\d+\\.\\d)";
@@ -51,7 +51,7 @@ namespace NewRemoting
 		private readonly ProxyGenerator _proxyGenerator;
 		private readonly CancellationTokenSource _terminatingSource = new CancellationTokenSource();
 		private readonly object _channelWriterLock = new object();
-		private readonly ConcurrentDictionary<string, Assembly> _knownAssemblies = new();
+		private readonly ConcurrentDictionary<string, Assembly> _knownAssemblies = new ConcurrentDictionary<string, Assembly>();
 		private readonly InstanceManager _instanceManager;
 		private readonly MessageHandler _messageHandler;
 		private readonly FormatterFactory _formatterFactory;
@@ -100,11 +100,11 @@ namespace NewRemoting
 			Logger = logger ?? NullLogger.Instance;
 			_interceptorLock = new object();
 			_networkPort = networkPort;
-			_threads = new();
+			_threads = new ConcurrentBag<ThreadData>();
 			_proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
 			_preopenedStream = null;
-			_clientStreamsExpectingUse = new();
-			_serverInterceptorForCallbacks = new();
+			_clientStreamsExpectingUse = new ConcurrentDictionary<int, Stream>();
+			_serverInterceptorForCallbacks = new Dictionary<string, ClientSideInterceptor>();
 
 			_instanceManager = new InstanceManager(_proxyGenerator, Logger);
 			_formatterFactory = new FormatterFactory(_instanceManager);
@@ -129,7 +129,7 @@ namespace NewRemoting
 			_messageHandler = messageHandler;
 			_instanceManager = messageHandler.InstanceManager;
 
-			_threads = new();
+			_threads = new ConcurrentBag<ThreadData>();
 			_formatterFactory = new FormatterFactory(_instanceManager);
 			_proxyGenerator = new ProxyGenerator(new DefaultProxyBuilder());
 			_serverInterceptorForCallbacks = new Dictionary<string, ClientSideInterceptor>() { { localInterceptor.OtherSideProcessId, localInterceptor } };
@@ -152,11 +152,6 @@ namespace NewRemoting
 
 		public ILogger Logger { get; }
 		public int NetworkPort => _networkPort;
-
-		public static Process StartLocalServerProcess()
-		{
-			return Process.Start("RemotingServer.exe");
-		}
 
 		private void RegisterStandardServices()
 		{
@@ -216,7 +211,7 @@ namespace NewRemoting
 			}
 
 			string dllOnly = args.Name;
-			int idx = dllOnly.IndexOf(',', StringComparison.OrdinalIgnoreCase);
+			int idx = dllOnly.IndexOf(",", StringComparison.OrdinalIgnoreCase);
 			if (idx >= 0)
 			{
 				dllOnly = dllOnly.Substring(0, idx);
@@ -281,7 +276,7 @@ namespace NewRemoting
 				{
 					var entry = potentialEntries[index];
 					var matches = Regex.Matches(entry, RuntimeVersionRegex);
-					if (matches.Any())
+					if (matches.Count > 0)
 					{
 						string version = matches[0].Value;
 						if (float.TryParse(version, NumberStyles.Any, CultureInfo.InvariantCulture, out float thisVersion) && thisVersion > bestVersion)
@@ -299,19 +294,12 @@ namespace NewRemoting
 
 		internal static SslStream Authenticate(TcpClient client, X509Certificate certificate, ILogger logger)
 		{
-			SslStream sslStream = new SslStream(client.GetStream(), false);
+			SslStream sslStream = new SslStream(client.GetStream(), false, new RemoteCertificateValidationCallback(ValidateClientCertificate));
 			try
 			{
-				SslServerAuthenticationOptions options = new SslServerAuthenticationOptions();
-				// we require the client authentication
-				options.ClientCertificateRequired = true;
-				// When using certificates, the system validates that the client certificate is not revoked,
-				// by checking that the client certificate is not in the revoked certificate list.
-				// we do not check for revocation of the client certificate
-				options.CertificateRevocationCheckMode = X509RevocationMode.NoCheck;
-				options.RemoteCertificateValidationCallback = new RemoteCertificateValidationCallback(ValidateClientCertificate);
-				options.ServerCertificate = certificate;
-				sslStream.AuthenticateAsServer(options);
+				// Authenticate the server with the provided certificate
+				sslStream.AuthenticateAsServer(certificate, clientCertificateRequired: true, enabledSslProtocols: SslProtocols.Tls12, checkCertificateRevocation: false);
+
 				return sslStream;
 			}
 			catch (AuthenticationException e)
@@ -941,74 +929,75 @@ namespace NewRemoting
 						LogToBoth("Server authentication done", LogLevel.Information);
 					}
 
-					using var reader = new BinaryReader(stream, MessageHandler.DefaultStringEncoding, true);
-
-					byte[] authenticationToken = new byte[100];
-
-					// TODO: This needs some kind of authentication / trust management, but I have _no_ clue on how to get that safely done,
-					// since we (by design) want anyone to be able to connect and execute arbitrary code locally. Bad combination...
-					var bytesRead = reader.Read(authenticationToken, 0, 100);
-					if (bytesRead != 100)
+					using (var reader = new BinaryReader(stream, MessageHandler.DefaultStringEncoding, true))
 					{
-						LogToBoth(
-							FormattableString.Invariant(
-								$"Server disconnecting from client, could not read complete auth token (only {bytesRead})"),
-							LogLevel.Error);
-						tcpClient.Dispose();
-						continue;
+						byte[] authenticationToken = new byte[100];
+
+						// TODO: This needs some kind of authentication / trust management, but I have _no_ clue on how to get that safely done,
+						// since we (by design) want anyone to be able to connect and execute arbitrary code locally. Bad combination...
+						var bytesRead = reader.Read(authenticationToken, 0, 100);
+						if (bytesRead != 100)
+						{
+							LogToBoth(
+								FormattableString.Invariant(
+									$"Server disconnecting from client, could not read complete auth token (only {bytesRead})"),
+								LogLevel.Error);
+							tcpClient.Dispose();
+							continue;
+						}
+
+						byte[] length = new byte[4];
+						if (reader.Read(length, 0, 4) != 4)
+						{
+							LogToBoth(
+								FormattableString.Invariant(
+									$"Server disconnecting from client, could not read message length"), LogLevel.Error);
+							tcpClient.Dispose();
+							continue;
+						}
+
+						byte[] data = new byte[BitConverter.ToInt32(length, 0)];
+
+						bytesRead = reader.Read(data, 0, data.Length);
+						if (bytesRead != data.Length)
+						{
+							LogToBoth(
+								FormattableString.Invariant(
+									$"Server disconnecting from client, could not read data length (only {bytesRead} of {data.Length})"),
+								LogLevel.Error);
+							tcpClient.Dispose();
+							continue;
+						}
+
+						LogToBoth("Server received client authentication", LogLevel.Information);
+
+						string otherSideInstanceId = MessageHandler.DefaultStringEncoding.GetString(data);
+						int instanceHash = BitConverter.ToInt32(authenticationToken, 1);
+
+						SendAuthenticationReply(stream);
+						LogToBoth("Connected authenticated", LogLevel.Information);
+
+						if (authenticationToken[0] == 1)
+						{
+							// first stream connected, wait until second stream is connected as well before starting server
+							// just restart loop, but keep stream
+							_clientStreamsExpectingUse.TryAdd(instanceHash, stream);
+							continue;
+						}
+
+						bool interfaceOnlyClient = authenticationToken[5] == 1;
+						ConnectionSettings settings = new ConnectionSettings(interfaceOnlyClient, _clientInterfaceFilter);
+
+						Thread ts = new Thread(ServerStreamHandler);
+						ts.Name = $"Remote server client {tcpClient.Client.RemoteEndPoint}";
+						var td = new ThreadData(ts, stream, new BinaryReader(stream, MessageHandler.DefaultStringEncoding),
+							otherSideInstanceId, settings);
+						_threads.Add(td);
+						ts.Start(td);
+
+						LogToBoth("Server thread started", LogLevel.Information);
+						Logger.LogInformation("Server thread started");
 					}
-
-					byte[] length = new byte[4];
-					if (reader.Read(length, 0, 4) != 4)
-					{
-						LogToBoth(
-							FormattableString.Invariant(
-								$"Server disconnecting from client, could not read message length"), LogLevel.Error);
-						tcpClient.Dispose();
-						continue;
-					}
-
-					byte[] data = new byte[BitConverter.ToInt32(length)];
-
-					bytesRead = reader.Read(data, 0, data.Length);
-					if (bytesRead != data.Length)
-					{
-						LogToBoth(
-							FormattableString.Invariant(
-								$"Server disconnecting from client, could not read data length (only {bytesRead} of {data.Length})"),
-							LogLevel.Error);
-						tcpClient.Dispose();
-						continue;
-					}
-
-					LogToBoth("Server received client authentication", LogLevel.Information);
-
-					string otherSideInstanceId = MessageHandler.DefaultStringEncoding.GetString(data);
-					int instanceHash = BitConverter.ToInt32(authenticationToken, 1);
-
-					SendAuthenticationReply(stream);
-					LogToBoth("Connected authenticated", LogLevel.Information);
-
-					if (authenticationToken[0] == 1)
-					{
-						// first stream connected, wait until second stream is connected as well before starting server
-						// just restart loop, but keep stream
-						_clientStreamsExpectingUse.TryAdd(instanceHash, stream);
-						continue;
-					}
-
-					bool interfaceOnlyClient = authenticationToken[5] == 1;
-					ConnectionSettings settings = new ConnectionSettings(interfaceOnlyClient, _clientInterfaceFilter);
-
-					Thread ts = new Thread(ServerStreamHandler);
-					ts.Name = $"Remote server client {tcpClient.Client.RemoteEndPoint}";
-					var td = new ThreadData(ts, stream, new BinaryReader(stream, MessageHandler.DefaultStringEncoding),
-						otherSideInstanceId, settings);
-					_threads.Add(td);
-					ts.Start(td);
-
-					LogToBoth("Server thread started", LogLevel.Information);
-					Logger.LogInformation("Server thread started");
 				}
 				catch (SocketException x)
 				{
@@ -1030,12 +1019,12 @@ namespace NewRemoting
 		private void SendAuthenticationReply(Stream stream)
 		{
 			byte[] successToken = BitConverter.GetBytes(AuthenticationSucceededToken);
-			stream.Write(successToken);
+			stream.Write(successToken, 0, successToken.Length);
 
 			var instanceIdentifier = MessageHandler.DefaultStringEncoding.GetBytes(_instanceManager.ProcessIdentifier);
 			var lenBytes = BitConverter.GetBytes(instanceIdentifier.Length);
-			stream.Write(lenBytes);
-			stream.Write(instanceIdentifier);
+			stream.Write(lenBytes, 0, lenBytes.Length);
+			stream.Write(instanceIdentifier, 0, instanceIdentifier.Length);
 		}
 
 		public void PerformGc()

@@ -139,15 +139,15 @@ namespace NewRemoting
 			}
 		}
 
-		public void Impersonate(Action task)
-		{
-			if (Equals(None))
-			{
-				task.Invoke();
-				return;
-			}
+		// public void Impersonate(Action task)
+		// {
+		//  if (Equals(None))
+		//  {
+		//    task.Invoke();
+		//    return;
+		//  }
 
-			Impersonator.RunImpersonated(Username, DomainName, Password, task);
-		}
+		// Impersonator.RunImpersonated(Username, DomainName, Password, task);
+		// }
 	}
 }

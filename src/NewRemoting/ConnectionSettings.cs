@@ -32,7 +32,7 @@ namespace NewRemoting
 		public bool InterfaceOnlyClient
 		{
 			get;
-			init;
+			set;
 		}
 
 		/// <summary>
@@ -41,7 +41,7 @@ namespace NewRemoting
 		public ILogger InstanceManagerLogger
 		{
 			get;
-			init;
+			set;
 		}
 
 		/// <summary>
@@ -50,7 +50,7 @@ namespace NewRemoting
 		public ILogger ConnectionLogger
 		{
 			get;
-			init;
+			set;
 		}
 
 		/// <summary>

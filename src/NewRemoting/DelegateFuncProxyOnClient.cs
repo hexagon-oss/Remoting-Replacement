@@ -1,104 +1,105 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace NewRemoting;
-
-/// <summary>
-/// Delegate proxy on client to handle remote events - used only per reflection, therefore no usages visible
-/// </summary>
-internal class DelegateFuncProxyOnClient<TOut> : DelegateProxyOnClientBase
+namespace NewRemoting
 {
-	public DelegateFuncProxyOnClient()
+	/// <summary>
+	/// Delegate proxy on client to handle remote events - used only per reflection, therefore no usages visible
+	/// </summary>
+	internal class DelegateFuncProxyOnClient<TOut> : DelegateProxyOnClientBase
 	{
+		public DelegateFuncProxyOnClient()
+		{
+		}
+
+		public event Func<TOut> Event;
+
+		protected override bool IsEmpty => Event == null;
+
+		public TOut FireEvent()
+		{
+			var threadSafeEvent = Event;
+			return threadSafeEvent != null ? threadSafeEvent.Invoke() : default;
+		}
 	}
 
-	public event Func<TOut> Event;
-
-	protected override bool IsEmpty => Event == null;
-
-	public TOut FireEvent()
+	/// <summary>
+	/// Delegate proxy on client to handle remote events - used only per reflection, therefore no usages visible
+	/// </summary>
+	internal class DelegateFuncProxyOnClient<T1, TOut> : DelegateProxyOnClientBase
 	{
-		var threadSafeEvent = Event;
-		return threadSafeEvent != null ? threadSafeEvent.Invoke() : default;
-	}
-}
+		public DelegateFuncProxyOnClient()
+		{
+		}
 
-/// <summary>
-/// Delegate proxy on client to handle remote events - used only per reflection, therefore no usages visible
-/// </summary>
-internal class DelegateFuncProxyOnClient<T1, TOut> : DelegateProxyOnClientBase
-{
-	public DelegateFuncProxyOnClient()
-	{
-	}
+		public event Func<T1, TOut> Event;
 
-	public event Func<T1, TOut> Event;
+		protected override bool IsEmpty => Event == null;
 
-	protected override bool IsEmpty => Event == null;
-
-	public TOut FireEvent(T1 arg)
-	{
-		var threadSafeEvent = Event;
-		return threadSafeEvent != null ? threadSafeEvent.Invoke(arg) : default;
-	}
-}
-
-/// <summary>
-/// Delegate proxy on client to handle remote events - used only per reflection, therefore no usages visible
-/// </summary>
-internal class DelegateFuncProxyOnClient<T1, T2, TOut> : DelegateProxyOnClientBase
-{
-	public DelegateFuncProxyOnClient()
-	{
+		public TOut FireEvent(T1 arg)
+		{
+			var threadSafeEvent = Event;
+			return threadSafeEvent != null ? threadSafeEvent.Invoke(arg) : default;
+		}
 	}
 
-	public event Func<T1, T2, TOut> Event;
-
-	protected override bool IsEmpty => Event == null;
-
-	public TOut FireEvent(T1 arg1, T2 arg2)
+	/// <summary>
+	/// Delegate proxy on client to handle remote events - used only per reflection, therefore no usages visible
+	/// </summary>
+	internal class DelegateFuncProxyOnClient<T1, T2, TOut> : DelegateProxyOnClientBase
 	{
-		var threadSafeEvent = Event;
-		return threadSafeEvent != null ? threadSafeEvent.Invoke(arg1, arg2) : default;
-	}
-}
+		public DelegateFuncProxyOnClient()
+		{
+		}
 
-/// <summary>
-/// Delegate proxy on client to handle remote events - used only per reflection, therefore no usages visible
-/// </summary>
-internal class DelegateFuncProxyOnClient<T1, T2, T3, TOut> : DelegateProxyOnClientBase
-{
-	public DelegateFuncProxyOnClient()
-	{
-	}
+		public event Func<T1, T2, TOut> Event;
 
-	public event Func<T1, T2, T3, TOut> Event;
+		protected override bool IsEmpty => Event == null;
 
-	protected override bool IsEmpty => Event == null;
-
-	public TOut FireEvent(T1 arg1, T2 arg2, T3 arg3)
-	{
-		var threadSafeEvent = Event;
-		return threadSafeEvent != null ? threadSafeEvent.Invoke(arg1, arg2, arg3) : default;
-	}
-}
-
-/// <summary>
-/// Delegate proxy on client to handle remote events - used only per reflection, therefore no usages visible
-/// </summary>
-internal class DelegateFuncProxyOnClient<T1, T2, T3, T4, TOut> : DelegateProxyOnClientBase
-{
-	public DelegateFuncProxyOnClient()
-	{
+		public TOut FireEvent(T1 arg1, T2 arg2)
+		{
+			var threadSafeEvent = Event;
+			return threadSafeEvent != null ? threadSafeEvent.Invoke(arg1, arg2) : default;
+		}
 	}
 
-	public event Func<T1, T2, T3, T4, TOut> Event;
-
-	protected override bool IsEmpty => Event == null;
-
-	public TOut FireEvent(T1 arg1, T2 arg2, T3 arg3, T4 arg4)
+	/// <summary>
+	/// Delegate proxy on client to handle remote events - used only per reflection, therefore no usages visible
+	/// </summary>
+	internal class DelegateFuncProxyOnClient<T1, T2, T3, TOut> : DelegateProxyOnClientBase
 	{
-		var threadSafeEvent = Event;
-		return threadSafeEvent != null ? threadSafeEvent.Invoke(arg1, arg2, arg3, arg4) : default;
+		public DelegateFuncProxyOnClient()
+		{
+		}
+
+		public event Func<T1, T2, T3, TOut> Event;
+
+		protected override bool IsEmpty => Event == null;
+
+		public TOut FireEvent(T1 arg1, T2 arg2, T3 arg3)
+		{
+			var threadSafeEvent = Event;
+			return threadSafeEvent != null ? threadSafeEvent.Invoke(arg1, arg2, arg3) : default;
+		}
+	}
+
+	/// <summary>
+	/// Delegate proxy on client to handle remote events - used only per reflection, therefore no usages visible
+	/// </summary>
+	internal class DelegateFuncProxyOnClient<T1, T2, T3, T4, TOut> : DelegateProxyOnClientBase
+	{
+		public DelegateFuncProxyOnClient()
+		{
+		}
+
+		public event Func<T1, T2, T3, T4, TOut> Event;
+
+		protected override bool IsEmpty => Event == null;
+
+		public TOut FireEvent(T1 arg1, T2 arg2, T3 arg3, T4 arg4)
+		{
+			var threadSafeEvent = Event;
+			return threadSafeEvent != null ? threadSafeEvent.Invoke(arg1, arg2, arg3, arg4) : default;
+		}
 	}
 }

@@ -135,7 +135,7 @@ namespace NewRemoting
 			authenticationData[0] = (byte)(callbackStream ? 1 : 0);
 			authenticationData[5] = (byte)(clientUsesInterfaceProxiesOnly ? 1 : 0);
 
-			int instanceHash = _instanceManager.ProcessIdentifier.GetHashCode(StringComparison.Ordinal);
+			int instanceHash = _instanceManager.ProcessIdentifier.GetHashCode();
 			Array.Copy(BitConverter.GetBytes(instanceHash), 0, authenticationData, 1, 4);
 			destination.Write(authenticationData, 0, 100);
 
@@ -144,8 +144,8 @@ namespace NewRemoting
 			var instanceIdentifier = MessageHandler.DefaultStringEncoding.GetBytes(_instanceManager.ProcessIdentifier);
 			var lenBytes = BitConverter.GetBytes(instanceIdentifier.Length);
 
-			destination.Write(lenBytes);
-			destination.Write(instanceIdentifier);
+			destination.Write(lenBytes, 0, lenBytes.Length);
+			destination.Write(instanceIdentifier, 0, instanceIdentifier.Length);
 		}
 
 		private bool WaitForConnectionReply(Stream destination)
@@ -156,7 +156,7 @@ namespace NewRemoting
 				return false;
 			}
 
-			int token = BitConverter.ToInt32(authenticationSucceededToken);
+			int token = BitConverter.ToInt32(authenticationSucceededToken, 0);
 			if (token != Server.AuthenticationSucceededToken)
 			{
 				return false;
@@ -167,7 +167,7 @@ namespace NewRemoting
 				return false;
 			}
 
-			int length = BitConverter.ToInt32(authenticationSucceededToken);
+			int length = BitConverter.ToInt32(authenticationSucceededToken, 0);
 
 			byte[] data = new byte[length];
 			if (destination.Read(data, 0, length) != length)
@@ -181,38 +181,55 @@ namespace NewRemoting
 
 		private SslStream Authenticate(TcpClient client, string targetHost)
 		{
+			// Create the SslStream with the specified validation callback
 			SslStream sslStream = new SslStream(client.GetStream(), false, new RemoteCertificateValidationCallback(ValidateServerCertificate), null);
+
 			// The server name must match the name on the server certificate.
 			try
 			{
 				if (!string.IsNullOrEmpty(_clientAuthentication.CertificateFileName))
 				{
-					_certificate = new X509Certificate2(_clientAuthentication.CertificateFileName,
+					// Load the certificate from the specified file
+					_certificate = new X509Certificate2(
+						_clientAuthentication.CertificateFileName,
 						_clientAuthentication.CertificatePassword,
 						X509KeyStorageFlags.MachineKeySet | X509KeyStorageFlags.UserKeySet);
-					SslClientAuthenticationOptions options = new SslClientAuthenticationOptions
-					{
-						TargetHost = targetHost,
-						ClientCertificates = new X509CertificateCollection { _certificate },
-						CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
-					};
 
-					sslStream.AuthenticateAsClient(options);
+					// Use AuthenticateAsClient overload compatible with .NET Standard 2.1
+					sslStream.AuthenticateAsClient(
+						targetHost,                     // Target server's host name
+						new X509CertificateCollection { _certificate }, // Client certificates
+						SslProtocols.Tls12,             // SSL/TLS protocol (explicitly set to a specific version)
+						checkCertificateRevocation: false); // Disable certificate revocation checking
+
 					Logger?.LogInformation("Client Authentication Done.");
+				}
+				else
+				{
+					// If no client certificate is specified, just authenticate with default options
+					sslStream.AuthenticateAsClient(
+						targetHost,                     // Target server's host name
+						null,                           // No client certificates
+						SslProtocols.Tls12,             // SSL/TLS protocol
+						checkCertificateRevocation: false); // Disable certificate revocation checking
 				}
 
 				return sslStream;
 			}
-			catch (Exception e) when (e is AuthenticationException or CryptographicException)
+			catch (Exception e)
 			{
-				Logger?.LogError(e.ToString());
-				if (e.InnerException != null)
+				if (e is AuthenticationException || e is CryptographicException)
 				{
-					Console.WriteLine("Inner exception: {0}", e.InnerException.Message);
+					Logger?.LogError(e.ToString());
+					if (e.InnerException != null)
+					{
+						Console.WriteLine("Inner exception: {0}", e.InnerException.Message);
+					}
+
+					Logger.LogError("Authentication failed - closing the connection.");
+					client.Close();
 				}
 
-				Logger.LogError("Authentication failed - closing the connection.");
-				client.Close();
 				throw;
 			}
 		}
@@ -342,14 +359,16 @@ namespace NewRemoting
 					_server.StartProcessing(_interceptor.OtherSideProcessId);
 					RemotingCallHeader openReturnChannel =
 						new RemotingCallHeader(RemotingFunctionType.OpenReverseChannel, 0);
-					using var lck = openReturnChannel.WriteHeader(_writer);
-					var addresses = NetworkUtil.LocalIpAddresses();
-					var addressToUse = addresses.First(x => x.AddressFamily == AddressFamily.InterNetwork);
-					_writer.Write(addressToUse.ToString());
-					_writer.Write(_server.NetworkPort);
-					_writer.Write(_instanceManager.ProcessIdentifier);
-					_writer.Write(_instanceManager.ProcessIdentifier.GetHashCode(StringComparison.Ordinal));
-					_connectionConfigured = true;
+					using (var lck = openReturnChannel.WriteHeader(_writer))
+					{
+						var addresses = NetworkUtil.LocalIpAddresses();
+						var addressToUse = addresses.First(x => x.AddressFamily == AddressFamily.InterNetwork);
+						_writer.Write(addressToUse.ToString());
+						_writer.Write(_server.NetworkPort);
+						_writer.Write(_instanceManager.ProcessIdentifier);
+						_writer.Write(_instanceManager.ProcessIdentifier.GetHashCode());
+						_connectionConfigured = true;
+					}
 				}
 			}
 		}
@@ -441,7 +460,7 @@ namespace NewRemoting
 				throw new ArgumentNullException(nameof(typeOfInstance));
 			}
 
-			if (!typeOfInstance.IsAssignableTo(typeof(MarshalByRefObject)))
+			if (!typeof(MarshalByRefObject).IsAssignableFrom(typeOfInstance))
 			{
 				throw new RemotingException("Can only create instances of type MarshalByRefObject remotely");
 			}
@@ -462,51 +481,51 @@ namespace NewRemoting
 			}
 
 			ManualInvocation dummyInvocation = new ManualInvocation(ctorType, args);
-			using ClientSideInterceptor.CallContext ctx = _interceptor.CreateCallContext(dummyInvocation, sequence);
-
-			try
+			using (ClientSideInterceptor.CallContext ctx = _interceptor.CreateCallContext(dummyInvocation, sequence))
 			{
-				if (args.Length == 0)
+				try
 				{
-					RemotingCallHeader hd =
-						new RemotingCallHeader(RemotingFunctionType.CreateInstanceWithDefaultCtor, sequence);
-					using (var lck = hd.WriteHeader(_writer))
+					if (args.Length == 0)
 					{
-						_writer.Write(typeOfInstance.AssemblyQualifiedName);
-						_writer.Write(string.Empty);
-						_writer.Write(string
-							.Empty); // Currently, we do not need the correct ctor identifier, since there can only be one default ctor
-						_writer.Write((int)0); // and no generic args, anyway
-					}
-				}
-				else
-				{
-					RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.CreateInstance, sequence);
-					using (var lck = hd.WriteHeader(_writer))
-					{
-						_writer.Write(typeOfInstance.AssemblyQualifiedName);
-						_writer.Write(string.Empty);
-						_writer.Write(string
-							.Empty); // we let the server resolve the correct ctor to use, based on the argument types
-						_writer.Write((int)0); // and no generic args, anyway
-						_writer.Write(args.Length); // but we need to provide the number of arguments that follow
-						foreach (var a in args)
+						RemotingCallHeader hd =
+							new RemotingCallHeader(RemotingFunctionType.CreateInstanceWithDefaultCtor, sequence);
+						using (var lck = hd.WriteHeader(_writer))
 						{
-							_messageHandler.WriteArgumentToStream(_writer, a, _interceptor.OtherSideProcessId, Settings);
+							_writer.Write(typeOfInstance.AssemblyQualifiedName);
+							_writer.Write(string.Empty);
+							_writer.Write(string
+								.Empty); // Currently, we do not need the correct ctor identifier, since there can only be one default ctor
+							_writer.Write((int)0); // and no generic args, anyway
+						}
+					}
+					else
+					{
+						RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.CreateInstance, sequence);
+						using (var lck = hd.WriteHeader(_writer))
+						{
+							_writer.Write(typeOfInstance.AssemblyQualifiedName);
+							_writer.Write(string.Empty);
+							_writer.Write(string
+								.Empty); // we let the server resolve the correct ctor to use, based on the argument types
+							_writer.Write((int)0); // and no generic args, anyway
+							_writer.Write(args.Length); // but we need to provide the number of arguments that follow
+							foreach (var a in args)
+							{
+								_messageHandler.WriteArgumentToStream(_writer, a, _interceptor.OtherSideProcessId, Settings);
+							}
 						}
 					}
 				}
+				catch (Exception x) when (x is IOException || x is ObjectDisposedException)
+				{
+					throw new RemotingException("Error writing to the transport connection. Possibly disconnected from remote side.", x);
+				}
+
+				// Just the reply is interesting for us
+				_interceptor.WaitForReply(dummyInvocation, ctx);
+
+				return dummyInvocation.ReturnValue;
 			}
-			catch (Exception x) when (x is IOException || x is ObjectDisposedException)
-			{
-				throw new RemotingException("Error writing to the transport connection. Possibly disconnected from remote side.", x);
-			}
-
-			// Just the reply is interesting for us
-			_interceptor.WaitForReply(dummyInvocation, ctx);
-
-			return dummyInvocation.ReturnValue;
-
 		}
 
 		/// <summary>
@@ -533,27 +552,28 @@ namespace NewRemoting
 			int sequence = _interceptor.NextSequenceNumber();
 			// The method is irrelevant here, so take just any method of the given type
 			ManualInvocation dummyInvocation = new ManualInvocation(typeOfInstance);
-			using ClientSideInterceptor.CallContext ctx = _interceptor.CreateCallContext(dummyInvocation, sequence);
-
-			try
+			using (ClientSideInterceptor.CallContext ctx = _interceptor.CreateCallContext(dummyInvocation, sequence))
 			{
-				RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.RequestServiceReference, sequence);
-				using (var lck = hd.WriteHeader(_writer))
+				try
 				{
-					_writer.Write(typeOfInstance.AssemblyQualifiedName);
-					_writer.Write(string.Empty);
-					_writer.Write(string.Empty); // No ctor is being called
-					_writer.Write((int)0); // and no generic args, anyway
+					RemotingCallHeader hd = new RemotingCallHeader(RemotingFunctionType.RequestServiceReference, sequence);
+					using (var lck = hd.WriteHeader(_writer))
+					{
+						_writer.Write(typeOfInstance.AssemblyQualifiedName);
+						_writer.Write(string.Empty);
+						_writer.Write(string.Empty); // No ctor is being called
+						_writer.Write((int)0); // and no generic args, anyway
+					}
 				}
-			}
-			catch (Exception x) when (x is IOException || x is ObjectDisposedException)
-			{
-				throw new RemotingException("Error writing to the transport connection. Possibly disconnected from remote side.", x);
-			}
+				catch (Exception x) when (x is IOException || x is ObjectDisposedException)
+				{
+					throw new RemotingException("Error writing to the transport connection. Possibly disconnected from remote side.", x);
+				}
 
-			_interceptor.WaitForReply(dummyInvocation, ctx);
+				_interceptor.WaitForReply(dummyInvocation, ctx);
 
-			return dummyInvocation.ReturnValue;
+				return dummyInvocation.ReturnValue;
+			}
 		}
 
 		/// <summary>

@@ -16,7 +16,11 @@ namespace NewRemoting.Toolkit
 		public PooledMemoryStream(int size)
 		{
 			// This currently only supports streams up to 2GB in size
-			ArgumentOutOfRangeException.ThrowIfGreaterThan(size, Int32.MaxValue, nameof(size));
+			if (size > Int32.MaxValue)
+			{
+				throw new ArgumentOutOfRangeException(nameof(size), "Size must be less than 2GB");
+			}
+
 			_pooledObject = ArrayPool<byte>.Shared.Rent(size);
 			_streamImplementation = new MemoryStream(_pooledObject);
 		}
@@ -203,7 +207,7 @@ namespace NewRemoting.Toolkit
 		public void Serialize(BinaryWriter serializerTarget)
 		{
 			serializerTarget.Write(_contentLength);
-			serializerTarget.Write(new ReadOnlySpan<byte>(_pooledObject, 0, _contentLength));
+			serializerTarget.Write(_pooledObject, 0, _contentLength);
 		}
 
 		public void Deserialize(BinaryReader serializerSource)

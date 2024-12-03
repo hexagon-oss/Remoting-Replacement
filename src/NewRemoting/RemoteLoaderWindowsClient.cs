@@ -191,7 +191,7 @@ namespace NewRemoting
 					Logger.LogError(x, $"Unable to connect to remote server. Attempt {retries + 1}: {x.Message}");
 					lastError = x;
 
-					if (process is { HasExited: true, ExitCode: (int)ExitCode.StartFailure })
+					if (process != null && process.HasExited && process.ExitCode == (int)ExitCode.StartFailure)
 					{
 						var ex = new RemotingException(message: $"Process exited with exit code {(int)ExitCode.StartFailure}.")
 						{
