@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Castle.DynamicProxy;
 
 namespace NewRemoting.Surrogates
 {
@@ -28,7 +29,8 @@ namespace NewRemoting.Surrogates
 		{
 			string objectId;
 			// Since we can't do that in CanConvert, we now need to do the test on the actual type
-			if (MessageHandler.IsMarshalByRefType(value.GetType()))
+			var t = value.GetType();
+			if (MessageHandler.IsMarshalByRefType(t) || ProxyUtil.IsProxyType(t))
 			{
 				if (Client.IsRemoteProxy(value))
 				{
