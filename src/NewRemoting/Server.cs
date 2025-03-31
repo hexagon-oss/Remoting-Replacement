@@ -255,7 +255,7 @@ namespace NewRemoting
 
 			try
 			{
-				var assembly = Assembly.LoadFile(path);
+				var assembly = Assembly.LoadFrom(path);
 				_knownAssemblies.AddOrUpdate(args.Name, assembly, (s, assembly1) => assembly);
 				return assembly;
 			}
