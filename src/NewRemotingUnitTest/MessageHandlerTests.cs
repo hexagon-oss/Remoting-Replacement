@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using NewRemoting;
 using NUnit.Framework;
+using SampleServerClasses;
 
 namespace NewRemotingUnitTest
 {
@@ -123,6 +124,29 @@ namespace NewRemotingUnitTest
 			Assert.That(ldue.HResult, Is.EqualTo(decoded.HResult));
 			Assert.That(ldue.InnerException is OperationCanceledException, Is.True);
 			Assert.That(((ldue.InnerException as OperationCanceledException)!).Source, Is.EqualTo(c.Source));
+		}
+
+		[Test]
+		public void SerializeCustomExceptionWithProperties()
+		{
+			var c = new CustomTestException("Something went wrong", "It really did", 2);
+
+			MemoryStream ms = new MemoryStream();
+			BinaryWriter bw = new BinaryWriter(ms);
+			BinaryReader br = new BinaryReader(ms);
+
+			Handler.EncodeException(c, bw);
+			long encodingLength = ms.Position;
+			ms.Position = 0;
+			CustomTestException decoded = MessageHandler.DecodeException(br, "Dummy", Handler) as CustomTestException;
+			long decodingLength = ms.Position;
+			Assert.That(decoded, Is.Not.Null);
+			Assert.That(decoded.InnerException, Is.Null);
+			Assert.That(encodingLength, Is.EqualTo(decodingLength));
+
+			Assert.That(decoded.CustomMessagePart, Is.EqualTo("It really did"));
+			Assert.That(decoded.Message, Is.EqualTo(c.Message));
+			Assert.That(decoded.NumberOfErrors, Is.EqualTo(2));
 		}
 	}
 }
