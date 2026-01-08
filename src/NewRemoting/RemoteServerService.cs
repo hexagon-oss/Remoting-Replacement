@@ -109,6 +109,8 @@ namespace NewRemoting
 					// no upload needed, file is already up to date!
 					return false;
 				}
+
+				fi.Delete();
 			}
 
 			_uploadCandidate = new FileUploadCandidate(fi);
@@ -237,6 +239,7 @@ namespace NewRemoting
 			public FileUploadCandidate(FileInfo file)
 			{
 				FullPath = file.FullName;
+
 				_fileStream = file.OpenWrite();
 			}
 
