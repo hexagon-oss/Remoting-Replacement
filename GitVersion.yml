@@ -1,5 +1,5 @@
 # current development version which is first version of next release branched away from master
-next-version: 1.0.0
+next-version: 1.0.1
 
 # configuration for all branches
 assembly-versioning-scheme: MajorMinorPatchTag

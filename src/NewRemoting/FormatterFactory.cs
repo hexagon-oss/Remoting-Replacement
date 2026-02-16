@@ -24,6 +24,7 @@ namespace NewRemoting
 	/// </summary>
 	public class FormatterFactory
 	{
+		private static readonly List<JsonConverter> ExternalSurrogateList = new List<JsonConverter>();
 		private readonly IInstanceManager _instanceManager;
 		private readonly ConcurrentDictionary<string, JsonSerializerOptions> _cusBinaryFormatters;
 
@@ -31,6 +32,17 @@ namespace NewRemoting
 		{
 			_instanceManager = instanceManager;
 			_cusBinaryFormatters = new ConcurrentDictionary<string, JsonSerializerOptions>();
+		}
+
+		/// <summary>
+		/// Allows manually setting up a converter that is to be included in the list of internal converters.
+		/// This should be called before the formatter is used the first time. It should only be used for types that need serialization
+		/// and cannot implement <see cref="IManualSerialization"/> (e.g. because they're imported from a library)
+		/// </summary>
+		/// <param name="surrogate"></param>
+		public static void AddSurrogate(JsonConverter surrogate)
+		{
+			ExternalSurrogateList.Add(surrogate);
 		}
 
 		public JsonSerializerOptions CreateOrGetFormatter(string otherSideProcessId)
@@ -56,6 +68,11 @@ namespace NewRemoting
 				ReferenceHandler = ReferenceHandler.Preserve,
 				NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals
 			};
+
+			foreach (var converter in ExternalSurrogateList)
+			{
+				options.Converters.Add(converter);
+			}
 
 			_cusBinaryFormatters.TryAdd(otherSideProcessId, options);
 			return options;
