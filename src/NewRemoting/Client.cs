@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Security;
@@ -10,6 +11,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Castle.Core.Internal;
 using Castle.DynamicProxy;
@@ -54,7 +56,8 @@ namespace NewRemoting
 		/// <param name="port">Network port</param>
 		/// <param name="authenticationInformation"> credentials for authentication</param>
 		/// <param name="settings">Advanced connection settings</param>
-		public Client(string server, int port, AuthenticationInformation authenticationInformation, ConnectionSettings settings)
+		/// <param name="extraConverters">A list of separate type-to-json converters. The use of <see cref="IManualSerialization"/> is preferred, though</param>
+		public Client(string server, int port, AuthenticationInformation authenticationInformation, ConnectionSettings settings, IList<JsonConverter> extraConverters)
 		{
 			Settings = settings ?? throw new ArgumentNullException(nameof(settings));
 			_clientAuthentication = authenticationInformation;
@@ -83,7 +86,7 @@ namespace NewRemoting
 			_builder = new DefaultProxyBuilder();
 			_proxy = new ProxyGenerator(_builder);
 			_instanceManager = new InstanceManager(_proxy, instanceLogger);
-			_formatterFactory = new FormatterFactory(_instanceManager);
+			_formatterFactory = new FormatterFactory(_instanceManager, extraConverters);
 
 			_messageHandler = new MessageHandler(_instanceManager, _formatterFactory, Logger);
 
@@ -116,6 +119,7 @@ namespace NewRemoting
 
 			// This is used as return channel
 			_server = new Server(s, _messageHandler, _interceptor);
+			_server.AddExternalSurrogates(extraConverters);
 		}
 
 		public ConnectionSettings Settings { get; }

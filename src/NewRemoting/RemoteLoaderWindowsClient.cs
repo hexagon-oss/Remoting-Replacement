@@ -3,7 +3,10 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Buffers;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net.Sockets;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using NewRemoting.Toolkit;
 
@@ -158,7 +161,7 @@ namespace NewRemoting
 		}
 
 		/// <inheritdoc />
-		public void Connect(CancellationToken externalToken, ILogger clientConnectionLogger)
+		public void Connect(CancellationToken externalToken, IList<JsonConverter> extraSurrogates, ILogger clientConnectionLogger)
 		{
 			Logger.LogInformation("Connecting to RemotingServer");
 
@@ -182,7 +185,7 @@ namespace NewRemoting
 						ConnectionLogger = clientConnectionLogger,
 					};
 
-					_remotingClient = new Client(RemoteHost, RemotePort, Credentials.Certificate, settings);
+					_remotingClient = new Client(RemoteHost, RemotePort, Credentials.Certificate, settings, extraSurrogates);
 					Logger.LogInformation("Remoting client creation succeeded");
 					break;
 				}
@@ -239,9 +242,21 @@ namespace NewRemoting
 			}
 
 			Logger.LogInformation("BinaryUpload finished after '{0}'ms", sw.ElapsedMilliseconds);
+
+			if (extraSurrogates.Any())
+			{
+				List<Type> typeList = new List<Type>();
+				foreach (var instance in extraSurrogates)
+				{
+					typeList.Add(instance.GetType());
+				}
+
+				_remoteServer.RegisterConverters(typeList);
+				Logger.LogInformation("Extra surrogates registered");
+			}
 		}
 
-		public bool Connect(bool checkExistingInstance, CancellationToken cancellationToken, ILogger clientConnectionLogger = null)
+		public bool Connect(bool checkExistingInstance, CancellationToken cancellationToken, IList<JsonConverter> extraSurrogates, ILogger clientConnectionLogger)
 		{
 			clientConnectionLogger?.LogInformation($"Connection sequence for {REMOTELOADER_EXECUTABLE} started.");
 
@@ -313,7 +328,7 @@ namespace NewRemoting
 			}
 
 			clientConnectionLogger?.LogInformation("Starting Connection to remote server.");
-			Connect(cancellationToken, clientConnectionLogger);
+			Connect(cancellationToken, extraSurrogates, clientConnectionLogger);
 			return true;
 		}
 

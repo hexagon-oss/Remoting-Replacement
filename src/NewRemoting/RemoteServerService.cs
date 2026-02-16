@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 
 namespace NewRemoting
@@ -228,6 +229,11 @@ namespace NewRemoting
 			GC.WaitForPendingFinalizers();
 			GC.WaitForFullGCComplete();
 			_server.PerformGc();
+		}
+
+		public void RegisterConverters(IList<Type> surrogateTypes)
+		{
+			_server.AddExternalSurrogates(surrogateTypes);
 		}
 
 		/// <summary>

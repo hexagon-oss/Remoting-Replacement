@@ -14,6 +14,7 @@ using System.Runtime.Serialization;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -165,6 +166,25 @@ namespace NewRemoting
 			{
 				ServiceContainer.AddService(typeof(IRemoteServerService), new RemoteServerService(this, Logger));
 			}
+		}
+
+		internal void AddExternalSurrogates(IList<Type> surrogateTypes)
+		{
+			foreach (var c in surrogateTypes)
+			{
+				if (!c.IsAssignableTo(typeof(JsonConverter)))
+				{
+					throw new InvalidOperationException("Type converters must be a subtype of JsonConverter");
+				}
+
+				var obj = (JsonConverter)Activator.CreateInstance(c, BindingFlags.CreateInstance, null, null, null);
+				_formatterFactory.AddExternalSurrogate(obj);
+			}
+		}
+
+		internal void AddExternalSurrogates(IList<JsonConverter> extraConverters)
+		{
+			_formatterFactory.AddExternalSurrogates(extraConverters);
 		}
 
 		private Assembly AssemblyResolver(object sender, ResolveEventArgs args)

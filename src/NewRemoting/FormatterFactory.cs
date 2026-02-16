@@ -24,25 +24,48 @@ namespace NewRemoting
 	/// </summary>
 	public class FormatterFactory
 	{
-		private static readonly List<JsonConverter> ExternalSurrogateList = new List<JsonConverter>();
+		private readonly IList<JsonConverter> _externalSurrogateList;
 		private readonly IInstanceManager _instanceManager;
 		private readonly ConcurrentDictionary<string, JsonSerializerOptions> _cusBinaryFormatters;
 
-		public FormatterFactory(IInstanceManager instanceManager)
+		public FormatterFactory(IInstanceManager instanceManager, IList<JsonConverter> externalSurrogateList = null)
 		{
 			_instanceManager = instanceManager;
+			_externalSurrogateList = externalSurrogateList ?? new List<JsonConverter>();
 			_cusBinaryFormatters = new ConcurrentDictionary<string, JsonSerializerOptions>();
 		}
 
 		/// <summary>
-		/// Allows manually setting up a converter that is to be included in the list of internal converters.
-		/// This should be called before the formatter is used the first time. It should only be used for types that need serialization
-		/// and cannot implement <see cref="IManualSerialization"/> (e.g. because they're imported from a library)
+		/// Adds an external surrogate to this formatter.
 		/// </summary>
-		/// <param name="surrogate"></param>
-		public static void AddSurrogate(JsonConverter surrogate)
+		/// <param name="surrogate">The surrogate to add</param>
+		/// <param name="clearCache">True to clear the cache of JsonSerializerOptions</param>
+		/// <returns>True on success, false if there's already a surrogate with the same type(!) registered</returns>
+		public bool AddExternalSurrogate(JsonConverter surrogate, bool clearCache = true)
 		{
-			ExternalSurrogateList.Add(surrogate);
+			if (_externalSurrogateList.Any(x => x.GetType() == surrogate.GetType()))
+			{
+				return false;
+			}
+
+			_externalSurrogateList.Add(surrogate);
+
+			if (clearCache)
+			{
+				_cusBinaryFormatters.Clear();
+			}
+
+			return true;
+		}
+
+		public void AddExternalSurrogates(IEnumerable<JsonConverter> surrogates)
+		{
+			foreach (var s in surrogates)
+			{
+				AddExternalSurrogate(s, false);
+			}
+
+			_cusBinaryFormatters.Clear();
 		}
 
 		public JsonSerializerOptions CreateOrGetFormatter(string otherSideProcessId)
@@ -69,7 +92,7 @@ namespace NewRemoting
 				NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals
 			};
 
-			foreach (var converter in ExternalSurrogateList)
+			foreach (var converter in _externalSurrogateList)
 			{
 				options.Converters.Add(converter);
 			}

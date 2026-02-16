@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using NewRemoting;
 
@@ -23,7 +24,7 @@ namespace SampleServerClasses
 			_serverProcess = Process.Start("RemotingServer.exe", $"-p {port}");
 
 			// Port is currently hardcoded
-			_client = new Client("localhost", port, null, new ConnectionSettings());
+			_client = new Client("localhost", port, null, new ConnectionSettings(), new List<JsonConverter>());
 			_remoteOperationsServer = _client.RequestRemoteInstance<IRemoteServerService>();
 			if (_remoteOperationsServer == null)
 			{
