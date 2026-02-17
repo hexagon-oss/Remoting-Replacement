@@ -133,6 +133,14 @@ namespace NewRemoting
 			// This is used as return channel
 			_server = new Server(s, _messageHandler, _interceptor);
 			_server.AddExternalSurrogates(extraConverters);
+
+			var remotingServerService = RequestRemoteInstance<IRemoteServerService>();
+			if (remotingServerService == null)
+			{
+				throw new RemotingException("Could not connect to remote loader interface, although server is up");
+			}
+
+			Logger.LogInformation("Got interface to {0}", remotingServerService.GetType().Name);
 		}
 
 		public ConnectionSettings Settings { get; }
@@ -644,6 +652,28 @@ namespace NewRemoting
 		public Task ForceGcAsync()
 		{
 			return Task.Factory.StartNew(ForceGc);
+		}
+
+		/// <summary>
+		/// Pushes the extra surrogate declarations to the server.
+		/// Cannot be done directly in the constructor, as it may first be necessary to copy the code to the remote side
+		/// </summary>
+		/// <exception cref="NotImplementedException"></exception>
+		public void PublishExtraSurrogates()
+		{
+			var remoteServer = RequestRemoteInstance<IRemoteServerService>();
+			var extraSurrogates = _formatterFactory.GetExternalSurrogates();
+			if (extraSurrogates.Any())
+			{
+				List<Type> typeList = new List<Type>();
+				foreach (var instance in extraSurrogates)
+				{
+					typeList.Add(instance.GetType());
+				}
+
+				remoteServer.RegisterConverters(typeList);
+				Logger.LogInformation("Extra surrogates registered");
+			}
 		}
 	}
 }

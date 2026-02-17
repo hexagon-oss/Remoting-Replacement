@@ -5,10 +5,13 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.Serialization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using NewRemoting;
 using NewRemoting.Toolkit;
+using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 using NUnit.Framework.Internal.Execution;
 using SampleServerClasses;
@@ -53,13 +56,19 @@ namespace NewRemotingUnitTest
 			_serverProcess = Process.Start(psi);
 			Assert.That(_serverProcess, Is.Not.Null);
 
+			var extraConverters = new List<JsonConverter>()
+			{
+				new TestSerializer()
+			};
+
 			// Port is currently hardcoded
 			_client = new Client("localhost", Client.DefaultNetworkPort, authenticationInfo, new ConnectionSettings()
 			{
 				InterfaceOnlyClient = interfaceOnly,
-			});
+			}, extraConverters);
 
 			_client.Start();
+			_client.PublishExtraSurrogates();
 			return authenticationInfo;
 		}
 
@@ -1026,6 +1035,17 @@ namespace NewRemotingUnitTest
 			Assert.That(RemoteWaitHandle.WaitAll(handles.ToArray(), TimeSpan.MaxValue));
 		}
 
+		[Test]
+		public void ExternalSerializationWorks()
+		{
+			CreateClientServer(false);
+			var server = CreateRemoteInstance();
+			var result = server.CheckExternalSerialization("Input");
+			Assert.That(result, Is.Not.Null);
+			Assert.That(result.Data1, Is.Not.Empty);
+			Assert.That(result.WasSerialized, Is.True);
+		}
+
 		private void ExecuteCallbacks(IMarshallInterface instance, int overallIterations, int iterations,
 			ref int expectedCounter)
 		{
@@ -1123,6 +1143,45 @@ namespace NewRemotingUnitTest
 			public void CallbackMethod(string obj)
 			{
 				Data = obj;
+			}
+		}
+
+		private sealed class TestSerializer : JsonConverter<ClassRequiringExternalSerialization>
+		{
+			public override ClassRequiringExternalSerialization Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+			{
+				string s = string.Empty;
+				while (reader.Read())
+				{
+					if (reader.TokenType == JsonTokenType.EndObject)
+					{
+						break;
+					}
+
+					string propertyName = reader.GetString()!;
+					reader.Read();
+					switch (propertyName)
+					{
+						case "UnitTypeName":
+							break;
+						case "Data":
+							s = reader.GetString();
+							break;
+					}
+				}
+
+				return new ClassRequiringExternalSerialization(s)
+				{
+					WasSerialized = true
+				};
+			}
+
+			public override void Write(Utf8JsonWriter writer, ClassRequiringExternalSerialization value, JsonSerializerOptions options)
+			{
+				writer.WriteStartObject();
+				writer.WriteString("TypeName", value.GetType().Name);
+				writer.WriteString("Data", value.Data1);
+				writer.WriteEndObject();
 			}
 		}
 	}

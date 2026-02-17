@@ -68,6 +68,11 @@ namespace NewRemoting
 			_cusBinaryFormatters.Clear();
 		}
 
+		public IList<JsonConverter> GetExternalSurrogates()
+		{
+			return _externalSurrogateList;
+		}
+
 		public JsonSerializerOptions CreateOrGetFormatter(string otherSideProcessId)
 		{
 			if (_cusBinaryFormatters.TryGetValue(otherSideProcessId, out var formatter))

@@ -225,12 +225,14 @@ namespace NewRemoting
 				throw lastError;
 			}
 
-			_remoteServer = _remotingClient.RequestRemoteInstance<IRemoteServerService>();
-			Logger.LogInformation("Got interface to {0}", _remoteServer.GetType().Name);
-			if (_remoteServer == null)
+			if (_remotingClient == null)
 			{
-				throw new RemotingException("Could not connect to remote loader interface");
+				// Not expected to happen
+				Logger.LogError("Unknown error connection to server");
+				throw new InvalidOperationException("Unable to connect");
 			}
+
+			_remoteServer = _remotingClient.RequestRemoteInstance<IRemoteServerService>();
 
 			string verifyResult = _remotingClient.VerifyMatchingServer();
 			if (!string.IsNullOrWhiteSpace(verifyResult))
@@ -249,17 +251,7 @@ namespace NewRemoting
 
 			Logger.LogInformation("BinaryUpload finished after '{0}'ms", sw.ElapsedMilliseconds);
 
-			if (extraSurrogates.Any())
-			{
-				List<Type> typeList = new List<Type>();
-				foreach (var instance in extraSurrogates)
-				{
-					typeList.Add(instance.GetType());
-				}
-
-				_remoteServer.RegisterConverters(typeList);
-				Logger.LogInformation("Extra surrogates registered");
-			}
+			_remotingClient.PublishExtraSurrogates();
 		}
 
 		public bool Connect(bool checkExistingInstance, CancellationToken cancellationToken, IList<JsonConverter> extraSurrogates, ILogger clientConnectionLogger)

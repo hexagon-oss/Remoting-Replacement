@@ -410,5 +410,10 @@ namespace SampleServerClasses
 
 			return handles;
 		}
+
+		public virtual ClassRequiringExternalSerialization CheckExternalSerialization(string data)
+		{
+			return new ClassRequiringExternalSerialization(data);
+		}
 	}
 }
