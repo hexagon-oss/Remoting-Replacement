@@ -160,6 +160,12 @@ namespace NewRemoting
 			return true;
 		}
 
+		/// <inheritdoc/>
+		public void Connect(CancellationToken externalToken, ILogger clientConnectionLogger)
+		{
+			Connect(externalToken, new List<JsonConverter>(), clientConnectionLogger);
+		}
+
 		/// <inheritdoc />
 		public void Connect(CancellationToken externalToken, IList<JsonConverter> extraSurrogates, ILogger clientConnectionLogger)
 		{

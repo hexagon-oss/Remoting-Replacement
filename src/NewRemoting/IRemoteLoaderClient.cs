@@ -38,6 +38,15 @@ namespace NewRemoting
 		/// Connects the remote loader to the remote system;
 		/// </summary>
 		/// <param name="cancellationToken">Abort token for connection attempt</param>
+		/// <param name="clientConnectionLogger">A logger for logging all communication activities. Use for debugging only, as it has a
+		/// performance penalty</param>
+		/// <exception cref="RemotingException">Thrown if connection to remote loader fails</exception>
+		void Connect(CancellationToken cancellationToken, ILogger clientConnectionLogger);
+
+		/// <summary>
+		/// Connects the remote loader to the remote system;
+		/// </summary>
+		/// <param name="cancellationToken">Abort token for connection attempt</param>
 		/// <param name="extraSurrogates">A list of extra converters</param>
 		/// <param name="clientConnectionLogger">A logger for logging all communication activities. Use for debugging only, as it has a
 		/// performance penalty</param>

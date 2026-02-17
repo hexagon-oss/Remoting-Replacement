@@ -56,6 +56,19 @@ namespace NewRemoting
 		/// <param name="port">Network port</param>
 		/// <param name="authenticationInformation"> credentials for authentication</param>
 		/// <param name="settings">Advanced connection settings</param>
+		public Client(string server, int port, AuthenticationInformation authenticationInformation,
+			ConnectionSettings settings)
+			: this(server, port, authenticationInformation, settings, new List<JsonConverter>())
+		{
+		}
+
+		/// <summary>
+		/// Creates a remoting client for the given server and opens the network connection
+		/// </summary>
+		/// <param name="server">Server name or IP</param>
+		/// <param name="port">Network port</param>
+		/// <param name="authenticationInformation"> credentials for authentication</param>
+		/// <param name="settings">Advanced connection settings</param>
 		/// <param name="extraConverters">A list of separate type-to-json converters. The use of <see cref="IManualSerialization"/> is preferred, though</param>
 		public Client(string server, int port, AuthenticationInformation authenticationInformation, ConnectionSettings settings, IList<JsonConverter> extraConverters)
 		{
