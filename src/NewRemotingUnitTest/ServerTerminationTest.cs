@@ -6,6 +6,7 @@ using System.Management;
 using System.Reflection;
 using System.Runtime.Serialization;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using Castle.DynamicProxy;

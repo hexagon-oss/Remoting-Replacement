@@ -24,13 +24,53 @@ namespace NewRemoting
 	/// </summary>
 	public class FormatterFactory
 	{
+		private readonly IList<JsonConverter> _externalSurrogateList;
 		private readonly IInstanceManager _instanceManager;
 		private readonly ConcurrentDictionary<string, JsonSerializerOptions> _cusBinaryFormatters;
 
-		public FormatterFactory(IInstanceManager instanceManager)
+		public FormatterFactory(IInstanceManager instanceManager, IList<JsonConverter> externalSurrogateList = null)
 		{
 			_instanceManager = instanceManager;
+			_externalSurrogateList = externalSurrogateList ?? new List<JsonConverter>();
 			_cusBinaryFormatters = new ConcurrentDictionary<string, JsonSerializerOptions>();
+		}
+
+		/// <summary>
+		/// Adds an external surrogate to this formatter.
+		/// </summary>
+		/// <param name="surrogate">The surrogate to add</param>
+		/// <param name="clearCache">True to clear the cache of JsonSerializerOptions</param>
+		/// <returns>True on success, false if there's already a surrogate with the same type(!) registered</returns>
+		public bool AddExternalSurrogate(JsonConverter surrogate, bool clearCache = true)
+		{
+			if (_externalSurrogateList.Any(x => x.GetType() == surrogate.GetType()))
+			{
+				return false;
+			}
+
+			_externalSurrogateList.Add(surrogate);
+
+			if (clearCache)
+			{
+				_cusBinaryFormatters.Clear();
+			}
+
+			return true;
+		}
+
+		public void AddExternalSurrogates(IEnumerable<JsonConverter> surrogates)
+		{
+			foreach (var s in surrogates)
+			{
+				AddExternalSurrogate(s, false);
+			}
+
+			_cusBinaryFormatters.Clear();
+		}
+
+		public IList<JsonConverter> GetExternalSurrogates()
+		{
+			return _externalSurrogateList;
 		}
 
 		public JsonSerializerOptions CreateOrGetFormatter(string otherSideProcessId)
@@ -56,6 +96,11 @@ namespace NewRemoting
 				ReferenceHandler = ReferenceHandler.Preserve,
 				NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals
 			};
+
+			foreach (var converter in _externalSurrogateList)
+			{
+				options.Converters.Add(converter);
+			}
 
 			_cusBinaryFormatters.TryAdd(otherSideProcessId, options);
 			return options;

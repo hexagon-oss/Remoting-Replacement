@@ -3,7 +3,10 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Buffers;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net.Sockets;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using NewRemoting.Toolkit;
 
@@ -157,8 +160,14 @@ namespace NewRemoting
 			return true;
 		}
 
-		/// <inheritdoc />
+		/// <inheritdoc/>
 		public void Connect(CancellationToken externalToken, ILogger clientConnectionLogger)
+		{
+			Connect(externalToken, new List<JsonConverter>(), clientConnectionLogger);
+		}
+
+		/// <inheritdoc />
+		public void Connect(CancellationToken externalToken, IList<JsonConverter> extraSurrogates, ILogger clientConnectionLogger)
 		{
 			Logger.LogInformation("Connecting to RemotingServer");
 
@@ -182,7 +191,7 @@ namespace NewRemoting
 						ConnectionLogger = clientConnectionLogger,
 					};
 
-					_remotingClient = new Client(RemoteHost, RemotePort, Credentials.Certificate, settings);
+					_remotingClient = new Client(RemoteHost, RemotePort, Credentials.Certificate, settings, extraSurrogates);
 					Logger.LogInformation("Remoting client creation succeeded");
 					break;
 				}
@@ -216,12 +225,14 @@ namespace NewRemoting
 				throw lastError;
 			}
 
-			_remoteServer = _remotingClient.RequestRemoteInstance<IRemoteServerService>();
-			Logger.LogInformation("Got interface to {0}", _remoteServer.GetType().Name);
-			if (_remoteServer == null)
+			if (_remotingClient == null)
 			{
-				throw new RemotingException("Could not connect to remote loader interface");
+				// Not expected to happen
+				Logger.LogError("Unknown error connection to server");
+				throw new InvalidOperationException("Unable to connect");
 			}
+
+			_remoteServer = _remotingClient.RequestRemoteInstance<IRemoteServerService>();
 
 			string verifyResult = _remotingClient.VerifyMatchingServer();
 			if (!string.IsNullOrWhiteSpace(verifyResult))
@@ -239,9 +250,11 @@ namespace NewRemoting
 			}
 
 			Logger.LogInformation("BinaryUpload finished after '{0}'ms", sw.ElapsedMilliseconds);
+
+			_remotingClient.PublishExtraSurrogates();
 		}
 
-		public bool Connect(bool checkExistingInstance, CancellationToken cancellationToken, ILogger clientConnectionLogger = null)
+		public bool Connect(bool checkExistingInstance, CancellationToken cancellationToken, IList<JsonConverter> extraSurrogates, ILogger clientConnectionLogger)
 		{
 			clientConnectionLogger?.LogInformation($"Connection sequence for {REMOTELOADER_EXECUTABLE} started.");
 
@@ -313,7 +326,7 @@ namespace NewRemoting
 			}
 
 			clientConnectionLogger?.LogInformation("Starting Connection to remote server.");
-			Connect(cancellationToken, clientConnectionLogger);
+			Connect(cancellationToken, extraSurrogates, clientConnectionLogger);
 			return true;
 		}
 

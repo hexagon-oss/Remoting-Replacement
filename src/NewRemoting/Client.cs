@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Security;
@@ -10,6 +11,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Castle.Core.Internal;
 using Castle.DynamicProxy;
@@ -54,7 +56,21 @@ namespace NewRemoting
 		/// <param name="port">Network port</param>
 		/// <param name="authenticationInformation"> credentials for authentication</param>
 		/// <param name="settings">Advanced connection settings</param>
-		public Client(string server, int port, AuthenticationInformation authenticationInformation, ConnectionSettings settings)
+		public Client(string server, int port, AuthenticationInformation authenticationInformation,
+			ConnectionSettings settings)
+			: this(server, port, authenticationInformation, settings, new List<JsonConverter>())
+		{
+		}
+
+		/// <summary>
+		/// Creates a remoting client for the given server and opens the network connection
+		/// </summary>
+		/// <param name="server">Server name or IP</param>
+		/// <param name="port">Network port</param>
+		/// <param name="authenticationInformation"> credentials for authentication</param>
+		/// <param name="settings">Advanced connection settings</param>
+		/// <param name="extraConverters">A list of separate type-to-json converters. The use of <see cref="IManualSerialization"/> is preferred, though</param>
+		public Client(string server, int port, AuthenticationInformation authenticationInformation, ConnectionSettings settings, IList<JsonConverter> extraConverters)
 		{
 			Settings = settings ?? throw new ArgumentNullException(nameof(settings));
 			_clientAuthentication = authenticationInformation;
@@ -83,7 +99,7 @@ namespace NewRemoting
 			_builder = new DefaultProxyBuilder();
 			_proxy = new ProxyGenerator(_builder);
 			_instanceManager = new InstanceManager(_proxy, instanceLogger);
-			_formatterFactory = new FormatterFactory(_instanceManager);
+			_formatterFactory = new FormatterFactory(_instanceManager, extraConverters);
 
 			_messageHandler = new MessageHandler(_instanceManager, _formatterFactory, Logger);
 
@@ -116,6 +132,15 @@ namespace NewRemoting
 
 			// This is used as return channel
 			_server = new Server(s, _messageHandler, _interceptor);
+			_server.AddExternalSurrogates(extraConverters);
+
+			var remotingServerService = RequestRemoteInstance<IRemoteServerService>();
+			if (remotingServerService == null)
+			{
+				throw new RemotingException("Could not connect to remote loader interface, although server is up");
+			}
+
+			Logger.LogInformation("Got interface to {0}", remotingServerService.GetType().Name);
 		}
 
 		public ConnectionSettings Settings { get; }
@@ -627,6 +652,28 @@ namespace NewRemoting
 		public Task ForceGcAsync()
 		{
 			return Task.Factory.StartNew(ForceGc);
+		}
+
+		/// <summary>
+		/// Pushes the extra surrogate declarations to the server.
+		/// Cannot be done directly in the constructor, as it may first be necessary to copy the code to the remote side
+		/// </summary>
+		/// <exception cref="NotImplementedException"></exception>
+		public void PublishExtraSurrogates()
+		{
+			var remoteServer = RequestRemoteInstance<IRemoteServerService>();
+			var extraSurrogates = _formatterFactory.GetExternalSurrogates();
+			if (extraSurrogates.Any())
+			{
+				List<Type> typeList = new List<Type>();
+				foreach (var instance in extraSurrogates)
+				{
+					typeList.Add(instance.GetType());
+				}
+
+				remoteServer.RegisterConverters(typeList);
+				Logger.LogInformation("Extra surrogates registered");
+			}
 		}
 	}
 }

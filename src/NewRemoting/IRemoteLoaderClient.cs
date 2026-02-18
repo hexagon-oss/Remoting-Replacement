@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Text.Json.Serialization;
 using System.Threading;
 using Microsoft.Extensions.Logging;
 
@@ -39,7 +41,17 @@ namespace NewRemoting
 		/// <param name="clientConnectionLogger">A logger for logging all communication activities. Use for debugging only, as it has a
 		/// performance penalty</param>
 		/// <exception cref="RemotingException">Thrown if connection to remote loader fails</exception>
-		void Connect(CancellationToken cancellationToken, ILogger clientConnectionLogger = null);
+		void Connect(CancellationToken cancellationToken, ILogger clientConnectionLogger);
+
+		/// <summary>
+		/// Connects the remote loader to the remote system;
+		/// </summary>
+		/// <param name="cancellationToken">Abort token for connection attempt</param>
+		/// <param name="extraSurrogates">A list of extra converters</param>
+		/// <param name="clientConnectionLogger">A logger for logging all communication activities. Use for debugging only, as it has a
+		/// performance penalty</param>
+		/// <exception cref="RemotingException">Thrown if connection to remote loader fails</exception>
+		void Connect(CancellationToken cancellationToken, IList<JsonConverter> extraSurrogates, ILogger clientConnectionLogger);
 
 		/// <summary>
 		/// Connects the remote loader to the remote system; Fails if an instance already exists.
@@ -47,12 +59,13 @@ namespace NewRemoting
 		/// </summary>
 		/// <param name="checkExistingInstance">If true a check of existing process with same name is done on the remote host</param>
 		/// <param name="cancellationToken">Abort token for connection attempt</param>
+		/// <param name="extraSurrogates">A set of extra converters</param>
 		/// <param name="clientConnectionLogger">A logger for logging all communication activities. Use for debugging only, as it has a
 		/// performance penalty</param>
 		/// <returns>Return true if a new instance of the remoting server is launched, false if an instance already exists</returns>
 		/// <exception cref="RemotingException">Thrown if connection to remote loader fails. Or if the remote command to get the running process fails</exception>
 		/// <exception cref="OperationCanceledException">Thrown if timeout occurs or cancellation</exception>
-		bool Connect(bool checkExistingInstance, CancellationToken cancellationToken, ILogger clientConnectionLogger = null);
+		bool Connect(bool checkExistingInstance, CancellationToken cancellationToken, IList<JsonConverter> extraSurrogates, ILogger clientConnectionLogger);
 
 		/// <summary>
 		/// Creates an object in a host process on a remote machine.

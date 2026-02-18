@@ -7,6 +7,9 @@ using System.Threading.Tasks;
 
 namespace NewRemoting
 {
+	/// <summary>
+	/// This interface offers some services the server is always providing for it's own use.
+	/// </summary>
 	public interface IRemoteServerService
 	{
 		/// <summary>
@@ -93,5 +96,7 @@ namespace NewRemoting
 		/// Performs a server side GC
 		/// </summary>
 		void PerformGc();
+
+		void RegisterConverters(IList<Type> converters);
 	}
 }

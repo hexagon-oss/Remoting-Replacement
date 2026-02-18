@@ -1,10 +1,12 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 using System.Threading;
 using CommandLine;
 using Microsoft.Extensions.Logging;
@@ -181,7 +183,7 @@ namespace RemotingClient
 						InstanceManagerLogger = logWriter,
 					};
 
-					Client client = new Client(ip, Client.DefaultNetworkPort, certificate, settings);
+					Client client = new Client(ip, Client.DefaultNetworkPort, certificate, settings, new List<JsonConverter>());
 					return client;
 				}
 				catch (SocketException x)

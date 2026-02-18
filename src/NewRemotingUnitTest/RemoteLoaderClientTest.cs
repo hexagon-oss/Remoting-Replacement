@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography.X509Certificates;
+using System.Text.Json.Serialization;
 using System.Threading;
 using Microsoft.Extensions.Logging;
 using NewRemoting;
@@ -71,7 +73,7 @@ namespace NewRemotingUnitTest
 				// if the socket exception already happened we catch the remotingException throw after the one second wait.
 				try
 				{
-					client.Connect(errorTokenSource.Token);
+					client.Connect(errorTokenSource.Token, null);
 				}
 				catch (RemotingException e)
 				{
@@ -139,7 +141,7 @@ namespace NewRemotingUnitTest
 				using (IRemoteLoaderClient client = new RemoteLoaderWindowsClient(_remoteCredentials, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(2), string.Empty))
 				{
 					CancellationTokenSource errorTokenSource = new CancellationTokenSource();
-					Assert.That(client.Connect(true, errorTokenSource.Token, null));
+					Assert.That(client.Connect(true, errorTokenSource.Token, new List<JsonConverter>(), null));
 				}
 			}
 
@@ -149,8 +151,8 @@ namespace NewRemotingUnitTest
 				using (IRemoteLoaderClient client = new RemoteLoaderWindowsClient(_remoteCredentials, "127.0.0.1", Client.DefaultNetworkPort, new FileHashCalculator(), f => true, TimeSpan.FromSeconds(2), string.Empty))
 				{
 					CancellationTokenSource errorTokenSource = new CancellationTokenSource();
-					Assert.That(client.Connect(true, errorTokenSource.Token, null));
-					Assert.That(!client.Connect(true, errorTokenSource.Token, null));
+					Assert.That(client.Connect(true, errorTokenSource.Token, new List<JsonConverter>(), null));
+					Assert.That(!client.Connect(true, errorTokenSource.Token, new List<JsonConverter>(), null));
 				}
 			}
 
@@ -277,7 +279,7 @@ namespace NewRemotingUnitTest
 				{
 					// check if cancellation works, timeout here is shorter than the 10 seconds one in Connect implementation
 					CancellationTokenSource timeoutCts = new CancellationTokenSource(100);
-					Assert.Throws<OperationCanceledException>(() => client.Connect(true, timeoutCts.Token, null));
+					Assert.Throws<OperationCanceledException>(() => client.Connect(true, timeoutCts.Token, new List<JsonConverter>(), null));
 				}
 			}
 
@@ -287,7 +289,7 @@ namespace NewRemotingUnitTest
 				using (IRemoteLoaderClient client = new RemoteLoaderFactory().Create(RemoteCredentials, "wrongRemote"))
 				{
 					CancellationTokenSource errorTokenSource = new CancellationTokenSource();
-					Assert.Throws<RemotingException>(() => client.Connect(true, errorTokenSource.Token, null));
+					Assert.Throws<RemotingException>(() => client.Connect(true, errorTokenSource.Token, new List<JsonConverter>(), null));
 				}
 			}
 
@@ -297,7 +299,7 @@ namespace NewRemotingUnitTest
 				using (IRemoteLoaderClient client = new RemoteLoaderFactory().Create(RemoteCredentials, RemoteHost))
 				{
 					CancellationTokenSource errorTokenSource = new CancellationTokenSource();
-					Assert.That(client.Connect(true, errorTokenSource.Token, null));
+					Assert.That(client.Connect(true, errorTokenSource.Token, new List<JsonConverter>(), null));
 				}
 			}
 
@@ -307,8 +309,8 @@ namespace NewRemotingUnitTest
 				using (IRemoteLoaderClient client = new RemoteLoaderFactory().Create(RemoteCredentials, RemoteHost))
 				{
 					CancellationTokenSource errorTokenSource = new CancellationTokenSource();
-					Assert.That(client.Connect(true, errorTokenSource.Token, null));
-					Assert.That(!client.Connect(true, errorTokenSource.Token, null));
+					Assert.That(client.Connect(true, errorTokenSource.Token, new List<JsonConverter>(), null));
+					Assert.That(!client.Connect(true, errorTokenSource.Token, new List<JsonConverter>(), null));
 				}
 			}
 
