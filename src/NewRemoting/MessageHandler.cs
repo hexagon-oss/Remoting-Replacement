@@ -12,6 +12,7 @@ using System.Runtime.ExceptionServices;
 using System.Runtime.Serialization;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using Castle.DynamicProxy;
 using Microsoft.Extensions.Logging;
 using NewRemoting.Toolkit;
@@ -321,6 +322,11 @@ namespace NewRemoting
 					}
 				}
 			}
+			else if (data is CancellationTokenSource)
+			{
+				throw new InvalidOperationException(
+					"A CancellationTokenSource cannot be used in a remote call. Use CrossAppDomainCancellationTokenSource instead");
+			}
 			else if (TypeIsContainerWithReference(data, out Type contentType))
 			{
 				var list = data as IEnumerable;
@@ -581,6 +587,28 @@ namespace NewRemoting
 
 					w.Write(byteArray.Length);
 					w.Write(byteArray, 0, byteArray.Length);
+					return true;
+				}
+
+				case CancellationToken token:
+				{
+					// Ordinary cancellationtokens are not serializable, but we can still support them by encoding their state (canceled or not) and reconstructing them on the other side
+					w.Write((int)RemotingReferenceType.CancellationToken);
+					if (token == CancellationToken.None)
+					{
+						// We allow these special cases, because they are commonly used and don't require any special handling on the receiving side
+						w.Write(0);
+					}
+					else if (token.IsCancellationRequested)
+					{
+						w.Write(1);
+					}
+					else
+					{
+						throw new InvalidOperationException(
+							"Cannot use CancellationToken's in an RPC call. Use CrossAppDomainCancellationTokenSource instead");
+					}
+
 					return true;
 				}
 			}
@@ -938,6 +966,26 @@ namespace NewRemoting
 					}
 
 					return ret;
+				}
+
+				case RemotingReferenceType.CancellationToken:
+				{
+					int tokenState = r.ReadInt32();
+					if (tokenState == 0)
+					{
+						return CancellationToken.None;
+					}
+					else if (tokenState == 1)
+					{
+						var cts = new CancellationTokenSource();
+						cts.Cancel();
+						return cts.Token;
+					}
+					else
+					{
+						throw new InvalidOperationException(
+							"Invalid token state received. Cannot use CancellationToken's in an RPC call. Use CrossAppDomainCancellationTokenSource instead");
+					}
 				}
 
 				case RemotingReferenceType.AddEvent:

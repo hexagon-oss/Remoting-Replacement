@@ -39,6 +39,7 @@ namespace NewRemoting
 		AddEvent,
 		RemoveEvent,
 		MethodPointer,
-		ByteArray
+		ByteArray,
+		CancellationToken,
 	}
 }
