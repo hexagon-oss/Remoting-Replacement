@@ -20,12 +20,17 @@ namespace SampleServerClasses
 			cancellationToken.ThrowIfCancellationRequested();
 		}
 
-		public virtual void DoSomethingWithNormalToken(ICrossAppDomainCancellationToken cancellationToken)
+		public virtual void WaitForToken(ICrossAppDomainCancellationToken cancellationToken)
 		{
-			TakeToken(cancellationToken.GetLocalCancellationToken());
+			WaitForCancellation(cancellationToken.GetLocalCancellationToken());
 		}
 
-		private void TakeToken(CancellationToken token)
+		public virtual void DoSomethingWithNormalToken(CancellationToken cancellationToken)
+		{
+			WaitForCancellation(cancellationToken);
+		}
+
+		private void WaitForCancellation(CancellationToken token)
 		{
 			Stopwatch w = Stopwatch.StartNew();
 			while (true)
@@ -36,6 +41,7 @@ namespace SampleServerClasses
 				}
 
 				token.ThrowIfCancellationRequested();
+				Thread.Sleep(100);
 			}
 		}
 	}

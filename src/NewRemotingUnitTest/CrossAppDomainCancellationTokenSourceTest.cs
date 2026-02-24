@@ -94,7 +94,7 @@ namespace NewRemotingUnitTest
 			{
 				Assert.That(!cts.IsCancellationRequested);
 				cts.CancelAfter(TimeSpan.FromSeconds(0.2));
-				Assert.Throws<OperationCanceledException>(() => dummy.DoSomethingWithNormalToken(cts.Token));
+				Assert.Throws<OperationCanceledException>(() => dummy.WaitForToken(cts.Token));
 				Assert.That(cts.IsCancellationRequested);
 			}
 		}
@@ -109,6 +109,38 @@ namespace NewRemotingUnitTest
 				dummy.DoSomething(cts.Token);
 				Assert.That(cts.IsCancellationRequested, Is.False);
 			}
+		}
+
+		[Test]
+		public void UseCancellationWithWrongTokenSource()
+		{
+			Stopwatch sw = Stopwatch.StartNew();
+			var dummy = _client.CreateRemoteInstance<DummyCancellableType>();
+			var cts = new CancellationTokenSource();
+
+			var token = cts.Token;
+			Assert.That(!cts.IsCancellationRequested);
+			cts.Cancel();
+			Assert.Throws<OperationCanceledException>(() => dummy.DoSomethingWithNormalToken(token)); // No crash, since already cancelled
+			Assert.That(cts.IsCancellationRequested);
+			cts.Dispose();
+
+			// Note: If we use cts.Token here, it will throw ObjectDisposedException right away. But we want to see whether
+			// the server can handle the case where the token source is already disposed, so we use the token that we got before disposing the source.
+			Assert.Throws<OperationCanceledException>(() => dummy.DoSomethingWithNormalToken(token));
+		}
+
+		[Test]
+		public void UseCancellationWithWrongToken()
+		{
+			Stopwatch sw = Stopwatch.StartNew();
+			var dummy = _client.CreateRemoteInstance<DummyCancellableType>();
+			var cts = new CancellationTokenSource();
+
+			var token = cts.Token;
+			Assert.Throws<InvalidOperationException>(() => dummy.DoSomethingWithNormalToken(token));
+			Assert.That(cts.IsCancellationRequested, Is.False);
+			cts.Dispose();
 		}
 	}
 }
