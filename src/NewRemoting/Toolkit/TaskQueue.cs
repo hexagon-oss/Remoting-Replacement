@@ -1,19 +1,23 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace NewRemoting.Toolkit
 {
 	/// <summary>
-	/// This class ensures, that all tasks passed to the queue are executed in sequential order
+	/// This class ensures, that all tasks passed to the queue are executed in sequential order.
+	/// Every task can have an object assigned to it that can also be queried from outside (e.g. to identify
+	/// what kind of tasks is in the queue)
 	/// </summary>
-	public sealed class TaskQueue : ITaskQueue
+	public class TaskQueue<T> : ITaskQueue<T>
 	{
 		private readonly Action<AggregateException> _exceptionHandler;
 		private readonly object _queueLock = new object();
-		private Queue<Task> _taskQueue;
+		private Queue<(Task Task, T Tag)> _taskQueue;
 		private Task _currentTask;
 
 		/// <summary>
@@ -21,7 +25,7 @@ namespace NewRemoting.Toolkit
 		/// </summary>
 		public TaskQueue()
 		{
-			_taskQueue = new Queue<Task>();
+			_taskQueue = new Queue<(Task, T)>();
 			_currentTask = null;
 		}
 
@@ -57,19 +61,22 @@ namespace NewRemoting.Toolkit
 			}
 		}
 
+		public IEnumerator<T> GetEnumerator()
+		{
+			lock (_queueLock)
+			{
+				return _taskQueue.Select(x => x.Tag).GetEnumerator();
+			}
+		}
+
+		IEnumerator IEnumerable.GetEnumerator()
+		{
+			return GetEnumerator();
+		}
+
 		public void Add(Action action)
 		{
 			AddInternal(action, true);
-		}
-
-		public void Add(Delegate del, object[] para)
-		{
-			AddInternal(del, para, true);
-		}
-
-		public void Add(Task task)
-		{
-			AddInternal(task, true);
 		}
 
 		public bool TryAdd(Action action)
@@ -77,40 +84,26 @@ namespace NewRemoting.Toolkit
 			return AddInternal(action, false);
 		}
 
-		/// <summary>
-		/// Attention: is very slow consider wrapping time critical stuff into an action <see cref="Add(Action)" />.
-		/// <code>
-		/// Add(new Action(() => Call(p1, p2, p3, ...));
-		/// </code>
-		/// </summary>
-		public bool TryAdd(Delegate del, object[] para)
+		public void Add(Action<T> action, T tag)
 		{
-			return AddInternal(del, para, false);
+			AddInternal(action, tag, true);
 		}
 
-		public bool TryAdd(Task task)
+		public bool TryAdd(Action<T> action, T tag)
 		{
-			return AddInternal(task, false);
+			return AddInternal(action, tag, false);
 		}
 
 		private bool AddInternal(Action action, bool throwOnDisabled)
 		{
-			return AddInternal(new Task(action), throwOnDisabled);
-		}
-
-		/// <summary>
-		/// <see cref="Delegate.DynamicInvoke"/> is very slow
-		/// </summary>
-		private bool AddInternal(Delegate del, object[] para, bool throwOnDisabled)
-		{
-			return AddInternal(new Task(() => del.DynamicInvoke(para)), throwOnDisabled);
+			return AddInternal(x => action(), default, throwOnDisabled);
 		}
 
 		/// <summary>
 		/// Adds a Tasks to the task Queue
 		/// </summary>
 		/// <exception cref="InvalidOperationException">Adding tasks to disabled queue is not allowed</exception>
-		private bool AddInternal(Task task, bool throwOnDisabled)
+		private bool AddInternal(Action<T> action, T tag, bool throwOnDisabled)
 		{
 			var added = false;
 			lock (_queueLock)
@@ -122,7 +115,7 @@ namespace NewRemoting.Toolkit
 
 				if (_taskQueue != null)
 				{
-					_taskQueue.Enqueue(task);
+					_taskQueue.Enqueue((new Task(() => action(tag)), tag));
 					added = true;
 				}
 
@@ -179,7 +172,7 @@ namespace NewRemoting.Toolkit
 				if (_currentTask == null && _taskQueue != null && _taskQueue.Count > 0)
 				{
 					// Leave currently executing task in queue until fully executed, this makes waiting for all tasks executed much easier than when removing here and handling the currently executing task separately
-					_currentTask = _taskQueue.Peek();
+					(_currentTask, _) = _taskQueue.Peek();
 					var whereToContinueTask = _currentTask;
 					if (_exceptionHandler != null)
 					{
@@ -205,6 +198,18 @@ namespace NewRemoting.Toolkit
 				Monitor.PulseAll(_queueLock);
 				RunTask();
 			}
+		}
+	}
+
+	public class TaskQueue : TaskQueue<object>
+	{
+		public TaskQueue()
+		{
+		}
+
+		public TaskQueue(Action<AggregateException> exceptionHandler)
+			: base(exceptionHandler)
+		{
 		}
 	}
 }

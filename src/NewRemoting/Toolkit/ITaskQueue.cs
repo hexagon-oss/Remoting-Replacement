@@ -1,9 +1,10 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace NewRemoting.Toolkit
 {
-	public interface ITaskQueue
+	public interface ITaskQueue<T> : IEnumerable<T>
 	{
 		/// <summary>
 		/// Returns the number of tasks in the queue
@@ -20,36 +21,23 @@ namespace NewRemoting.Toolkit
 		bool TryAdd(Action action);
 
 		/// <summary>
-		/// Adds a delegate with parameters for sequential execution to the task queue.
-		/// Attention: Less performant than using an action.
-		/// Returns false if queue is disabled.
+		/// Tries to add an action for sequential execution to the task queue.
+		/// Throws if queue is disabled. The provided tag argument is readable
+		/// from outside and provided as argument to the action once it is started.
 		/// </summary>
-		bool TryAdd(Delegate del, object[] para);
+		void Add(Action<T> action, T tag);
 
 		/// <summary>
-		/// Adds a task for sequential execution to the task queue.
+		/// Tries to add an action for sequential execution to the task queue.
 		/// Returns false if queue is disabled.
 		/// </summary>
-		bool TryAdd(Task task);
+		bool TryAdd(Action<T> action, T tag);
 
 		/// <summary>
 		/// Tries to add an action for sequential execution to the task queue.
 		/// Throws if queue is disabled.
 		/// </summary>
 		void Add(Action action);
-
-		/// <summary>
-		/// Adds a delegate with parameters for sequential execution to the task queue.
-		/// Attention: Less performant than using an action.
-		/// Throws if queue is disabled.
-		/// </summary>
-		void Add(Delegate del, object[] para);
-
-		/// <summary>
-		/// Adds a task for sequential execution to the task queue.
-		/// Throws if queue is disabled.
-		/// </summary>
-		void Add(Task task);
 
 		/// <summary>
 		/// Waits until the tasks queue becomes empty
