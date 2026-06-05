@@ -65,7 +65,7 @@ namespace NewRemoting.Toolkit
 		{
 			lock (_queueLock)
 			{
-				return _taskQueue.Select(x => x.Tag).GetEnumerator();
+				return _taskQueue.Select(x => x.Tag).ToList().GetEnumerator();
 			}
 		}
 

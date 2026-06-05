@@ -248,7 +248,7 @@ namespace NewRemoting
 			int exitCode = -1;
 
 			// We try to run the process max 3 times. On older systems it is possible that ping is success but
-			// paecec failes to run!
+			// paexec fails to run!
 			var proc = remoteConsole.CreateProcess(FormattableString.Invariant($"c:\\windows\\system32\\cmd.exe /c echo {remoteFileDirectory} & if not exist \"{remoteFileDirectory}\" mkdir \"{remoteFileDirectory}\""), redirectStandardOutput: true);
 			int runCounter = 1;
 			while (!externalCancellation.IsCancellationRequested)
@@ -372,9 +372,9 @@ namespace NewRemoting
 							_internalCancellationTokenSource?.Cancel();
 						}
 					};
-					Logger.LogInformation(FormattableString.Invariant($"Starting remote process: {process.StartInfo.FileName} in {process.StartInfo.WorkingDirectory}"));
+					Logger.LogInformation(FormattableString.Invariant($"Starting remote process: {process.StartInfo}"));
 
-					clientConnectionLogger?.LogInformation($"Starting remote process: {process.StartInfo.FileName} in {process.StartInfo.WorkingDirectory}");
+					clientConnectionLogger?.LogInformation($"Starting remote process: {process.StartInfo}");
 
 					if (!process.Start())
 					{
