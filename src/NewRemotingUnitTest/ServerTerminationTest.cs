@@ -30,7 +30,8 @@ namespace NewRemotingUnitTest
 
 			// Port is currently hardcoded
 			_client = new Client("localhost", Client.DefaultNetworkPort, null, new ConnectionSettings());
-			_client.Start();
+			_client.PublishExtraSurrogates();
+			_client.RequestRemoteInstance<IRemoteServerService>();
 		}
 
 		[OneTimeTearDown]
@@ -93,6 +94,20 @@ namespace NewRemotingUnitTest
 			}
 
 			Assert.That(didThrow);
+		}
+
+		[Test]
+		public void TestClosingConnection()
+		{
+			var server = _client.RequestRemoteInstance<IRemoteServerService>();
+			Assert.That(server.Ping());
+			_client.Disconnect();
+			_client.Dispose();
+			var remainingThreads = Process.GetCurrentProcess().Threads;
+			foreach (ProcessThread thread in remainingThreads)
+			{
+				Assert.That(thread, Is.Not.Null);
+			}
 		}
 
 		public class TestDummy : MarshalByRefObject
