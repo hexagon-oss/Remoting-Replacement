@@ -22,8 +22,8 @@ namespace NewRemotingUnitTest
 		private Process _serverProcess;
 		private Client _client;
 
-		[OneTimeSetUp]
-		public void OneTimeSetUp()
+		[SetUp]
+		public void SetUp()
 		{
 			_serverProcess = Process.Start("RemotingServer.exe");
 			Assert.That(_serverProcess, Is.Not.Null);
@@ -34,8 +34,8 @@ namespace NewRemotingUnitTest
 			_client.RequestRemoteInstance<IRemoteServerService>();
 		}
 
-		[OneTimeTearDown]
-		public void OneTimeTearDown()
+		[TearDown]
+		public void TearDown()
 		{
 			if (_client != null)
 			{
@@ -103,11 +103,17 @@ namespace NewRemotingUnitTest
 			Assert.That(server.Ping());
 			_client.Disconnect();
 			_client.Dispose();
-			var remainingThreads = Process.GetCurrentProcess().Threads;
-			foreach (ProcessThread thread in remainingThreads)
-			{
-				Assert.That(thread, Is.Not.Null);
-			}
+		}
+
+		[Test]
+		public void TestDisconnectingAfterServerCloses()
+		{
+			var server = _client.RequestRemoteInstance<IRemoteServerService>();
+			Assert.That(server.Ping());
+			_serverProcess.Kill();
+
+			_client.Disconnect();
+			_client.Dispose();
 		}
 
 		public class TestDummy : MarshalByRefObject

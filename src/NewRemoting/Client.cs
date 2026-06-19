@@ -393,7 +393,7 @@ namespace NewRemoting
 				{
 					disp = hd.WriteHeader(_writer);
 				}
-				catch (System.IO.IOException x)
+				catch (Exception x) when (x is IOException || x is ObjectDisposedException)
 				{
 					Logger.LogError(x, "Sending termination command failed. Server already down?");
 				}
